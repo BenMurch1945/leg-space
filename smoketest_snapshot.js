@@ -4800,7 +4800,7 @@ console.log('SI4 exclusive situations never share a visit:', si4.ok ? 'PASS' : '
 // SI5 what is not dealt does not happen: no crate, no Varric, no cutpurse, no minor stop
 const si5 = (() => {
   G.PORT_LEVELS.gateway = G.CROSSPORT_PORT; G.doShipReset();
-  G.bzSet({visit: {n: 1, day: 0, seed: G.ship.world.seed, picks: []}});
+  G.bzSet({visit: {n: 1, day: 0, seed: G.ship.world.seed, reg: Object.keys(G.SITUATIONS).sort().join(','), picks: []}});   // a current-build hand with nothing in it
   G.enterPort();
   const noCrate = !G.bzCrate() && !G.situationLive('crate') && !G.situationLive('lightfingers');
   const hero = G.state.squad[0];
