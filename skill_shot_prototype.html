@@ -8207,7 +8207,66 @@ function errandTick(cv, dt){
       if(er.then) er.then(cv, tg);
       return true;
     }
-    civTravel(cv, tg.x, tg.y, civSpd({gait: 0.85}), dt);
+    civTravel(cv, tg.x, tg.y, er.spd || civSpd({gait: 0.85}), dt);
+    return true;
+  }
+  // the fan: at your shoulder for as long as nerve lasts, never past the ramp
+  if(er.kind === 'fan'){
+    if(typeof askPending !== 'undefined' && askPending) return true;
+    er.t = (er.t || 0) + dt;
+    if(state.deckCombat && (state.enemies || []).some(e => e.alive && !e.ko)){
+      cv.spooked = true; cv.tide = true;
+      cv.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
+      addPopup(cv.x, cv.y - cv.r - 14, '!!', '#e0483e');
+      return true;
+    }
+    if(er.t > (er.life || 180)){
+      cv.tide = true;
+      cv.errand = {kind: 'cross', path: [{x: (state.doors[0] || {x: cv.x}).x, y: (state.doors[0] || {y: cv.y}).y}], leg: 0, waitT: 0};
+      return true;
+    }
+    let near = null, nd = 1e9;
+    for(const c3 of state.squad){
+      if(!c3.alive || inShipZone(c3.x, c3.y)) continue;
+      const d3 = Math.hypot(c3.x - cv.x, c3.y - cv.y);
+      if(d3 < nd){ nd = d3; near = c3; }
+    }
+    if(near && nd > 52) civTravel(cv, near.x, near.y, civSpd(cv) * 1.15, dt);
+    return true;
+  }
+  // the recovery crew: body to body, then out by the arch
+  if(er.kind === 'cleanup'){
+    if(state.deckCombat) return true;   // nobody bags anything under fire
+    if(er.leaving){
+      const dr = er.leaving;
+      if(Math.hypot(dr.x - cv.x, dr.y - cv.y) < 22){ cv.gone = true; return true; }
+      civTravel(cv, dr.x, dr.y, 60, dt);
+      return true;
+    }
+    const bodies = bodiesOnFloor().filter(bd => !bd.obj.claimed || bd.obj.claimed === cv.name);
+    if(!bodies.length){
+      let dr = (state.doors || [])[0], dd0 = 1e9;
+      for(const d2 of (state.doors || [])){ const d = Math.hypot(d2.x - cv.x, d2.y - cv.y); if(d < dd0){ dd0 = d; dr = d2; } }
+      if(!dr){ cv.gone = true; return true; }
+      er.leaving = {x: dr.x, y: dr.y};
+      if(cv.bag) chronicle('event', cv.name + ' left by the arch with ' + cv.bag + ' on the stretcher. The floor is clear; the file is not.');
+      return true;
+    }
+    let bd = null, dd = 1e9;
+    for(const b2 of bodies){ const d = Math.hypot(b2.obj.x - cv.x, b2.obj.y - cv.y); if(d < dd){ dd = d; bd = b2; } }
+    bd.obj.claimed = cv.name;
+    if(dd < 26){
+      er.wt = (er.wt || 0) + dt;
+      if(er.wt < 2.5) return true;   // the lift takes a moment
+      er.wt = 0;
+      bd.obj.bagged = true;
+      cv.bag = (cv.bag || 0) + 1;
+      if(bd.list === 'civs') state.civs = state.civs.filter(c3 => c3 !== bd.obj);
+      else state.enemies = state.enemies.filter(e3 => e3 !== bd.obj);
+      addPopup(cv.x, cv.y - cv.r - 14, 'BAGGED \u00B7 ' + (bd.obj.name || 'UNKNOWN').toUpperCase(), '#b06ae0');
+      return true;
+    }
+    civTravel(cv, bd.obj.x, bd.obj.y, 60, dt);
     return true;
   }
   // the slink: an easy walk to an arch, by someone sure nobody saw
@@ -8319,6 +8378,13 @@ function errandTick(cv, dt){
             if(cp9.kind === 'constable' && cp9.alive && !cp9.ko && !cp9.respond) cp9.chase = cr.perp;
           addPopup(tgt.x, tgt.y - (tgt.r || 14) - 14, 'WORD OF A CUTPURSE', '#b06ae0');
         }
+        return true;
+      }
+      if(cr && cr.grade === 'defence'){
+        // the story is "he drew first": no warrant, but the officer walks over and the floor gets cleared
+        if(tgt.kind === 'constable'){ tgt.attend = cr.who; addPopup(tgt.x, tgt.y - (tgt.r || 9) - 14, 'WORD OF A KNIFE', '#6fd6ff'); }
+        chronicle('event', 'A bystander told the law that ' + cr.who + ' was attacked first. No paper moves. The officer still wants a word.');
+        cleanupCall();
         return true;
       }
       const bW = bz();
@@ -9181,6 +9247,7 @@ function postingCycle(i){ return POSTING_CYCLES[i % POSTING_CYCLES.length]; }
 function postingOpen(i, day){
   const L = LEVELS[i];
   if(!L || !L.at) return true;                 // work aboard ship never lapses
+  { const pp = bz() && bz().ffPaper; if(pp && pp.level === i && day - pp.day <= 10) return true; }   // a stranger's paper holds it open
   const c = postingCycle(i);
   return ((day + c.off) % (c.open + c.closed)) < c.open;
 }
@@ -9335,8 +9402,215 @@ function bazaarSeed(){
     caruso: 0,                                // has the rock star stumbled out of the tide yet
     facRep: {},                               // standing with each faction, by what their people saw
     visit: null,                              // the picker's last roll: {n, day, seed, picks}
+    ff: null, ffPaper: null,                  // this visit's familiar face; a stranger's posting paper
     resolved: null,
   };
+}
+// ---- a familiar face: who breaks from the crowd, and what they want ----
+const FACE_NAMES = [
+  {name: 'Oskar Venn',  race: 'HUMAN',    sex: 'MALE'},
+  {name: 'Ilse Marrow', race: 'VAMPIRE',  sex: 'FEMALE'},
+  {name: 'Tam Quill',   race: 'AMAROK',   sex: 'MALE'},
+  {name: 'Greta Holm',  race: 'MINOTAUR', sex: 'FEMALE'},
+  {name: 'Pell Saric',  race: 'YOKAI',    sex: 'FEMALE'},
+];
+// who the fan thinks they've seen: a famous face of the operator's own kind
+const FACE_FAMOUS = {
+  vampire: 'Caruso Veil',
+  minotaur: 'Dorn Harrack, the ring champion',
+  amarok: 'Ninefold, the stripe singer',
+  human: 'the newsreader from the Twist broadcasts',
+};
+const FACES = {
+  assassin: {weight: 3, title: 'A FAMILIAR FACE \u00B7 KNIFE OUT'},
+  friend:   {weight: 3, title: 'A FAMILIAR FACE \u00B7 AN OLD FRIEND'},
+  fan:      {weight: 2, title: 'A FAMILIAR FACE \u00B7 MISTAKEN'},
+  help:     {weight: 3, title: 'A FAMILIAR FACE \u00B7 A STRANGER IN TROUBLE'},
+};
+function ffFacts(){ const b = bz(); return (b && b.ff) || null; }
+// the trigger: one face per visit, a few seconds after an operator is out on the open floor
+function faceTrigger(forceKey, forceCv){
+  const b = bz();
+  if(!b || !b.visit) return null;
+  if(b.ff && b.ff.n === b.visit.n) return null;          // this visit's face already broke cover
+  const tg = (state.squad || []).find(c2 => c2.alive && !c2.downed && !inShipZone(c2.x, c2.y));
+  if(!tg) return null;
+  const rng = rngFor('face|' + b.visit.n);
+  let key = forceKey;
+  if(!key){
+    const pool = Object.keys(FACES);
+    let tot = 0; for(const k of pool) tot += FACES[k].weight;
+    let r = rng() * tot;
+    for(const k of pool){ r -= FACES[k].weight; if(r < 0){ key = k; break; } }
+    key = key || pool[pool.length - 1];
+  }
+  let cv = forceCv || null;
+  if(!cv){
+    let bd = 1e9;
+    for(const c3 of (state.civs || [])){
+      if(!c3.tide || !c3.alive || c3.ko || c3.name || c3.crook || c3.panic > 0) continue;
+      if(!c3.errand || !['visit', 'chat', 'cross'].includes(c3.errand.kind)) continue;   // nobody mid-errand: a robber, a runner, a porter keep their own story
+      const d = Math.hypot(c3.x - tg.x, c3.y - tg.y);
+      if(d < 320 || d > 900) continue;
+      if(d < bd){ bd = d; cv = c3; }
+    }
+  }
+  if(!cv) return null;
+  const who = FACE_NAMES[Math.floor(rng() * FACE_NAMES.length)];
+  cv.name = who.name; cv.race = who.race; cv.sex = who.sex;
+  cv.tide = false; cv.kind = 'face'; cv.face = key; cv.crook = null;
+  cv.brave = key === 'fan' ? 20 : (cv.brave || 10);
+  bzSet({ff: {n: b.visit.n, face: key, name: cv.name, state: 'coming', outcome: null}});
+  addPopup(cv.x, cv.y - cv.r - 14, '!', '#e0a33e');
+  chronicle('event', 'A face in the tide stopped dead, stared at ' + tg.name + ', and started to run.');
+  cv.errand = {kind: 'approach', path: [], leg: 0, waitT: 0, spd: civSpd({gait: 1.7}), then: (cvA, tgA) => faceArrive(cvA, tgA)};
+  return cv;
+}
+function faceArrive(cv, tg){
+  const b = bz();
+  if(!b || !b.ff || b.ff.state !== 'coming') return;
+  const ok = [{label: 'UNDERSTOOD'}];
+  const close = () => {};
+  if(cv.face === 'assassin'){
+    bzSet({ff: Object.assign({}, b.ff, {state: 'met'})});
+    const shownA = showEventModal(FACES.assassin.title,
+      cv.name + ' closes the last stride with a hand already inside a coat. \u201C' + tg.name + '. Somebody paid for you.\u201D The knife comes out low and fast. There is no conversation in this.',
+      [{label: 'DRAW', cb: () => faceAssassinFight(cv, tg)}]);
+    if(shownA === false) faceAssassinFight(cv, tg);   // no modal to click: the knife is out regardless
+    return;
+  }
+  if(cv.face === 'friend'){
+    const sidearm = WPN_SLOTS.sidearm.find(k => WPN_PRICE[k] && !(WEAPONS[k] && WEAPONS[k].race)) || 'pistol';
+    const d = tg.def || SQUAD_DEFS.find(d2 => d2.name === tg.name);
+    const give = () => {
+      if(d){
+        d.pack = d.pack || [];
+        if(d.pack.length < 4){
+          d.pack.push({kind: 'weapon', key: sidearm, own: tg.name});
+          addPopup(tg.x, tg.y - tg.r - 16, (WPN_NAMES[sidearm] || sidearm).toUpperCase() + ' \u00B7 BACK IN THE PACK', '#9fe08e');
+          chronicle('trade', cv.name + ' handed ' + tg.name + ' the ' + (WPN_NAMES[sidearm] || sidearm) + ' they left behind. It was always theirs; the pack just hadn\u2019t caught up.');
+          shipSave();
+        }else{
+          addPopup(tg.x, tg.y - tg.r - 16, 'PACK FULL \u00B7 HE KEEPS IT FOR NOW', '#e0a33e');
+          chronicle('event', cv.name + ' tried to return a sidearm; ' + tg.name + '\u2019s pack was full. It stays at his place a while longer.');
+        }
+      }
+      faceResolve('reunited', cv.name + ' went back into the crowd a friend. The sidearm is where it belongs. He drinks at the Slow Orbit, if anyone needs him.');
+      cv.tide = true; cv.kind = 'friend'; cv.errand = errandNew(cv);
+    };
+    bzSet({ff: Object.assign({}, b.ff, {state: 'met'})});
+    const shownF = showEventModal(FACES.friend.title,
+      cv.name + ' grabs ' + tg.name + ' by both shoulders and laughs. \u201CYou left your ' + (WPN_NAMES[sidearm] || sidearm) + ' at mine. Two years. I carried it to three ports looking for you.\u201D He puts it in your hands like it weighs nothing.',
+      [{label: 'TAKE IT', cb: give}]);
+    if(shownF === false) give();
+    return;
+  }
+  if(cv.face === 'fan'){
+    const famous = FACE_FAMOUS[(tg.def && tg.def.kind) || tg.kind || 'human'] || FACE_FAMOUS.human;
+    bzSet({ff: Object.assign({}, b.ff, {state: 'met', famous})});
+    cv.kind = 'fan';
+    cv.errand = {kind: 'fan', path: [], leg: 0, waitT: 0, t: 0, life: 150 + Math.floor(rngFor('fan|' + b.visit.n)() * 90)};
+    showEventModal(FACES.fan.title,
+      cv.name + ' skids to a stop, eyes enormous. \u201CIt\u2019s YOU. It\u2019s ' + famous + '. I knew it. I told everyone.\u201D ' + tg.name + ' is not ' + famous + '. This will not matter to ' + cv.name + ', who intends to follow you until it does.',
+      ok);
+    chronicle('event', cv.name + ' has mistaken ' + tg.name + ' for ' + famous + ' and attached themself to the crew. A fan sees everything, and a fan talks.');
+    return;
+  }
+  if(cv.face === 'help'){
+    const li = LEVELS.findIndex(l => l.at === 'spindle');
+    const take = () => {
+      bzSet({ffPaper: {level: li, day: ship.day || 0}});
+      chronicle('event', cv.name + '\u2019s paper is on the board: the Spindle expedition, posting held open for ten days on a stranger\u2019s word.');
+      faceResolve('paper', cv.name + ' pressed the paper into ' + tg.name + '\u2019s hands and went to find a berth outbound. The posting is open on the Spindle board for ten days, whatever the cycle says. Nobody else was asked.');
+      cv.tide = true; cv.errand = {kind: 'cross', path: [{x: (state.doors[0] || {x: cv.x}).x, y: (state.doors[0] || {y: cv.y}).y}], leg: 0, waitT: 0};
+    };
+    const refuse = () => {
+      faceResolve('refused', cv.name + ' folded the paper away and did not argue. Somebody else will take the Spindle job, or nobody will.');
+      cv.tide = true; cv.errand = {kind: 'cross', path: [{x: (state.doors[0] || {x: cv.x}).x, y: (state.doors[0] || {y: cv.y}).y}], leg: 0, waitT: 0};
+    };
+    bzSet({ff: Object.assign({}, b.ff, {state: 'met'})});
+    const shownH = showEventModal(FACES.help.title,
+      cv.name + ' has been crying and has stopped, which is worse. \u201CYou look like people who finish things. My brother\u2019s silk crew is nine days overdue on Spindle and the posting lapsed yesterday. I have the paper. I can hold it open \u2014 I just can\u2019t go.\u201D',
+      [{label: 'TAKE THE PAPER', cb: take}, {label: 'NOT OUR BUSINESS', cb: refuse}]);
+    if(shownH === false) take();
+    return;
+  }
+}
+function faceAssassinFight(cv, tg){
+  if(!(state.civs || []).includes(cv)) return;
+  const e2 = makeBoarder('runner', cv.x, cv.y);
+  e2.name = cv.name; e2.wpnKey = 'stdknife';
+  e2.wasCiv = true; e2.defence = true;   // he drew first: whoever puts him down was defending themselves
+  e2.alert = 'alerted';
+  e2.lastKnown = {x: tg.x, y: tg.y};
+  state.enemies.push(e2);
+  state.civs = state.civs.filter(c3 => c3 !== cv);
+  state.ffEnemy = e2;
+  state.portFight = true;
+  if(!state.deckCombat) enterDeckCombat();
+  showBanner('KNIFE OUT', '#e0483e');
+  chronicle('event', cv.name + ' drew on ' + tg.name + ' in the open. Whatever happens next, he started it \u2014 and the concourse saw who.');
+}
+function faceResolve(outcome, text){
+  const b = bz();
+  if(!b || !b.ff || b.ff.state === 'done') return false;
+  bzSet({ff: Object.assign({}, b.ff, {state: 'done', outcome})});
+  state.ffEnemy = null;
+  chronicle('event', 'Resolved: ' + text);
+  showEventModal('A FAMILIAR FACE \u00B7 RESOLVED', text, [{label: 'UNDERSTOOD'}]);
+  return true;
+}
+// the clocks: when does this face stop being an open question
+function faceTick(){
+  const b = bz();
+  if(!b || !b.ff || b.ff.state !== 'met') return;
+  if(b.ff.face === 'assassin'){
+    const e = state.ffEnemy;
+    if(!e) return;
+    if(!e.alive) return void faceResolve('dead', b.ff.name + ' is dead on the concourse. He drew first, and the law will hear it that way from anyone who saw \u2014 which is not the same as hearing nothing.');
+    if(e.ko) return void faceResolve('outcold', b.ff.name + ' is out cold on the floor with his knife beside him. The law will collect him, and will want to know why he came for you.');
+    if(!state.enemies.includes(e)) return void faceResolve('fled', b.ff.name + ' lost you in the tide and ran. A paid knife that fails is a knife that comes back, or a client who sends another.');
+    return;
+  }
+  if(b.ff.face === 'fan'){
+    const cv = (state.civs || []).find(c3 => c3.name === b.ff.name);
+    if(!cv || cv.gone) return void faceResolve('gone', b.ff.name + ' gave up and drifted off to tell everyone they met ' + (b.ff.famous || 'somebody') + '. Nobody will believe it. Nobody needs to.');
+    if(!cv.alive) return void faceResolve('dead', b.ff.name + ' is dead. They thought you were ' + (b.ff.famous || 'somebody famous') + '. That is all they ever thought.');
+    if(cv.errand && cv.errand.kind === 'law') return void faceResolve('told', b.ff.name + ' saw what the crew did and ran for the law with it. A fan sees everything; this one talked.');
+    if(cv.spooked) return void faceResolve('spooked', b.ff.name + ' bolted at the first shot. Whatever they think you are, they no longer want to stand next to it.');
+  }
+}
+
+// ---- the clean-up crew: the law finds a body, the body leaves on a stretcher ----
+const BZ_CLEANUP = [
+  {name: 'Marrow', kind: 'cleaner'}, {name: 'Tallis', kind: 'cleaner'},
+];
+function bodiesOnFloor(){
+  const out = [];
+  for(const cv of (state.civs || [])) if(!cv.alive && !cv.bagged && !inShipZone(cv.x, cv.y)) out.push({obj: cv, list: 'civs'});
+  for(const e of (state.enemies || [])) if(!e.alive && !e.bagged && !inShipZone(e.x, e.y)) out.push({obj: e, list: 'enemies'});
+  return out;
+}
+function cleanupCall(){
+  if(!state.portDock || !(state.doors || []).length) return false;
+  if((state.civs || []).some(cv => cv.kind === 'cleaner' && cv.alive && !cv.gone)) return false;   // already on the floor
+  const bodies = bodiesOnFloor();
+  if(!bodies.length) return false;
+  let door = state.doors[0], bd = 1e9;
+  for(const dr of state.doors){ const d = Math.hypot(dr.x - bodies[0].obj.x, dr.y - bodies[0].obj.y); if(d < bd){ bd = d; door = dr; } }
+  for(let i = 0; i < BZ_CLEANUP.length; i++){
+    const sp = BZ_CLEANUP[i];
+    state.civs.push({
+      x: door.x + (i - 0.5) * 18, y: door.y, r: 9, alive: true, ko: false, panic: 0,
+      tx: door.x, ty: door.y, pace: 24, bob: Math.random() * 6, hood: true,
+      kind: 'cleaner', name: sp.name, fac: 'constabulary', brave: 12, bag: 0,
+      faction: 'PORT CONSTABULARY \u00B7 RECOVERY', bio: 'Carries the dead off the floor so the living can keep shopping. Does not ask how they got there; that is somebody else\u2019s form.',
+      errand: {kind: 'cleanup', path: [], leg: 0, waitT: 0},
+    });
+  }
+  addPopup(door.x, door.y - 24, 'RECOVERY CREW', '#b06ae0');
+  chronicle('event', 'A recovery crew came through the arch with a stretcher. The Constabulary clears its floor; the paperwork follows the bodies, not the other way round.');
+  return true;
 }
 // ---- carried things: one law for hands, everywhere ----
 // a prop is a physical object: on the floor, in someone's hands, or flying
@@ -9439,6 +9713,7 @@ function tickProps(dt){
     const held = carriedThing(c);
     if(held && held.type === 'prop'){ held.prop.x = c.x; held.prop.y = c.y - c.r - 14; }
   }
+  if(state.shipDeck && state.portDock) faceTick();   // a familiar face resolves in a fight as readily as out of one
   // the port watches: stolen cargo carried in the open is carried in evidence
   if(state.shipDeck && !state.deckCombat && state.portDock){
     const b3 = bz();
@@ -9451,7 +9726,30 @@ function tickProps(dt){
       for(const cv of (state.civs || [])){
         if(cv.kind !== 'constable' || !cv.alive || cv.ko) continue;
         if(cv.pursue || cv.respond || cv.chase || cv.escort || cv.sweep || cv.hunt) continue;
+        if(cv.attend){
+          // the officer wants a word with the one who was attacked: a walk, then the search gameplay
+          const who = state.squad.find(c2 => c2.name === cv.attend && c2.alive);
+          if(!who || inShipZone(who.x, who.y)){ cv.attend = null; continue; }
+          if(Math.hypot(who.x - cv.x, who.y - cv.y) > 90){ civTravel(cv, who.x, who.y, 70, dt); continue; }
+          cv.attend = null;
+          if(!state.friskPend && !state.portFight){
+            chronicle('event', cv.name + ' caught up with ' + who.name + ' about the knife. Self-defence, on the record. The search is routine, and it is still a search.');
+            bzSearch(cv, who.name);
+          }
+          continue;
+        }
         beatTick(cv, dt);   // no duty in hand: walk the ground, be seen walking it
+        // a body on the patrol route: the beat does not step over it
+        for(const bd of bodiesOnFloor()){
+          if(bd.obj.lawSeen) continue;
+          const d9 = Math.hypot(bd.obj.x - cv.x, bd.obj.y - cv.y);
+          if(d9 > 300 || !segClearHigh(cv.x, cv.y, bd.obj.x, bd.obj.y)) continue;
+          bd.obj.lawSeen = true;
+          addPopup(cv.x, cv.y - cv.r - 14, 'A BODY', '#e0483e');
+          chronicle('event', cv.name + ' found ' + (bd.obj.name || 'a stranger') + ' dead on the concourse. Nobody is saying who. The recovery crew is called; the question stays open.');
+          cleanupCall();
+          break;
+        }
       }
       // word reached the law: the nearest constable starts walking
       if(b3.copT && !b3.confronted && !b3.copHunt && performance.now() > b3.copT){
@@ -9482,6 +9780,15 @@ function tickProps(dt){
         }
       }
       situationsTick();   // the port's own clocks, running while you stand on it
+      // a familiar face: a few seconds on the open floor, and somebody knows you
+      if(situationLive('familiarface') && !state.deckCombat && !state.portFight){
+        const bF = bz();
+        const outF = (state.squad || []).some(c2 => c2.alive && !c2.downed && !inShipZone(c2.x, c2.y));
+        if(bF && bF.visit && !(bF.ff && bF.ff.n === bF.visit.n) && outF){
+          if(!state.faceT) state.faceT = performance.now() + 10000 + Math.random() * 15000;
+          else if(performance.now() > state.faceT){ state.faceT = 0; faceTrigger(); }
+        }
+      }
       // Varric reads the concourse for new faces, and comes over when he finds one
       {
         const bV = bz();
@@ -10336,6 +10643,8 @@ const SITUATIONS = {
   lightfingers: {name: 'Light Fingers', kind: 'ambient', weight: 2},
   // the beat reads faces: a minor rap sheet earns a stop (warrants are always served, situation or not)
   stopsearch: {name: 'Stop and Search', kind: 'ambient', weight: 2, req: {lawMin: 1}},
+  // a stranger breaks from the tide with your name in their mouth
+  familiarface: {name: 'A Familiar Face', kind: 'ambient', weight: 2},
 };
 function situationsTick(){
   for(const k of Object.keys(SITUATIONS)){
@@ -10390,6 +10699,8 @@ function situationDraw(pool, rng){
 // the picker: what this visit to the port is about. One chain, one or two ambients.
 // A visit is a day at a port; land twice on the same day and it is the same visit, same roll.
 // Pinned situations (a chain mid-flight) are kept across visits; the draw fills around them.
+let SIT_DEAL_ALL = false;   // test harness only: deal every open ambient, so fixtures don't depend on the roll
+function sitDealAll(v){ SIT_DEAL_ALL = !!v; return SIT_DEAL_ALL; }
 function situationPick(force){
   const b = bz();
   if(!b) return null;
@@ -10411,7 +10722,7 @@ function situationPick(force){
   }
   {
     const pool = Object.keys(SITUATIONS).filter(k => SITUATIONS[k].kind === 'ambient' && !picks.includes(k) && situationOpen(k, picks));
-    const want = pool.length <= 2 ? pool.length : 1 + (rng() < 0.6 ? 1 : 0);
+    const want = (pool.length <= 2 || SIT_DEAL_ALL) ? pool.length : 1 + (rng() < 0.6 ? 1 : 0);
     for(let i = 0; i < want && pool.length; i++){
       const a = situationDraw(pool.filter(k => situationOpen(k, picks)), rng);
       if(!a) break;
@@ -10852,11 +11163,19 @@ function bzArrestComply(who){
 function bzCrimeWitness(x, y, crime, op){
   const b = bz();
   if(!b || !b.active || b.at !== (state.portDock || ship.at)) return;
-  const reach = crime.grade === 'major' ? 700 : 340;   // a body dropping is seen from further than a lift
+  const reach = crime.grade === 'minor' ? 340 : 700;   // a body dropping is seen from further than a lift
   for(const cv of (state.civs || [])){
     if(cv.kind !== 'constable' || !cv.alive || cv.ko) continue;
     if(Math.hypot(cv.x - x, cv.y - y) > reach) continue;
     if(!segClearHigh(cv.x, cv.y, x, y)) continue;
+    if(crime.grade === 'defence'){
+      // the badge saw who drew first: no paper moves, but the officer wants a word, and the floor wants clearing
+      cv.attend = crime.who;
+      addPopup(cv.x, cv.y - cv.r - 14, 'SEEN \u00B7 SELF-DEFENCE', '#6fd6ff');
+      chronicle('event', cv.name + ' watched ' + crime.what + ' and saw the knife come out first. No charge. A conversation, and a search, are still coming.');
+      cleanupCall();
+      return;
+    }
     rapAdd(crime.who, crime.grade, crime.what);   // a badge saw it itself: no runner needed
     state.respScene = {x, y};
     if(state.deckCombat && state.ironsOut) startConstableFight();   // and it draws where it stands
@@ -10866,6 +11185,7 @@ function bzCrimeWitness(x, y, crime, op){
   for(const cv of (state.civs || [])){
     if(!cv.alive || cv.ko || cv.kind === 'constable' || cv.name === 'June') continue;
     if(cv.fac || (bzCastOf(cv.name) || {}).fac) continue;   // faction folk keep their own counsel
+    if(cv.kind === 'cleaner') continue;                          // the stretcher crew files nothing
     if(cv.errand && cv.errand.kind === 'law') continue;     // already carrying one story
     const d2 = Math.hypot(cv.x - x, cv.y - y);
     if(d2 > reach) continue;
@@ -10895,7 +11215,7 @@ function witnessNerve(cv, op, grade){
   const intim = Math.round(((op && op.stats && op.stats.strength) || 8) / 2 + ((w && w.noise) || 0) / 160);
   const nerve = (cv.brave || 10) + lawNear - intim;
   // petty complaints need conviction; a killing gets reported by anyone with any spine left
-  return {tells: nerve >= (grade === 'major' ? 0 : 4), nerve};
+  return {tells: nerve >= (grade === 'minor' ? 4 : 0), nerve};
 }
 // one witness, one crime: the word goes where the witness answers.
 // constable -> the law acts itself. faction -> the faction's books move.
@@ -11048,6 +11368,10 @@ function npcAttitude(cv){
     return {word: 'CIVIL', tint: 'rgba(232,224,204,.7)'};
   }
   if(cv.kind === 'porter') return {word: 'HIRED', tint: '#6fd6ff'};
+  if(cv.kind === 'face') return {word: 'KNOWS YOU', tint: '#e0a33e'};
+  if(cv.kind === 'friend') return {word: 'OLD FRIEND', tint: '#9fe08e'};
+  if(cv.kind === 'fan') return {word: cv.spooked ? 'SPOOKED' : 'STARSTRUCK', tint: '#e0a33e'};
+  if(cv.kind === 'cleaner') return {word: 'RECOVERY \u00B7 ' + (cv.bag || 0) + ' BAGGED', tint: '#b06ae0'};
   if(cv.name === 'Varric'){
     const mood = bzVarricMood(b, bzCrewHoldsHere());
     if(mood === 'settled') return {word: b.varricRep >= 2 ? 'GRATEFUL' : 'SQUARE', tint: '#9fe08e'};
@@ -11247,6 +11571,16 @@ function portTalk(cv){
   }
   if(cv.kind === 'porter'){
     return showEventModal(String(cv.name || 'PORTER').toUpperCase(), '\u201CPaid to carry, not to talk.\u201D', close);
+  }
+  if(cv.kind === 'cleaner'){
+    return showEventModal(String(cv.name).toUpperCase(), '\u201CMind the stretcher. If you knew them, there\u2019s a form at the ring office. If you didn\u2019t, there\u2019s nothing.\u201D', close);
+  }
+  if(cv.kind === 'fan'){
+    const fm = (b.ff && b.ff.famous) || 'you';
+    return showEventModal(String(cv.name).toUpperCase(), '\u201CI\u2019m not going to bother you. I\u2019m just going to stand here. Near ' + fm + '. Not bothering.\u201D', close);
+  }
+  if(cv.kind === 'friend'){
+    return showEventModal(String(cv.name).toUpperCase(), '\u201CSame old. Buy me a drink at the Orbit sometime and tell me what you\u2019ve been shooting at.\u201D', close);
   }
   if((cv.name === 'June' || cv.name === 'Varric') && b.crateHolder === 'june' && !b.resolved && !situationLive('crate')){
     if(cv.name === 'June') return showEventModal('JUNE', 'She doesn\u2019t look up from the manifests. \u201CFreight\u2019s freight. Nothing on this apron is for sale today.\u201D', close);
@@ -11721,9 +12055,10 @@ function kill(e, b){
   }
   if(state.portDock && e.alive && e.wasCiv && e.type !== 'constable' &&
      b && b.team === 'player' && b.owner && b.owner.name){
-    // a thief shot down in the open is still a person shot down in the open
-    bzCrimeWitness(e.x, e.y, {grade: 'major', who: b.owner.name,
-      what: 'the killing of ' + (e.name || 'a stranger') + ' on the concourse'}, b.owner);
+    // a thief shot down in the open is still a person shot down in the open; a knife that drew first is not
+    bzCrimeWitness(e.x, e.y, {grade: e.defence ? 'defence' : 'major', who: b.owner.name,
+      what: e.defence ? 'the killing of ' + (e.name || 'a stranger') + ', who drew first'
+                      : 'the killing of ' + (e.name || 'a stranger') + ' on the concourse'}, b.owner);
   }
   if(state.invoice && e.alive && b && b.team === 'player' &&
      (e.morale === 'broken' || e.morale === 'panicked')) state.invoice.cruelty++;

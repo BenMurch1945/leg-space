@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~780 KB single file. 352-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 357-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -61,8 +61,10 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Civs are parked out of the way with `cv.x = W*0.95; cv.y = H*0.05; cv.errand = null`.
 - Beat patrol wanders constables: tests that stage a face-to-face stop pin `dr.beat = {at:null, wt:999}`.
 - Tests that need the crew hidden from enemies put them inside the hull (`W*0.5, H*0.5`).
-- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FC FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL UN VA WD WG WN WR WS WT WV.
+- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FA FC FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL UN VA WD WG WN WR WS WT WV.
 - Export shim (line ~63) lists everything reachable as `G.*`; extend it when adding verbs.
+- **`G.sitDealAll(true)`** is switched on at the top of the test run: the picker deals EVERY open ambient so fixtures that pump into cutpurses/stops/faces are deterministic. SI1/SI4 switch it off to test the 1–2 narrowing and back on after. Any new test that needs a specific situation live must not assume the roll.
+- **Faces in tests**: `faceTrigger(key, cv)` forces a face onto a given civ; `faSetup()` parks the crowd, pins the beat, and adds `familiarface` to the visit's picks. Headless, the face modals auto-take their first action (DRAW / TAKE IT / TAKE THE PAPER) because `showEventModal` returns `false`.
 
 ---
 
@@ -123,6 +125,17 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 
 ---
 
+### A Familiar Face (16 Oct, night) — the second situation
+- Registry: `familiarface` (ambient, weight 2). Fires **once per visit**: 10–25 s after an operator is on open ground (`state.faceT`), `faceTrigger()` takes a plain tide civ 320–900 px away that is only visiting/chatting/crossing, names it from `FACE_NAMES`, rolls the face from `FACES` with `rngFor('face|'+visit.n)`, writes `facts.ff = {n, face, name, state: 'coming'|'met'|'done', outcome}`, "!" overhead, and sends it running (`approach` errand with `spd`). `faceArrive` opens the popup; `faceTick` (runs every frame on the concourse, in or out of combat) fires the RESOLVED popup via `faceResolve(outcome, text)`.
+- **assassin**: popup, single DRAW → `faceAssassinFight`: `makeBoarder('runner')` with `wasCiv` + **`defence: true`**, `enterDeckCombat`, banner KNIFE OUT, `state.ffEnemy`. Resolves dead / outcold / fled (melted back into the tide at break-off).
+- **friend**: returns a sidearm (`WPN_SLOTS.sidearm` first unrestricted key) into the target's pack with `own: <operator>`; pack full → he keeps it. Stays in the crowd as kind `friend` (OLD FRIEND). Resolved on the click.
+- **fan**: kind `fan`, errand `fan` (follows nearest operator not in the ship zone, never past the ramp, 150–240 s then leaves by an arch), `brave: 20` so he is always the witness who runs. Gunfire → `spooked`, bolts. Resolves told / spooked / gone / dead. `FACE_FAMOUS` by the target's race.
+- **help**: TAKE THE PAPER / NOT OUR BUSINESS. Paper → `facts.ffPaper = {level: <Spindle contract idx>, day}`; `postingOpen` treats that posting as open for 10 days. (Contracts still deploy only at their own port — the paper opens the door, the crew still flies.)
+- **Self-defence is a crime grade** (`'defence'`): `kill()` uses it when `e.defence`. A constable who sees it: no rap, `cv.attend = <operator>`, `cleanupCall()`. A civilian who sees it runs; on reaching a badge: no rap, `attend`, `cleanupCall()`. Attending officer (law region, free-roam) walks to the operator → `bzSearch` ("about the knife"). Reach for 'defence' is the major 700; nerve threshold is the major 0.
+- **Recovery crew** (the clean-up system): `bodiesOnFloor()` = dead civs + dead enemies, not bagged, not in the ship zone. `cleanupCall()` spawns `BZ_CLEANUP` (Marrow, Tallis; kind `cleaner`, fac constabulary) at the arch nearest the first body — no-op if a crew is already on the floor or nothing is down. Errand `cleanup`: nearest unclaimed body (`claimed`), 2.5 s lift, body removed from its array (`bagged`), `cv.bag++`, then `er.leaving` = nearest arch → `gone`. Waits during combat. **The beat finds bodies**: in the law region, an off-duty constable within 300 px/LOS of an unseen body marks `lawSeen`, logs "A BODY", calls the crew. No attribution without a witness — the body is just cleared.
+- Tooltips: KNOWS YOU / OLD FRIEND / STARSTRUCK·SPOOKED / RECOVERY · n BAGGED. `portTalk` lines for cleaner, fan, friend.
+- Tests `FA1–FA5`. Banked: GCAT representative and old enemy faces (need operator history); the assassin's client; the fan recognising a *real* famous NPC.
+
 ### Fixes (16 Oct, late)
 - **Bodies don't wall each other in**: `buildMoveGraph` skips a squadmate already overlapping the mover; `squadUnstack(c, from)` steps a stacked body a clear radius away (deterministic angle, wall-aware), called from `standUp` and from `deckSeparate` when two still bodies sit on one spot. Tests `UN1`.
 - **Melee hits bystanders**: `civStruck(cv, dmg, team, owner, sed, src)` is the one law for a civilian struck by anything — lifted out of the bullet loop (which now calls it) and used by the blade/charge dash contact loop in `followRun` and by `bluntSlam`. Thief → converts, badge → `startConstableFight`, sedative → KO, else dead + witnesses/keeper/cam logic. Tests `UN2`.
@@ -143,7 +156,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 ## 8. NEXT STEPS (Ben's plan, agreed 16 Oct)
 
 1. ~~Situation picker~~ **DONE 16 Oct.** Still open from it: per-run cast variation (which named faces a run gets) and per-visit arrivals (new faces per landing) — the picker only rolls situations today.
-2. **First new situation from Ben's library** (his doc lists ~20: Light Fingers and Stop and Search are effectively live; Riot, Bounty Hunter, Something Got Loose, Fire in the Market, Guild Dispute, Port Lockdown…). One at a time.
+2. ~~First new situation~~ **A Familiar Face DONE 16 Oct.** Library (from `docs/star_system_and_ports_v0.1.txt`, 19 entries): Light Fingers ✓, Stop and Search ✓, A Familiar Face ✓, Varric's Package ✓; Wrong Address, The Unpaid Mechanic, Something Got Loose, Going Cheap, The Competition, The Collector, The Job Interview, Fire in the Market, The Abduction, The Bounty Hunter, The Guild Dispute, The Riot, Emergency Landing, Port Lockdown, The Blackout, The Guild War. One at a time. Ben wants **multi-map ports** (doors load other districts; police station for arrests) — after situations.
 3. Then: Gateway start proper — starting pair picker from presets (creator later), ship-less landing (Varko owns the Orrix; acquisition is an opportunity in the Ship Graveyard), Spindle as a small outpost map, other Gateway ports.
 4. Open design questions: collective term for guilds/mobs/factions; failure model; whether June "moves around a little with the package" within a visit.
 
