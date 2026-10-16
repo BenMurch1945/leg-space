@@ -60,7 +60,7 @@ const hooked = script.replace('})();',
   'addStress, updateMorale, moraleThresholds, tryRally, decayStress, grazeCheck, updateDetection, updateVisibility, ' +
   'noiseAt, targetHuggingBlocker, enemyDecide, enemyFireAt, allyInLine, raycast, activateAbility, ramEnemy, aimSteadiness, aimBreathSpeed, losHigh, losHighPeek, shooterExemptions, charConcealed, inVisionOf, TUNE, ARCHETYPES, ' +
   'commitWatch, checkOverwatch, inWatchWedge, watchRange, hiddenBehindLow, renameSquad, SQUAD_DEFS, placeScan, ' +
-  'muzzleFlash, enemyDecide, chunksOf, wallAliveFrac, damageChunk, canShootFrom, impactDamage, isFearless, conePolyAt, alertEnemy, memWrite, memTarget, refreshMemory, canPerceive, allyInLine, WEAPONS, pushNoiseRing, sedCap, sedState, addSed, checkWin, renderObjectives, LEVELS, busy, dismissBrief, explainState, STATE_EXPLAINED, hugsCoverAt, showMoveHint, sedMoveMul, maxMoveDist, heroStateLines, stressPop, grazeStressOf, pinStressOf, flushStressPops, setSysPause, dismissSys, WPN_DESC, RACE_INFO, CLASS_INFO, STAT_TIPS, STATE_TIPS, cycleLoadout, SQUAD_DEFS, WPN_SLOTS, wpnFor, commitWatch, RACE_LORE, rosterSelection, toggleSelect, CHAR_BIOS, SERVICE_RECORDS, bark, BARKS, PAIR_TALK, pairTalk, queueBark, careerOf, fmtRecVal, win, showBrief, LEVELS, currentLevel, startRange, exitRange, checkWin, setToggleMode, RANGE_LEVEL, defLocked, contractsAvailable, renderRoster, renderContractPicker, setMissionsWon, cycleContract, setAdvisoryClock, showNextSys, ARCHETYPES, panicCivs, enemyDecide, fail, LEVEL_OPENERS, kill, layout, hitEnemy, unstickFromWalls, addStress, buildMoveGraph, maybeAdviseWatch, setContractsPlayed, W, H, canPerceive, refreshMemory, inVisionOf, enemyVisionRange, hiddenBehindLow, startEnemyTurn, enemyMelee, loadIntoEditor, customLevel: () => customLevel, rosterSel: () => rosterSelection, ship, hireRecruit, buyWeapon, sellWeapon, buySlot, RECRUIT_POOL, recruitAvailable, livingRoster, weaponAllowed, standUp, charDown, charDie, applyInjuries, INJURIES, WPN_PRICE, SLOT_PRICE, shipSave, shipLoad, shipShowPane, endEnemyTurn, squadWipe, setTeamView, buildRosterCard, WPN_META, GROUP_LABELS, CLASS_WEAPON_ACCESS, classAllows, slotLegal, SLOT_LABELS, SLOT_GROUPS, equipWeapon, gridCandidates, openWeaponGrid, closeWeaponGrid, reloadWeapon, clipOf, WPN_CLIP, WPN_AMMO, GROUP_ICONS, bluntSlam, bluntPulseR, isBluntKey, WPN_CALLSIGNS, doShipReset, GALAXY, galaxyNode, daysBetween, travelTo, contractsAt, LEVELS, postingOpen, postingClosesIn, postingReopensIn, boardState, stockAt, RUMOURS, RECRUIT_POOL, deployContract, showPlanet, PORT_DESCS, PORT_AREAS, AREA_LABELS, portGo, SHIP_LEVEL, SHIP_STATIONS, enterShipDeck, leaveShipDeck, deckStation, deckDown, computeMovePreview, commitMove, beginFlight, flightTick, SEC_PER_DAY, deckSeparate, deckMaskGet, beginBoarding, enterDeckCombat, resolveBoarding, exitDeckCombat, startEnemyTurn, endEnemyTurn, checkWin, cam, camClamp, camReset, toLocal, dims: () => ({W, H}), followRun, win, openMedPod, maxMoveDist, ARMOUR_SETS, ISSUE_STOCK, gridCandidates, canUseTile, slotForKey, equipFromBag, tileColor, SLOT_TINTS, openCharSheet, unequipToBag, WEAPONS, nearestHighWallPoint, STATION_LABELS, enterPort, undockToDeck, startPortFight, buildMercyPort, afterActionReturn, LEVELS, deployContract, embedShipInPort, PORT_LEVELS, chronicle, shipLoad, bz, bzSet, worldEnsure, bzCrate, bzPickup, carriedThing, carryAttach, dropCarried, throwCarried, tickProps, syncCargo, lootOf, lootStash, lootTake, lootEquip, lootLeave, lootSpent, packTotal, sellSalvage, carryCardHtml, syncWeaponButtons, bzBuyFromJune, bzReturnToVarric, bzVarricMood, bzConfront, startConstableFight, npcAttitude, enemyFireAt, bzSellToHask, bzGiveBackToJune, portTalk, hireRecruit, buyWeapon, RECRUIT_POOL, checkWin, carveDoorF, checkWin, outfitOf, protMax, applyDamage, openArmourLocker, priceMulAt, buyPrice, sellHeatMul, bzRecruitLocked, bzHaskPrice, bzLawless, BZ_SUCCESSOR, bzCastOf, FACTIONS, facRepOf, facRepAdd, crimeSeen, witnessNerve, CRATE_CRIME, bzSellBackToVarric, stakeSettle, resolveBoarding, beginBoarding, freeRoam, deckDown, draw, ironsToggle, squadMoveToggle, copCamFlush, CROSSPORT_PORT, errandNew, errandTick, crowdTick, crowdSpawn, witnessRun, openGround, inShipZone, civSpd, civStep, BZ_RESERVES, lootOf: lootOf, respRouteBuild, outOfShipZone, nearestRouteIdx, armKey, armFind, provOf, provSet, crewContraband, rapsOf, rapAdd, rapClear, rapsAnyMajor, contrabandOfOp, bzConfiscate, bzSearch, bzFrisk, bzSearchResults, bzSearchAccept, bzArrest, bzArrestComply, bzCrimeWitness, worldSeed, portFacts, orgOf, crimeStage, bzNpcCrimeAct, crimeStepIn, crimeTip, facRepCross, renderStore, renderRecruit, simPauseStart, simResume, tickProps, civTravel, civLineClear, civPathTo, portFightBreakOff, npcAttitude: npcAttitude, canPerceive, memTarget, packEquip, unequipToPack, shopOf, shelfItem, shopBuy, shopSend, shopSteal, shopSeed, eqCardOpen, shelfCompareLines, shopKeeperCiv, castPlacements, placeAt, placeBeside, rngFor, SITUATIONS, situationsTick, situationPick, situationLive, situationOpen, lawStrength, civStruck, squadUnstack, bladeDash, FACES, FACE_NAMES, faceTrigger, faceArrive, faceResolve, faceTick, faceAssassinFight, cleanupCall, bodiesOnFloor, BZ_CLEANUP, makeBoarder, sitDealAll, portAnchors, segClearHigh}; })();');
+  'muzzleFlash, enemyDecide, chunksOf, wallAliveFrac, damageChunk, canShootFrom, impactDamage, isFearless, conePolyAt, alertEnemy, memWrite, memTarget, refreshMemory, canPerceive, allyInLine, WEAPONS, pushNoiseRing, sedCap, sedState, addSed, checkWin, renderObjectives, LEVELS, busy, dismissBrief, explainState, STATE_EXPLAINED, hugsCoverAt, showMoveHint, sedMoveMul, maxMoveDist, heroStateLines, stressPop, grazeStressOf, pinStressOf, flushStressPops, setSysPause, dismissSys, WPN_DESC, RACE_INFO, CLASS_INFO, STAT_TIPS, STATE_TIPS, cycleLoadout, SQUAD_DEFS, WPN_SLOTS, wpnFor, commitWatch, RACE_LORE, rosterSelection, toggleSelect, CHAR_BIOS, SERVICE_RECORDS, bark, BARKS, PAIR_TALK, pairTalk, queueBark, careerOf, fmtRecVal, win, showBrief, LEVELS, currentLevel, startRange, exitRange, checkWin, setToggleMode, RANGE_LEVEL, defLocked, contractsAvailable, renderRoster, renderContractPicker, setMissionsWon, cycleContract, setAdvisoryClock, showNextSys, ARCHETYPES, panicCivs, enemyDecide, fail, LEVEL_OPENERS, kill, layout, hitEnemy, unstickFromWalls, addStress, buildMoveGraph, maybeAdviseWatch, setContractsPlayed, W, H, canPerceive, refreshMemory, inVisionOf, enemyVisionRange, hiddenBehindLow, startEnemyTurn, enemyMelee, loadIntoEditor, customLevel: () => customLevel, rosterSel: () => rosterSelection, ship, hireRecruit, buyWeapon, sellWeapon, buySlot, RECRUIT_POOL, recruitAvailable, livingRoster, weaponAllowed, standUp, charDown, charDie, applyInjuries, INJURIES, WPN_PRICE, SLOT_PRICE, shipSave, shipLoad, shipShowPane, endEnemyTurn, squadWipe, setTeamView, buildRosterCard, WPN_META, GROUP_LABELS, CLASS_WEAPON_ACCESS, classAllows, slotLegal, SLOT_LABELS, SLOT_GROUPS, equipWeapon, gridCandidates, openWeaponGrid, closeWeaponGrid, reloadWeapon, clipOf, WPN_CLIP, WPN_AMMO, GROUP_ICONS, bluntSlam, bluntPulseR, isBluntKey, WPN_CALLSIGNS, doShipReset, GALAXY, galaxyNode, daysBetween, travelTo, contractsAt, LEVELS, postingOpen, postingClosesIn, postingReopensIn, boardState, stockAt, RUMOURS, RECRUIT_POOL, deployContract, showPlanet, PORT_DESCS, PORT_AREAS, AREA_LABELS, portGo, SHIP_LEVEL, SHIP_STATIONS, enterShipDeck, leaveShipDeck, deckStation, deckDown, computeMovePreview, commitMove, beginFlight, flightTick, SEC_PER_DAY, deckSeparate, deckMaskGet, beginBoarding, enterDeckCombat, resolveBoarding, exitDeckCombat, startEnemyTurn, endEnemyTurn, checkWin, cam, camClamp, camReset, toLocal, dims: () => ({W, H}), followRun, win, openMedPod, maxMoveDist, ARMOUR_SETS, ISSUE_STOCK, gridCandidates, canUseTile, slotForKey, equipFromBag, tileColor, SLOT_TINTS, openCharSheet, unequipToBag, WEAPONS, nearestHighWallPoint, STATION_LABELS, enterPort, undockToDeck, startPortFight, buildMercyPort, afterActionReturn, LEVELS, deployContract, embedShipInPort, PORT_LEVELS, chronicle, shipLoad, bz, bzSet, worldEnsure, bzCrate, bzPickup, carriedThing, carryAttach, dropCarried, throwCarried, tickProps, syncCargo, lootOf, lootStash, lootTake, lootEquip, lootLeave, lootSpent, packTotal, sellSalvage, carryCardHtml, syncWeaponButtons, bzBuyFromJune, bzReturnToVarric, bzVarricMood, bzConfront, startConstableFight, npcAttitude, enemyFireAt, bzSellToHask, bzGiveBackToJune, portTalk, hireRecruit, buyWeapon, RECRUIT_POOL, checkWin, carveDoorF, checkWin, outfitOf, protMax, applyDamage, openArmourLocker, priceMulAt, buyPrice, sellHeatMul, bzRecruitLocked, bzHaskPrice, bzLawless, BZ_SUCCESSOR, bzCastOf, FACTIONS, facRepOf, facRepAdd, crimeSeen, witnessNerve, CRATE_CRIME, bzSellBackToVarric, stakeSettle, resolveBoarding, beginBoarding, freeRoam, deckDown, draw, ironsToggle, squadMoveToggle, copCamFlush, CROSSPORT_PORT, errandNew, errandTick, crowdTick, crowdSpawn, witnessRun, openGround, inShipZone, civSpd, civStep, BZ_RESERVES, lootOf: lootOf, respRouteBuild, outOfShipZone, nearestRouteIdx, armKey, armFind, provOf, provSet, crewContraband, rapsOf, rapAdd, rapClear, rapsAnyMajor, contrabandOfOp, bzConfiscate, bzSearch, bzFrisk, bzSearchResults, bzSearchAccept, bzArrest, bzArrestComply, bzCrimeWitness, worldSeed, portFacts, orgOf, crimeStage, bzNpcCrimeAct, crimeStepIn, crimeTip, facRepCross, renderStore, renderRecruit, simPauseStart, simResume, tickProps, civTravel, civLineClear, civPathTo, portFightBreakOff, npcAttitude: npcAttitude, canPerceive, memTarget, packEquip, unequipToPack, shopOf, shelfItem, shopBuy, shopSend, shopSteal, shopSeed, eqCardOpen, shelfCompareLines, shopKeeperCiv, castPlacements, placeAt, placeBeside, rngFor, SITUATIONS, situationsTick, situationPick, situationLive, situationOpen, lawStrength, civStruck, squadUnstack, bladeDash, FACES, FACE_NAMES, faceTrigger, faceArrive, faceResolve, faceTick, faceAssassinFight, cleanupCall, bodiesOnFloor, BZ_CLEANUP, makeBoarder, sitDealAll, cnavBuild, cnavDirty, cnavFreeNear, civLineClearR, civBlocked, CNAV, portAnchors, segClearHigh}; })();');
 eval(hooked);
 const G = global.window.__G;
 G.restart(); G.dismissBrief();   // step off the boot-time firing range before testing
@@ -5041,3 +5041,101 @@ const si6 = (() => {
   return {ok: redealt && stamped, redealt, stamped};
 })();
 console.log('SI6 an old save gets the new hand:', si6.ok ? 'PASS' : 'FAIL', `(redealt ${si6.redealt}, stamped ${si6.stamped})`);
+
+
+// ---- NV: walking the port ----
+// a horizontal run of 400 px of clear floor, 160 px tall, found by probing the map
+function nvLane(){
+  const W2 = G.dims().W, H2 = G.dims().H;
+  for(let fy = 0.15; fy < 0.9; fy += 0.05) for(let fx = 0.08; fx < 0.85; fx += 0.04){
+    const x = W2 * fx, y = H2 * fy;
+    let ok = true;
+    for(let dx = 0; dx <= 400 && ok; dx += 20) for(let dy = -150; dy <= 150 && ok; dy += 30)
+      if(!G.openGround(x + dx, y + dy, 16)) ok = false;
+    if(ok) return {x, y};
+  }
+  throw new Error('no lane');
+}
+function nvWalk(cv, tx, ty, frames, speed){
+  for(let i = 0; i < frames; i++){
+    if(Math.hypot(cv.x - tx, cv.y - ty) < 14) return i;
+    G.civTravel(cv, tx, ty, speed || 120, 1 / 60);
+  }
+  return -1;
+}
+// NV1 a walker goes round a wall instead of into it, and reaches a body lying against one
+const nv1 = (() => {
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT; G.doShipReset(); G.enterPort();
+  const cv = G.state.civs.find(c2 => c2.tide && !c2.name);
+  const W2 = G.dims().W, H2 = G.dims().H;
+  const lane = nvLane();   // a clear stretch of floor, found by probing, with room for a wall across it
+  // a fresh wall across the floor between the walker and the target
+  const wall = {x: lane.x + 170, y: lane.y - 140, w: 24, h: 280, high: true};
+  G.state.walls.push(wall);
+  cv.x = lane.x; cv.y = lane.y; cv._nav = null;
+  const tx = lane.x + 360, ty = lane.y;
+  const t1 = nvWalk(cv, tx, ty, 2400);
+  const went = t1 > 0;
+  let clipped = false;
+  // nothing stood inside the wall on the way (a sample walk back)
+  cv.x = tx; cv.y = ty; cv._nav = null;
+  for(let i = 0; i < 2400; i++){
+    if(Math.hypot(cv.x - lane.x, cv.y - ty) < 14) break;
+    G.civTravel(cv, lane.x, ty, 120, 1 / 60);
+    if(G.civBlocked(cv, cv.x, cv.y, cv.r - 1)) clipped = true;
+  }
+  // a body hard against the wall face is still reachable to within arm's length
+  const bx = wall.x - 11, by = lane.y;
+  cv.x = tx; cv.y = ty + 100; cv._nav = null;
+  let reached = false;
+  for(let i = 0; i < 2400; i++){ if(Math.hypot(cv.x - bx, cv.y - by) < 26){ reached = true; break; } G.civTravel(cv, bx, by, 120, 1 / 60); }
+  G.state.walls.splice(G.state.walls.indexOf(wall), 1);
+  G.undockToDeck(); G.doShipReset();
+  return {ok: went && !clipped && reached, went, clipped, reached, t1};
+})();
+console.log('NV1 the walker goes round, never through, and reaches the body:', nv1.ok ? 'PASS' : 'FAIL',
+  `(went ${nv1.went} in ${nv1.t1} frames, clipped ${nv1.clipped}, reached ${nv1.reached})`);
+
+// NV2 cover that shreds becomes floor: the route shortens the moment the chunks die
+const nv2 = (() => {
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT; G.doShipReset(); G.enterPort();
+  const cv = G.state.civs.find(c2 => c2.tide && !c2.name);
+  const lane = nvLane();
+  const low = {x: lane.x + 170, y: lane.y - 140, w: 26, h: 280, high: false};
+  G.state.walls.push(low);
+  cv.x = lane.x; cv.y = lane.y; cv._nav = null;
+  const tx = lane.x + 360, ty = lane.y;
+  const blockedBefore = !G.civLineClearR(cv.x, cv.y, tx, ty, 10);
+  const path1 = G.civPathTo(cv, tx, ty).length;
+  for(const ch of G.chunksOf(low)) G.damageChunk(ch, 999, ch.x, ch.y, true);   // shot to rubble
+  const clearAfter = G.civLineClearR(cv.x, cv.y, tx, ty, 10) && G.wallAliveFrac(low) < 0.3;
+  const path2 = G.civPathTo(cv, tx, ty).length;
+  const t2 = nvWalk(cv, tx, ty, 600);
+  G.state.walls.splice(G.state.walls.indexOf(low), 1);
+  G.undockToDeck(); G.doShipReset();
+  return {ok: blockedBefore && clearAfter && path2 < path1 && t2 > 0, blockedBefore, clearAfter, path1, path2, t2};
+})();
+console.log('NV2 rubble is floor:', nv2.ok ? 'PASS' : 'FAIL',
+  `(blocked ${nv2.blockedBefore}, clear after ${nv2.clearAfter}, waypoints ${nv2.path1} -> ${nv2.path2}, walked ${nv2.t2 > 0})`);
+
+// NV3 a walker that has been pushed into a wall gets out, and a goal inside a wall is reached as near as the floor allows
+const nv3 = (() => {
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT; G.doShipReset(); G.enterPort();
+  const cv = G.state.civs.find(c2 => c2.tide && !c2.name);
+  const lane = nvLane();
+  const wall = {x: lane.x + 140, y: lane.y - 40, w: 80, h: 80, high: true};
+  G.state.walls.push(wall);
+  cv.x = wall.x + 40; cv.y = wall.y + 40; cv._nav = null;   // spawned inside it
+  const tx = lane.x + 320, ty = lane.y;
+  nvWalk(cv, tx, ty, 900);
+  const out = !G.civBlocked(cv, cv.x, cv.y, cv.r);
+  const arrived = Math.hypot(cv.x - tx, cv.y - ty) < 14;
+  // the goal is inside the block: the walker ends up beside it, not stuck somewhere else
+  cv._nav = null;
+  for(let i = 0; i < 900; i++) G.civTravel(cv, wall.x + 40, wall.y + 40, 120, 1 / 60);
+  const beside = Math.hypot(cv.x - (wall.x + 40), cv.y - (wall.y + 40)) < 80 && !G.civBlocked(cv, cv.x, cv.y, cv.r);
+  G.state.walls.splice(G.state.walls.indexOf(wall), 1);
+  G.undockToDeck(); G.doShipReset();
+  return {ok: out && arrived && beside, out, arrived, beside};
+})();
+console.log('NV3 nobody stays in a wall:', nv3.ok ? 'PASS' : 'FAIL', `(out ${nv3.out}, arrived ${nv3.arrived}, beside ${nv3.beside})`);

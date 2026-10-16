@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 358-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 361-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -61,7 +61,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Civs are parked out of the way with `cv.x = W*0.95; cv.y = H*0.05; cv.errand = null`.
 - Beat patrol wanders constables: tests that stage a face-to-face stop pin `dr.beat = {at:null, wt:999}`.
 - Tests that need the crew hidden from enemies put them inside the hull (`W*0.5, H*0.5`).
-- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FA FC FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL UN VA WD WG WN WR WS WT WV.
+- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FA FC FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NV NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL UN VA WD WG WN WR WS WT WV.
 - Export shim (line ~63) lists everything reachable as `G.*`; extend it when adding verbs.
 - **`G.sitDealAll(true)`** is switched on at the top of the test run: the picker deals EVERY open ambient so fixtures that pump into cutpurses/stops/faces are deterministic. SI1/SI4 switch it off to test the 1–2 narrowing and back on after. Any new test that needs a specific situation live must not assume the roll.
 - **Faces in tests**: `faceTrigger(key, cv)` forces a face onto a given civ; `faSetup()` parks the crowd, pins the beat, and adds `familiarface` to the visit's picks. Headless, the face modals auto-take their first action (DRAW / TAKE IT / TAKE THE PAPER) because `showEventModal` returns `false`.
@@ -84,7 +84,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 
 ### Concourse / free-roam
 - Crowd tide: `crowdSpawn/crowdTick` at arches, gait (25% meanderers), errands via `errandNew` (visit/chat/cross) + special kinds (law, gawk, follow, stalk, slink, bolt, deliver, rob, home, approach). `errandTick(cv, dt)` is the dispatcher.
-- **Pathfinding**: `civTravel(cv, tx, ty, speed, dt)` — straight `civStep` when `civLineClear`, else BFS on a 36px grid (`cnavBuild/civPathTo`, walls + ship zone blocked, string-pulled). Every purposeful walk uses it.
+- **Pathfinding (rebuilt 17 Oct)**: `civTravel(cv, tx, ty, speed, dt)` is the one verb for EVERY walker — the tide, cast, constables, responders' followers, cleaners. Under it: `CNAV` is an 18 px **clearance grid** (`clr` 12: a cell is blocked if any standing wall expanded by 12 px, the hull, or the map edge touches it). Standing = high walls and low walls with ≥30% chunks alive (`CNAV.solid`); **rubble is floor**. Rebuilt when `walls.length`, W/H or the ship zone change, or when `cnavDirty()` is called — `damageChunk` calls it, so shredded cover re-plans within a frame. `civPathTo` = A* (binary heap, octile, no corner cutting, 60k-expansion cap); start snaps to the nearest free cell within 8, goal within 20 (`cnavFreeNear`); unreachable goal → path to the closest cell reached; string-pulled with `cnavLineFree` (grid LOS); the final leg to the exact target uses the walker's own radius (`civLineClearR(..., cv.r+1)`) so a body against a wall is reachable. `civTravel` caches the grid line test 250 ms (`cv._lc`) and the path 1.1 s (`cv._nav`); three failed steps → the walker is stood on the nearest free cell centre and re-plans (nobody stays in a wall). `civLineClear(a,b)` = wall-accurate capsule r 10 with bbox prefilter (kept for callers). Response-pack followers path to their formation slot, or to the leader if the slot is in a wall. Tests `NV1–NV3` (`nvLane()` probes for clear floor; never place test geometry on the hull at centre-map).
 - `inShipZone`, `openGround(x,y,r)`, `outOfShipZone`.
 - **Popups pause the world**: `showEventModal` → `simPauseStart()`; any button → `simResume()` which shifts every deadline (`respT, crimeT, friskPend.at, friskT, knots, searchedT, worldBeatT`) by the pause length. Frame loop zeroes `realDt`; `tickProps` returns early.
 - **Irons**: `ironsToggle()` (#ironsbtn, bottom-left) enters/leaves turn-based without enemies. Empty enemy turn = **world beat**: `startEnemyTurn` sets `phase='enemy'`, `worldBeatT = now+1200`; the frame loop ends it. The crowd/thieves/witnesses move only during enemy phase in combat.
@@ -113,7 +113,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 
 ### Placement & situations (16 Oct)
 - `portAnchors(lvl)` = tagged spots (`SPOT_TAGS` by kind) + `lvl.anchors`. `placeAt(req, rng, used)` with `{tags, near, far, los, fallback}`; `placeBeside`. `rngFor(key)` is a seeded PRNG from `world.seed|portId|key`. **Placements are re-rolled from the seed on every port build, never stored** — editing the map in the Designer just re-rolls. `castPlacements()`: crate on a `freight` anchor, June 60–110 px away in LOS, Varric a `stall` ≥500 px from June, Hask a `counter`. `state.placed` holds the roll; the crate prop uses it.
-- Landing logs "Docked at Crossport, Gateway. Port roll XXXX. Build 16 Oct · FF." (`BUILD` constant — bump it every delivery). A stored `visit` carries `reg` (sorted registry ids); a save whose `reg` differs re-deals the same visit, so a new build never inherits a stale hand.
+- Landing logs "Docked at Crossport, Gateway. Port roll XXXX. Build 17 Oct · NAV." (`BUILD` constant — bump it every delivery). A stored `visit` carries `reg` (sorted registry ids); a save whose `reg` differs re-deals the same visit, so a new build never inherits a stale hand.
 - `SITUATIONS` registry: `crate` has `met()` (clock starts on first contact with June/Varric or Varric's approach) and `tick()` (30 days unattended → June sells it herself: `crateHolder 'lost'`, `resolved 'junesold'`, Varric cold). `situationsTick()` runs on landing and every frame on the concourse.
 - **Varric's approach**: 6–16 s after an operator is on open ground, Varric walks over (`approach` errand, 45 s give-up), scene popup with the offer, `varricAsked`, back to his stall.
 
