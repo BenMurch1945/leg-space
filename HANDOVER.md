@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~775 KB single file. 350-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~780 KB single file. 352-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -61,7 +61,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Civs are parked out of the way with `cv.x = W*0.95; cv.y = H*0.05; cv.errand = null`.
 - Beat patrol wanders constables: tests that stage a face-to-face stop pin `dr.beat = {at:null, wt:999}`.
 - Tests that need the crew hidden from enemies put them inside the hull (`W*0.5, H*0.5`).
-- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FC FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL VA WD WG WN WR WS WT WV.
+- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FC FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL UN VA WD WG WN WR WS WT WV.
 - Export shim (line ~63) lists everything reachable as `G.*`; extend it when adding verbs.
 
 ---
@@ -122,6 +122,11 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Adding a situation = one registry entry + `situationLive('id')` guards on its triggers. Tests `SI1–SI5` cover determinism, pinning/spending, prerequisites, exclusion (via a throwaway `testx` entry), and the gates.
 
 ---
+
+### Fixes (16 Oct, late)
+- **Bodies don't wall each other in**: `buildMoveGraph` skips a squadmate already overlapping the mover; `squadUnstack(c, from)` steps a stacked body a clear radius away (deterministic angle, wall-aware), called from `standUp` and from `deckSeparate` when two still bodies sit on one spot. Tests `UN1`.
+- **Melee hits bystanders**: `civStruck(cv, dmg, team, owner, sed, src)` is the one law for a civilian struck by anything — lifted out of the bullet loop (which now calls it) and used by the blade/charge dash contact loop in `followRun` and by `bluntSlam`. Thief → converts, badge → `startConstableFight`, sedative → KO, else dead + witnesses/keeper/cam logic. Tests `UN2`.
+- **Quartermaster removed**: no `store` station in either port layout, no `shop` area in `PORT_AREAS` for any port, no deck-station branch, label gone. `renderStore/buyWeapon/sellWeapon/sellSalvage` still exist (dormant; QM tests still exercise them). **Lost venues**: field-salvage SELL ALL and the grey-market +2 UNDER THE COUNTER shelf had no home but the store — the grey +2 popup now just says Hask will deal direct. Re-home both at Hask's bar when Ben wants it. Non-Crossport ports now have no shop at all until they get shelves.
 
 ## 7. KNOWN GOTCHAS
 

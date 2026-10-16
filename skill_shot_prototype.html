@@ -3820,8 +3820,6 @@ function deckStation(st, who){
     openCharSheet(c, 'loadout');
   }else if(st.id === 'board'){
     showPlanetStage('contracts');
-  }else if(st.id === 'store'){
-    showPlanetStage('shop');
   }else if(st.id === 'cantina'){
     showPlanetStage('hire');
   }else if(st.id === 'undock'){
@@ -5839,7 +5837,7 @@ function showPlanet(){
       pr.appendChild(d);
     }
   }
-  const areas = (PORT_AREAS[n.id] || ['contracts', 'shop']).slice();
+  const areas = (PORT_AREAS[n.id] || ['contracts']).slice();
   const left = document.getElementById('pvAreasL');
   const right = document.getElementById('pvAreasR');
   if(left && right){
@@ -6893,6 +6891,15 @@ function bluntSlam(c, radius){
     }
     landed++;
   }
+  for(const cv of (state.civs || []).slice()){
+    if(!cv.alive || cv.ko) continue;
+    const d = Math.hypot(cv.x - c.x, cv.y - c.y);
+    if(d > radius + cv.r * 0.5) continue;
+    const clean = d <= radius * 0.6;
+    spawnBurst(cv.x, cv.y, 14, '#c9a24a', 300);
+    civStruck(cv, clean ? w.dmg : w.clipDmg, 'player', c, false, null);
+    landed++;
+  }
   pushStepRing(c.x, c.y, (w.noise || 55) * 4);   // a slam rings the deck
   spawnBurst(c.x, c.y, 26, '#c9a24a', 420);
   state.flash = Math.min(0.3, 0.12 + landed * 0.05);
@@ -6928,6 +6935,75 @@ function bladeDash(c, angle, power){
   spawnBurst(c.x, c.y, 10, '#c96b3e', 220);
 }
 
+// one law for a bystander hit by anything: a blade, a slam, a round. Returns true when handled.
+// A thief with a knife fights on real stats; a badge converts the whole beat; a sedative is a mercy;
+// anything else kills, and the witnesses decide what the law hears.
+function civStruck(cv, dmg, team, owner, sed, src){
+    if(cv.arch && cv.kind !== 'constable' && state.deckCombat && team === 'player'){
+      // the knife comes out: the thief fights on real stats, not bystander luck
+      const eT = makeBoarder(cv.arch, cv.x, cv.y);
+      eT.name = cv.name || 'the cutpurse';
+      eT.wpnKey = cv.wpnKey || 'stdknife';
+      eT.wasCiv = true;
+      if(cv.stolen) eT.stolen = cv.stolen;
+      eT.alert = 'alerted';
+      eT.lastKnown = {x: owner ? owner.x : cv.x, y: owner ? owner.y : cv.y};
+      eT.hp -= dmg; eT.hitFlash = 1;
+      state.enemies.push(eT);
+      state.civs = state.civs.filter(c3 => c3 !== cv);
+      state.portFight = true;
+      showBanner('THE THIEF FIGHTS', '#e0483e');
+      if(eT.hp <= 0) kill(eT, src);
+      return true;
+    }
+    if(cv.kind === 'constable' && state.deckCombat && team === 'player' &&
+       startConstableFight()){
+      // the shot found a uniform: the whole beat converts to combatants,
+      // and THIS officer takes the hit on real hitpoints, not bystander luck
+      const eC = state.enemies.find(en => en.name === cv.name && en.alive);
+      if(eC){
+        eC.hp -= dmg;
+        eC.hitFlash = 1;
+        if(eC.hp <= 0) kill(eC, src);
+      }
+      return true;
+    }
+    if(sed && dmg < 1){
+      cv.ko = true;   // a sedated bystander is a mercy, not a casualty
+      if(state.portDock && team === 'player' && owner && owner.name && cv.kind !== 'constable')
+        bzCrimeWitness(cv.x, cv.y, {grade: 'minor', who: owner.name,
+          what: 'assault on a bystander'}, owner);
+      addPopup(cv.x, cv.y - 14, 'BYSTANDER SEDATED', '#6fd6ff');
+    }else{
+      cv.alive = false;
+      const mine = team === 'player';
+      {
+        const shD = state.portDock && bz() && bz().shop;
+        if(shD && cv.name === shD.keeper && !shD.keeperDead){
+          shD.keeperDead = true;
+          const bzD = bz();
+          if(!(bzD.deadCast || []).includes(cv.name))
+            bzSet({deadCast: (bzD.deadCast || []).concat([cv.name])});
+          if(mine) facRepAdd('tradersguild', -2);
+          chronicle('event', 'Kestrel died behind her own counter. The Traders\u2019 Guild writes that kind of debt in permanent ink.');
+        }
+      }
+      if(state.portDock && mine && owner && owner.name){
+        if(cv.kind === 'constable'){
+          // a badge's monitor flatlines: the cam holds the face until dispatch reads it
+          (state.copCamQ = state.copCamQ || []).push({cop: cv.name || 'a reserve officer',
+            by: owner.name, x: cv.x, y: cv.y});
+        }else{
+          bzCrimeWitness(cv.x, cv.y, {grade: 'major', who: owner.name,
+            what: 'the killing of a bystander'}, owner);
+        }
+      }
+      state.aarCiv[mine ? 'player' : 'hostile']++;
+      addPopup(cv.x, cv.y - 14, 'CIVILIAN DOWN', '#e0483e');
+      spawnBurst(cv.x, cv.y, 8, '#e0483e', 160);
+    }
+    return true;
+}
 function bladeStrike(c, e, dash){
   // centre or clip: how close did the edge pass to the heart?
   const perp = Math.abs((e.x - c.x) * Math.sin(dash.a) - (e.y - c.y) * Math.cos(dash.a));
@@ -7126,6 +7202,8 @@ function buildMoveGraph(mover){
   }
   for(const c of state.squad){
     if(!c.alive || c.downed || c === mover) continue;
+    // already in each other's space: you walk out of a squadmate, you are not walled in by them
+    if(Math.hypot(c.x - mover.x, c.y - mover.y) < c.r + mover.r + 4) continue;
     const s = c.r + pad;
     rects.push({x:c.x-s, y:c.y-s, w:s*2, h:s*2});
   }
@@ -8915,6 +8993,7 @@ function standUp(rescuer, c){
     c.pendingInjury = null;
     shipSave();
   }
+  squadUnstack(c, rescuer);
   addPopup(c.x, c.y - c.r - 14, 'BACK ON THEIR FEET', '#6fd6ff');
   bark(rescuer, 'rally', true);
   updateHud();
@@ -9051,13 +9130,13 @@ const PORT_DESCS = {
   solace: "Solace began as a medical settlement and became a congregation. Its people expose themselves to the star\u2019s anomalous light on purpose, and the light appears to give something back: healing, long life, a sense of belonging. It also takes.\n\nSolace Landing looks like any welcoming town \u2014 streets, homes, businesses, a place of worship \u2014 until you notice how the residents finish one another\u2019s sentences. They will tell you it is a blessing. They will mean it.",
 };
 const PORT_AREAS = {
-  spindle:    ['contracts', 'shop'],
-  rook:       ['contracts', 'shop', 'hire'],   // operators between ships wait at the terminal
-  gateway:    ['contracts', 'shop', 'hire'],
-  sanarar:    ['contracts', 'shop', 'hire'],
-  raft:       ['contracts', 'shop', 'hire'],
-  ghostglass: ['contracts', 'shop'],
-  solace:     ['contracts', 'shop'],
+  spindle:    ['contracts'],
+  rook:       ['contracts', 'hire'],   // operators between ships wait at the terminal
+  gateway:    ['contracts', 'hire'],
+  sanarar:    ['contracts', 'hire'],
+  raft:       ['contracts', 'hire'],
+  ghostglass: ['contracts'],
+  solace:     ['contracts'],
 };
 const PORT_HUES = {
   spindle: 265, rook: 210, gateway: 190, sanarar: 120, raft: 36, ghostglass: 45, solace: 330,
@@ -10582,7 +10661,7 @@ function facRepCross(fac, before, after){
     {fac: 'constabulary', at: 2, up: true, head: 'GOOD CITIZENS',
      text: 'The Constabulary has marked this crew as good citizens of the port. Routine searches will be waved through, and remediation fines now run at HALF RATES.'},
     {fac: 'greymarket', at: 2, up: true, head: 'FRIENDS OF THE HOUSE',
-     text: 'Word moves under the counters: this crew is good for it. Hask\u2019s real inventory is open \u2014 look for UNDER THE COUNTER at the Quartermaster.'},
+     text: 'Word moves under the counters: this crew is good for it. Hask will deal with this crew direct.'},
     {fac: 'freightring', at: 2, up: true, head: 'THE RING VOUCHES',
      text: 'The Crossport Freight Ring vouches for this crew. A tenth off every purchase at the port, effective immediately.'},
     {fac: 'tradersguild', at: -2, up: false, head: 'GUILD PAPER',
@@ -12057,6 +12136,21 @@ function followRun(ent, dt, isPlayer){
         }
         shoveAside(ent, e, dirX, dirY);
       }
+      if(run.dash) for(const cv of (state.civs || [])){
+        if(!cv.alive || cv.ko || run.dash.hit.has(cv)) continue;
+        if(Math.hypot(cv.x - ent.x, cv.y - ent.y) >= cv.r + ent.r) continue;
+        run.dash.hit.add(cv);
+        let dmg;
+        if(run.dash.charge){ dmg = ent.stats ? ent.stats.strength : 8; }
+        else{
+          const perp = Math.abs((cv.x - ent.x) * Math.sin(run.dash.a) - (cv.y - ent.y) * Math.cos(run.dash.a));
+          const base = (ent.weapon === 'unarmed' && ent.stats) ? ent.stats.strength : run.dash.w.dmg;
+          dmg = perp <= cv.r * 0.5 ? base : Math.round(base / 2);
+        }
+        spawnBurst(cv.x, cv.y, 10, '#c96b3e', 240);
+        civStruck(cv, dmg, 'player', ent, false, null);
+        if(cv.alive && !cv.ko && (state.civs || []).includes(cv)) shoveAside(ent, cv, dirX, dirY);
+      }
     }
 
     if(run.seg >= run.path.length - 1){
@@ -13113,6 +13207,18 @@ function partyPulse(){
   }
 }
 
+// two bodies on one spot: move the second a clear step away from the first (deterministic, wall-aware)
+function squadUnstack(c, from){
+  const min = c.r + from.r + 2;
+  let dx = c.x - from.x, dy = c.y - from.y;
+  let d = Math.hypot(dx, dy);
+  if(d >= min) return false;
+  if(d < 0.5){ const a = ((c.name || '').length * 1.7) % 6.283; dx = Math.cos(a); dy = Math.sin(a); d = 1; }
+  c.x = from.x + dx / d * min; c.y = from.y + dy / d * min;
+  c.x = Math.max(c.r, Math.min(W - c.r, c.x)); c.y = Math.max(c.r, Math.min(H - c.r, c.y));
+  unstickFromWalls(c);
+  return true;
+}
 function deckSeparate(){
   const sq = state.squad;
   for(let i = 0; i < sq.length; i++){
@@ -13132,6 +13238,7 @@ function deckSeparate(){
         const ux = dx / d, uy = dy / d;
         // the one standing still gives way to the one walking
         const am = a.moving ? 0.25 : 1, bm = b.moving ? 0.25 : 1;
+        if(d < min * 0.5 && !a.moving && !b.moving){ squadUnstack(b, a); continue; }   // stacked: step apart cleanly
         a.x -= ux * push * am; a.y -= uy * push * am;
         b.x += ux * push * bm; b.y += uy * push * bm;
         for(const u of [a, b]){
@@ -13351,69 +13458,7 @@ function frame(now){
         if(!dead && s.civs) for(const cv of s.civs){
           if(!cv.alive || cv.ko) continue;
           if(Math.hypot(cv.x - b.x, cv.y - b.y) < cv.r + b.r){
-            if(cv.arch && cv.kind !== 'constable' && s.deckCombat && b.team === 'player'){
-              // the knife comes out: the thief fights on real stats, not bystander luck
-              const eT = makeBoarder(cv.arch, cv.x, cv.y);
-              eT.name = cv.name || 'the cutpurse';
-              eT.wpnKey = cv.wpnKey || 'stdknife';
-              eT.wasCiv = true;
-              if(cv.stolen) eT.stolen = cv.stolen;
-              eT.alert = 'alerted';
-              eT.lastKnown = {x: b.owner ? b.owner.x : cv.x, y: b.owner ? b.owner.y : cv.y};
-              eT.hp -= b.dmg; eT.hitFlash = 1;
-              state.enemies.push(eT);
-              state.civs = state.civs.filter(c3 => c3 !== cv);
-              state.portFight = true;
-              showBanner('THE THIEF FIGHTS', '#e0483e');
-              if(eT.hp <= 0) kill(eT, b);
-              dead = true; break;
-            }
-            if(cv.kind === 'constable' && s.deckCombat && b.team === 'player' &&
-               startConstableFight()){
-              // the shot found a uniform: the whole beat converts to combatants,
-              // and THIS officer takes the hit on real hitpoints, not bystander luck
-              const eC = s.enemies.find(en => en.name === cv.name && en.alive);
-              if(eC){
-                eC.hp -= b.dmg;
-                eC.hitFlash = 1;
-                if(eC.hp <= 0) kill(eC, b);
-              }
-              dead = true; break;
-            }
-            if(b.sed && b.dmg < 1){
-              cv.ko = true;   // a sedated bystander is a mercy, not a casualty
-              if(state.portDock && b.team === 'player' && b.owner && b.owner.name && cv.kind !== 'constable')
-                bzCrimeWitness(cv.x, cv.y, {grade: 'minor', who: b.owner.name,
-                  what: 'assault on a bystander'}, b.owner);
-              addPopup(cv.x, cv.y - 14, 'BYSTANDER SEDATED', '#6fd6ff');
-            }else{
-              cv.alive = false;
-              const mine = b.team === 'player';
-              {
-                const shD = state.portDock && bz() && bz().shop;
-                if(shD && cv.name === shD.keeper && !shD.keeperDead){
-                  shD.keeperDead = true;
-                  const bzD = bz();
-                  if(!(bzD.deadCast || []).includes(cv.name))
-                    bzSet({deadCast: (bzD.deadCast || []).concat([cv.name])});
-                  if(mine) facRepAdd('tradersguild', -2);
-                  chronicle('event', 'Kestrel died behind her own counter. The Traders\u2019 Guild writes that kind of debt in permanent ink.');
-                }
-              }
-              if(state.portDock && mine && b.owner && b.owner.name){
-                if(cv.kind === 'constable'){
-                  // a badge's monitor flatlines: the cam holds the face until dispatch reads it
-                  (state.copCamQ = state.copCamQ || []).push({cop: cv.name || 'a reserve officer',
-                    by: b.owner.name, x: cv.x, y: cv.y});
-                }else{
-                  bzCrimeWitness(cv.x, cv.y, {grade: 'major', who: b.owner.name,
-                    what: 'the killing of a bystander'}, b.owner);
-                }
-              }
-              state.aarCiv[mine ? 'player' : 'hostile']++;
-              addPopup(cv.x, cv.y - 14, 'CIVILIAN DOWN', '#e0483e');
-              spawnBurst(cv.x, cv.y, 8, '#e0483e', 160);
-            }
+            civStruck(cv, b.dmg, b.team, b.owner, b.sed, b);
             dead = true; break;
           }
         }
@@ -15633,7 +15678,7 @@ const LOUNGE_POSTS = [
   {x: 0.5,   y: 0.472}, {x: 0.5,   y: 0.566}, {x: 0.47,  y: 0.525}, {x: 0.527, y: 0.525},
 ];
 const STATION_LABELS = {bridge:'BRIDGE', loadout:'LOADOUT', skills:'SKILLS', medpod:'MED POD',
-  board:'CONTRACTS', store:'QUARTERMASTER', cantina:'FOR HIRE', undock:'UNDOCK'};
+  board:'CONTRACTS', cantina:'FOR HIRE', undock:'UNDOCK'};
 // a docked hatch is a door: carve the wall beneath it (fractions in, fractions out)
 function carveDoorF(walls, a, PW, PH, gapPx){
   const gx = gapPx / PW, gy = gapPx / PH;
@@ -15698,7 +15743,6 @@ const CROSSPORT_PORT = {
   ],
   stations: [
     {x: 0.146, y: 0.40, id: 'board'},
-    {x: 0.845, y: 0.165, id: 'store'},
     {x: 0.845, y: 0.83, id: 'cantina'},
     {x: 0.355, y: 0.5, id: 'undock'},
   ],
@@ -15822,7 +15866,6 @@ function buildMercyPort(node){
     x: st.x * sx + ox, y: st.y * sy + oy, id: st.id, aboard: true,
   })).concat([
     {x: 0.146, y: 0.40, id: 'board'},
-    {x: 0.845, y: 0.165, id: 'store'},
     {x: 0.845, y: 0.83, id: 'cantina'},
     {x: 0.355, y: 0.5, id: 'undock'},
   ]);
