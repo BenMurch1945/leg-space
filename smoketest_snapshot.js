@@ -5025,3 +5025,19 @@ const fa5 = (() => {
 })();
 console.log('FA5 a stranger\'s paper opens a door:', fa5.ok ? 'PASS' : 'FAIL',
   `(paper ${fa5.paper}, open ${fa5.open}, lapses ${fa5.lapses}, once ${fa5.again}, rolled ${fa5.rolled}: ${fa5.face})`);
+
+
+// SI6 a visit dealt by an older build re-deals when the registry has grown
+const si6 = (() => {
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT; G.doShipReset(); G.enterPort();
+  const v1 = G.bz().visit;
+  G.bzSet({visit: Object.assign({}, v1, {reg: 'crate,lightfingers,stopsearch', picks: ['crate', 'lightfingers']})});   // the _si build's hand
+  G.undockToDeck(); G.enterPort();
+  const v2 = G.bz().visit;
+  const redealt = v2.n === v1.n && v2.reg === Object.keys(G.SITUATIONS).sort().join(',') &&
+    v2.picks.includes('familiarface') && G.ship.chronicle.some(en => en.text.indexOf('dealt again') >= 0);
+  const stamped = G.ship.chronicle.some(en => en.text.indexOf('Build ') >= 0);
+  G.undockToDeck(); G.doShipReset();
+  return {ok: redealt && stamped, redealt, stamped};
+})();
+console.log('SI6 an old save gets the new hand:', si6.ok ? 'PASS' : 'FAIL', `(redealt ${si6.redealt}, stamped ${si6.stamped})`);

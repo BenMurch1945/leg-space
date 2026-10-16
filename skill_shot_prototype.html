@@ -2651,7 +2651,7 @@ function enterPort(){
   {
     const sd = (ship.world && ship.world.seed) || 0;
     const nm = node ? (node.port ? node.port + ', ' + node.name : node.name) : ship.at;
-    chronicle('event', 'Docked at ' + nm + '. Port roll ' + sd.toString(36).toUpperCase() + '.');
+    chronicle('event', 'Docked at ' + nm + '. Port roll ' + sd.toString(36).toUpperCase() + '. Build ' + BUILD + '.');
   }
   if(typeof dismissBrief === 'function') dismissBrief();
   if(typeof dismissSys === 'function') dismissSys();
@@ -10622,6 +10622,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
+const BUILD = '16 Oct \u00B7 FF';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -10706,7 +10707,10 @@ function situationPick(force){
   if(!b) return null;
   const seed = (ship.world && ship.world.seed) || 0;
   const day = ship.day || 0;
-  if(!force && b.visit && b.visit.day === day && b.visit.seed === seed) return b.visit;
+  const reg = Object.keys(SITUATIONS).sort().join(',');   // the registry at roll time: a save from an older build re-deals
+  if(!force && b.visit && b.visit.day === day && b.visit.seed === seed && b.visit.reg === reg) return b.visit;
+  if(!force && b.visit && b.visit.day === day && b.visit.seed === seed && b.visit.reg !== reg)
+    chronicle('event', 'The port has grown since this visit was dealt. The hand is dealt again.');
   // a forced re-roll of the same day keeps its visit number; a new day is a new visit
   const n = (b.visit && b.visit.seed === seed) ? ((b.visit.day === day) ? (b.visit.n || 1) : (b.visit.n || 0) + 1) : 1;
   const rng = rngFor('situations|' + n);
@@ -10730,7 +10734,7 @@ function situationPick(force){
       pool.splice(pool.indexOf(a), 1);
     }
   }
-  const visit = {n, day, seed, picks};
+  const visit = {n, day, seed, reg, picks};
   bzSet({visit});
   const names = picks.map(k => SITUATIONS[k].name);
   chronicle('event', names.length ? 'Situations in play: ' + names.join(' \u00B7 ') + '.'
