@@ -1,0 +1,262 @@
+Legendary Space — Star System & Ports Design Document
+World Design · Working Draft v0.1 · 16 October 2026
+1. Design vision
+The star system in Legendary Space is a persistent, simulated environment in which players create their own stories through exploration, relationships, Contracts, combat, commerce and the consequences of their actions.
+The player begins on Gateway, in a Port called Crossport, with two chosen or customised Operators and the ambition to make something of themselves.
+There is no mandatory campaign route. Players can pursue legitimate work, join organisations, become criminals, recruit crews, acquire spacecraft, explore distant worlds or simply follow opportunities as they arise.
+The fundamental design principle is:
+We author the universe. We simulate what happens within it.
+Planets, moons, stations and Ports have fixed physical identities, while their populations, economic conditions, activities and events change between playthroughs and evolve throughout each run.
+The aim is a world that rewards familiarity without becoming predictable.
+2. System overview
+The system, provisionally called the Rook System, is an old, inhabited star system transformed by unusual stellar activity that began approximately a century ago.
+The star's increasingly anomalous emissions created opportunities to extract extraordinary new materials, triggering an economic expansion known as the Rush.
+The system has a natural geographical progression, moving from the relatively stable outer worlds towards the increasingly dangerous inner system.
+Region	Character	Gameplay identity
+Outer System	Remote moons and specialist settlements	Exploration, specialist resources, isolated Contracts
+Civilised System	Established planets, commerce and institutions	Trading, recruitment, policing, employment, politics
+Frontier Boundary	The Great Raft	Expedition preparation, frontier trade, shelter
+Inner Rush	Dangerous resource worlds and remote settlements	High-value extraction, lawlessness, environmental hazards
+Stellar Exclusion Zone	Extreme stellar conditions	Exceptional risk, rare discoveries, experimental expeditions
+The Great Raft marks the practical boundary between civilisation and the Inner Rush. Beyond it, permanent law enforcement becomes increasingly impractical and survival is no longer assured.
+This is not an artificial progression barrier. Players can attempt dangerous journeys whenever they possess the means.
+3. Object inventory
+In this document, an Object is a major location represented on the star-system map that players can travel to, approach or land at. An Object can be a planet, moon, station or constructed installation.
+A Port is an explorable physical location within an Object, where Operators can disembark and interact directly with the world.
+Object	Type	Region	Status
+Spindle	Moon	Far outer system	Established
+Rook	Inter-Star gate installation	Civilised system	Established
+Gateway	Planet	Civilised system	Established
+Sanarar	Planet	Civilised system	Established
+The Great Raft	Orbital megastructure	Frontier boundary	Established concept
+Ghostglass World	Planet	Inner Rush	Concept established; name pending
+Solace	Settlement on an unspecified body	Inner Rush	Proposed; details provisional
+System Star	Star	System centre	Established environmental premise
+The list is not intended to be exhaustive. The eventual system should contain additional Objects and Ports, including destinations that offer distinct cultures, economies, environmental conditions and opportunities.
+The exact orbital arrangement and distances remain to be defined.
+4. Gateway
+Civilised System · Starting World
+Gateway is one of the busiest commercial worlds in Known Space. Its proximity to the Rook Inter-Star gate has made it a natural destination for merchants, travellers, corporations, independent Operators and people looking to start new lives.
+Its identity is built around movement, commerce and opportunity.
+“Gateway wasn't built to be anyone's home. It became everyone's.”
+Gateway is not a lawless frontier. It is a functioning society with established institutions, policing, commercial regulation, property rights and competing jurisdictions. Criminal activity exists within that society, rather than replacing it.
+4.1 Crossport — Starting Port
+Name confirmed
+Crossport is the player's initial arrival point on Gateway. It is a busy, multicultural commercial Port where the lives of thousands of travellers intersect.
+The Port contains spacecraft landing facilities, trading streets, warehouses, workshops, shops, restaurants, accommodation, police infrastructure and spaces where independent Operators gather to find work.
+Crossport should feel welcoming, active and full of possibility, while retaining a rougher commercial character than Gateway's wealthier districts.
+Its architecture is permanent and learnable. Streets, buildings, entrances, shop premises, docking infrastructure and major landmarks remain in the same positions across playthroughs.
+However, its contents change.
+Persistent physical structure	Simulated and variable content
+Street layout and buildings	NPC populations and relationships
+Shop locations	Stock, prices and staffing
+Landing pads and docking facilities	Ships, crews and cargo
+Police station and infrastructure	Officers, patrols and responses
+Warehouses	Contents, owners and security
+Public squares and businesses	Events, disputes and opportunities
+Physical routes and entrances	Access restrictions and temporary obstacles
+The player starts with two selected or customised Operators. Their immediate future is entirely their choice.
+Crossport should be capable of supporting meaningful gameplay even without authored Contracts.
+4.2 Crossport event design
+Events are defined as Situations, not traditional linear quests. Each introduces characters, motivations, assets and conflicts into the simulation.
+The player can engage with a Situation through any applicable game system. Consequences persist beyond the event's original scope.
+Reference Situation: Varric's Package
+Varric, a questionable merchant with guild connections, asks the player to recover a package stolen by a former employee. The employee claims she took the package because Varric had failed to pay her.
+The player may buy the package, steal it, kill its current possessor, negotiate between the parties, sell it elsewhere, keep it, or take another approach.
+Varric's guild may reward cooperation or resent betrayal. Witnesses can alert police to crimes. Police investigations can escalate into searches, arrests or armed confrontations. If Varric is killed, insurance-backed mercenaries may pursue the player later.
+The package, its ownership, its location, the participants' knowledge and their relationships all persist as world facts.
+Additional Crossport Situation library
+Situation	Initial conflict	Primary systems
+Light Fingers	A pickpocket steals from a visitor	Theft, witnesses, policing
+Wrong Address	Valuable cargo is delivered incorrectly	Ownership, logistics
+The Unpaid Mechanic	A captain disputes a repair bill	Debt, ship ownership
+Something Got Loose	An alien creature escapes into the market	AI, property damage, capture
+A Familiar Face	An NPC recognises an Operator	Character history, relationships
+Going Cheap	A captain urgently sells a spacecraft	Economy, inspection, ownership
+The Competition	Rival Operator teams seek the same Contract	NPC goals, reputation
+The Collector	Multiple buyers pursue a rare artefact	Information, trade, theft
+The Job Interview	A security company recruits Operators	Employment, obligations
+Stop and Search	Police confront a suspicious traveller	Crime, evidence, escalation
+Fire in the Market	A commercial building catches fire	Physical simulation, rescue
+The Abduction	Armed individuals attempt to seize an NPC	Authority, conflict, pursuit
+The Bounty Hunter	A professional pursues a named target	Persistent NPCs, Contracts
+The Guild Dispute	Rival guilds claim the same warehouse	Ownership, law, faction politics
+The Riot	A public dispute escalates into unrest	Crowds, policing, reputation
+Emergency Landing	A damaged spacecraft arrives	Ship simulation, salvage
+Port Lockdown	Authorities restrict movement	Access, policing, smuggling
+The Blackout	Infrastructure fails across a district	Power, security, sabotage
+The Guild War	Commercial rivalry becomes violent	Faction conflict, persistence
+Situations should be allowed to overlap and influence one another. They should also progress without player intervention.
+4.3 Thousand Species Bazaar
+The Thousand Species Bazaar is Gateway's immense commercial and cultural heart, containing goods, services and communities from across Known Space.
+“The Bazaar doesn't have everything in one convenient place. It has everything somewhere.”
+It is not necessarily a single Port. It may be represented by multiple connected Ports or districts, each specialising in different activities.
+Potential districts include specialist equipment markets, food and cultural quarters, luxury trading halls, black-market exchanges and independent workshops.
+Design status: Established location; individual playable Ports and boundaries to be designed.
+4.4 Ship Graveyard
+A sprawling industrial district dedicated to spacecraft repair, salvage, dismantling and reconstruction.
+Despite its name, the Ship Graveyard is an active economic centre rather than a field of abandoned wrecks.
+It offers opportunities involving ship purchases, disputed salvage rights, spare parts, repairs, theft, employment and specialist recruitment.
+Varko, the owner of the battered spacecraft Orrix, is a possible character encountered through the wider Gateway economy. Acquiring the Orrix is an opportunity, not a compulsory narrative event.
+Design status: Established location; Port layout and detailed facilities pending.
+4.5 Additional Gateway Ports
+Gateway should eventually support several Ports with distinct economic and social identities.
+Suggested possibilities, not yet approved:
+- Civic Port: Government administration, law courts, policing and formal employment.
+- Highport: Luxury commerce, corporate headquarters, wealthy travellers and private security.
+- Freight Port: Container terminals, wholesale trading, warehouses and heavy transport.
+- Residential Port: Community neighbourhoods, local businesses, accommodation and personal stories.
+These locations should share the same world systems as Crossport, rather than relying on entirely separate gameplay rules.
+5. Rook — Inter-Star Gate
+Rook is a constructed installation providing access to the wider Inter-Star network.
+It is an Object in its own right because players can physically approach and land at the installation.
+Rook is not ancient precursor technology. The network was created by known spacefaring civilisations.
+As one of the system's most strategically important locations, Rook could support travel administration, security inspections, customs, commercial traffic and transit-related Contracts.
+Potential Port: Rook Transit Terminal
+A large, functional transport installation where spacecraft queue for passage, cargo is inspected and travellers enter or leave the system.
+Gameplay opportunities include shipping, escort work, customs disputes, passenger transport, smuggling and investigations.
+Design status: Rook established; detailed Port concept provisional.
+6. Sanarar
+Civilised System · Wealthy Elemental World
+Sanarar is an ancient, prosperous world settled by Elementals.
+Its defining feature is the relationship between civilisation and the natural environment. Enormous, sophisticated cities rise vertically within strictly enforced settlement boundaries, leaving the surrounding wilderness largely untouched.
+The cities are elegant, meticulously maintained and architecturally ambitious.
+Sanarar offers a distinct contrast to Gateway. Where Gateway is crowded, commercial and improvised, Sanarar is ordered, affluent and deeply conscious of its cultural heritage.
+Its opportunities should emphasise wealth, diplomacy, politics, luxury trade, sophisticated crime and carefully managed access.
+Proposed Ports
+The High Terraces: An elevated urban Port serving prestigious commercial districts, wealthy residents and visitors. Opportunities include high-value trade, luxury heists, security Contracts and political relationships.
+The Boundary: A Port situated at the edge of a major city's legally defined settlement area. It serves conservation officials, scientific expeditions and travellers entering the protected wilderness.
+Both are provisional names and concepts.
+Sanarar should feel like a functioning, desirable society rather than a superficially beautiful world concealing universal corruption.
+7. Spindle
+Far Outer System · Remote Moon
+Spindle is a cold, pale, barren moon located far beyond Gateway and Rook.
+Its rocky surface is marked by glowing purple mineral veins, while extensive cave systems shelter the dangerous Arachne.
+Arachne Silk is a valuable resource, attracting specialised expeditions, traders and independent Operators.
+Spindle's distance from major commercial centres makes it a place where preparation and logistical support matter.
+Proposed Port: Spindle Outpost
+A small, rugged settlement supporting resource extraction, scientific research and visiting expeditions.
+Facilities could include a landing area, equipment depot, medical station, modest accommodation and a silk-trading operation.
+Situations may involve missing expeditions, disputed resource claims, damaged equipment, rival collectors and dangerous wildlife.
+The Arachne Silk Contract is one possible opportunity generated by the world. It does not form a mandatory opening mission.
+Design status: Moon and resource identity established; Port provisional.
+8. The Great Raft
+Frontier Boundary · Last Safe Harbour
+The Great Raft is a colossal orbital settlement assembled from interconnected spacecraft, industrial modules and purpose-built habitats.
+It originated during the Rush as independent vessels joined together for mutual protection and logistical support.
+Over time, it developed into a vast floating city, sheltered behind an enormous directional shield known informally as the Umbrella.
+The shield faces the star, providing a relatively protected region in which ships can dock, undergo repairs and wait out dangerous stellar activity.
+The Great Raft is the last dependable safe point before the Inner Rush.
+8.1 Physical identity
+The station should visibly resemble a city constructed from a fleet.
+Different modules retain the character of their original vessels. Commercial streets pass through former cargo holds. Residential areas occupy converted passenger ships. Industrial facilities are built around enormous processing vessels.
+The star-facing side contains shield infrastructure, heavy machinery and maintenance facilities. Most civilian life occupies the sheltered side.
+Sections may detach, move, be sold, be abandoned or be newly attached as the station evolves.
+8.2 Governance
+The Raft is not necessarily controlled by one corporation or government.
+Its population and infrastructure are distributed among independent owners, commercial groups and local authorities.
+A shared governing body maintains docking connections, emergency services and the Umbrella.
+Interfering with the shield is considered an exceptionally serious offence because it threatens the survival of the entire settlement.
+8.3 Proposed Ports
+The Anchorage: The main docking district, filled with prospectors, cargo vessels, expedition crews and frontier traders.
+Umbrella Works: The industrial region responsible for maintaining the great shield and associated infrastructure.
+The Lashings: A densely interconnected district of older spacecraft, improvised markets and independent communities.
+These are provisional Port names.
+8.4 Gameplay
+The Raft is a preparation hub for expeditions into the Inner Rush.
+Players can purchase specialist equipment, recruit experienced crew, repair spacecraft, trade dangerous resources, accept recovery Contracts and seek information about stellar conditions.
+Major Situations could involve docking shortages, shield failures, missing expeditions, disputed ownership of modules, emergency evacuations and sections breaking away from the station.
+9. Ghostglass World
+Inner Rush · Hazardous Resource Planet · Name Pending
+Ghostglass World is a dangerous planet affected by extreme radiation storms.
+Its most valuable resource is Ghostglass, an exotic material that can be safely extracted only during a 19-day mining window within the planet's environmental cycle.
+Mining operations are temporary and highly time-sensitive.
+Companies, independent prospectors and opportunistic criminals arrive during the safe period, competing to extract valuable material before conditions become lethal.
+Proposed Port: Window Camp
+A modular mining settlement assembled or activated for each extraction window.
+It contains temporary accommodation, storage, extraction equipment, medical facilities, landing areas and commercial services.
+As the window closes, operations become increasingly desperate.
+Situations might include disputed mining claims, stolen Ghostglass, equipment failures, workers refusing evacuation, missing teams and ships departing with unpaid debts.
+The environment itself creates pressure without requiring an authored countdown mission.
+Design status: Planet concept and 19-day window established; name and Port provisional.
+10. Solace — The Stellar Cult Settlement
+Inner Rush · Proposed Name and Location
+Solace is a substantial town populated by beings from across Known Space who believe the star's anomalous activity provides extraordinary blessings.
+Its inhabitants deliberately expose themselves to radiation that most other settlements seek to avoid.
+The town began as a scientific or medical settlement and gradually developed into a religious community attracting pilgrims, people seeking cures and individuals searching for new lives.
+The radiation appears to offer genuine biological benefits, potentially including accelerated healing, prolonged life and increased resistance to stellar exposure.
+However, prolonged exposure may also produce profound neurological and physical changes.
+Proposed central concept
+Residents gradually develop a shared awareness while becoming increasingly adapted to the stellar environment.
+The changes create both benefits and costs.
+Some residents experience extraordinary health and a powerful sense of belonging. Others lose aspects of their independence or become unable to survive away from the star.
+The horror lies in the ambiguity: many residents genuinely consider these changes a blessing.
+Port and gameplay identity
+Solace would function as an explorable town rather than a small isolated cult compound.
+Its streets, businesses, homes, communal spaces and religious institutions appear welcoming, but increasingly unsettling behaviour reveals the community's unusual nature.
+Contracts should lean towards mystery, psychological horror, missing persons, medical investigation and morally ambiguous decisions.
+Example Situation: The Admiral's Daughter
+An Admiral hires the player to retrieve his adult daughter from Solace. She is alive, healthy and unwilling to leave. The player must navigate conflicting goals, potential medical dependencies, family relationships and the community's desire to protect her.
+No predetermined resolution is required.
+Design status: Concept under exploration. The name Solace, its exact location, biological mechanism and detailed gameplay remain provisional.
+11. Inner Rush and stellar hazards
+The Inner Rush is not a single jurisdiction or uniformly hostile region.
+It contains valuable resources, functioning industrial operations, isolated communities and ambitious expeditions.
+However, the environmental danger makes conventional government enforcement unreliable.
+Police and military forces may operate temporarily, but permanent patrols are rare. Private security, local agreements, faction relationships and individual capabilities become increasingly important.
+The region should feature environmental hazards with genuine mechanical consequences, including radiation exposure, stellar storms, damaged electronics, navigation difficulties and emergency shelter requirements.
+Risk should be understandable and manageable through preparation, equipment, local knowledge and tactical decisions.
+Players must remain free to attempt dangerous journeys, including ones they are poorly equipped to survive.
+12. Port simulation principles
+All Ports should operate according to the same foundational design principles.
+12.1 Fixed geography, variable state
+Physical layouts remain consistent, allowing players to learn the world.
+Populations, assets, opportunities and conditions change between playthroughs and throughout each run.
+12.2 Persistent world facts
+The game tracks ownership, possession, knowledge, relationships, resources, injuries, obligations and character goals.
+A Situation does not simply mark itself complete and erase its consequences.
+12.3 Independent NPC activity
+NPCs have their own motivations and schedules. They can trade, work, travel, commit crimes, resolve disputes and change relationships without player involvement.
+12.4 Systemic escalation
+Crimes and conflicts produce reactions according to witnesses, evidence, jurisdiction, resources and faction goals.
+A theft can become an investigation. An arrest can become a confrontation. A death can trigger inheritance disputes, retaliation or bounty Contracts.
+12.5 Interacting Situations
+Multiple Situations can exist simultaneously, sharing participants, locations and assets.
+This enables emergent complexity without requiring every possible outcome to be authored.
+12.6 Consequences across Objects
+A player's actions in Crossport can influence their opportunities on Sanarar, the Great Raft or elsewhere.
+Characters, ships, information, reputations and obligations should be able to travel through the system.
+12.7 Distinct Port identities
+Every Port should offer something different, not merely a new backdrop.
+Crossport emphasises opportunity and everyday life. Sanarar offers wealth and social complexity. Spindle supports specialist expeditions. The Great Raft is a frontier staging point. Ghostglass World creates environmental urgency. Solace introduces unsettling biological and social mechanics.
+13. Production priorities
+The system should be developed outward from Crossport rather than attempting to simulate every destination simultaneously.
+Priority	Deliverable	Purpose
+1	Crossport physical environment	Establish the core reusable playground
+2	Shops, policing, ownership and NPC goals	Make the Port function independently
+3	Varric's Package	Prove systemic choice and persistence
+4	Small and medium Situations	Establish variety and emergent interactions
+5	Ship ownership and travel	Enable movement between Objects
+6	Second Gateway Port	Test cross-Port persistence
+7	Specialist off-world destination	Prove different environmental and economic rules
+8	Wider system expansion	Build a diverse, replayable universe
+14. Outstanding design decisions
+The following questions remain open:
+1. System name: Rook System remains a working title.
+2. Starting Port: Crossport is confirmed, but whether every run must begin there remains undecided.
+3. Gateway geography: Number, location and connectivity of playable Ports.
+4. Port scale: How much of each Port is explorable and how densely simulated its inhabitants should be.
+5. Travel: How spacecraft move between Objects and how encounters occur during journeys.
+6. Additional Objects: Further planets, moons and installations needed to complete the system.
+7. Ghostglass World: Final name, environmental cycle and extraction economy.
+8. Solace: Final name, parent body, biological effects and cult organisation.
+9. The Great Raft: Governance, shield technology and physical modularity.
+10. World persistence: Which changes are simulated continuously and which are abstracted when distant from the player.
+
+15. Core design statement
+Legendary Space is not a collection of quests distributed across a star map.
+It is a living universe made from places, people, property, ambitions and competing interests.
+Every Object provides a distinct environment. Every Port provides a physical playground. Every character has motivations. Every action can create consequences.
+The player begins in Crossport, on Gateway, with two Operators and an ambition.
+Everything that happens next belongs to them.
+Take Your Shot at the Big Time.

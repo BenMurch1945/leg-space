@@ -1,0 +1,511 @@
+Legendary Space — Universe Overview
+World, Lore, Races, Classes & Locations · Working Design Reference · October 2026
+Legendary Space is a science-fiction, turn-based tactical RPG set in a vast, ancient and culturally diverse galaxy where the myths and legends of Earth have a surprising origin.
+Vampires, Minotaurs, Djinn, Elementals and countless other beings aren't supernatural creatures. They're real extraterrestrial species whose visits to Earth inspired humanity's stories of monsters, gods and mythical heroes.
+The game combines tactical combat, physical simulation, exploration and a living universe in which players create their own stories.
+Its central promise is simple:
+Take Your Shot at the Big Time.
+1. The setting
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+9
+
+
+
+
+
+
+
+
+
+Legendary Space takes place in the far future, across an interconnected network of inhabited star systems.
+The galaxy is populated by numerous intelligent species, many of which have been spacefaring for thousands of years. Their civilisations have developed complex political alliances, commercial relationships, rivalries and cultural traditions.
+The first species to venture into interstellar space were the Vampires, whose early expansion laid the foundations for much of the modern galactic order.
+Other species followed, eventually establishing the political and commercial institutions that govern much of Known Space.
+One of the most important is GCAT, a major interspecies organisation founded by the Vampires, Djinn, Sidhe, Naga and Elementals. The Minotaurs later joined as its sixth member following their liberation from Vampire enslavement.
+The truth behind Earth's mythology
+A defining feature of the universe is that Earth's ancient myths are distorted accounts of actual encounters with extraterrestrial beings.
+The Minotaur of Greek legend, for example, was not a supernatural monster but an alien prisoner associated with a crashed spacecraft.
+Vampires, Valkyries, Djinn and other legendary figures have similarly influenced human mythology.
+Humanity has only recently entered the wider galactic community, and its arrival introduces new political, cultural and personal tensions.
+Importantly, the universe contains no mysterious precursor civilisation responsible for its technology. Its infrastructure, spacecraft and Inter-Star network were built by the species that inhabit it.
+2. The player's place in the universe
+Players begin on the planet Gateway, at Crossport, with two chosen or customised Operators.
+They are not destined heroes following a predetermined campaign.
+They're two individuals looking for opportunity.
+Players can pursue Contracts, find employment, trade, become criminals, join organisations, recruit additional crew, acquire spacecraft and explore the wider system.
+The world is persistent and systemic. Characters have goals, possessions, relationships and knowledge. Player actions have consequences that continue long after an individual encounter ends.
+The game should generate stories through the interaction of these systems rather than relying on a fixed sequence of quests.
+Tactical combat
+Combat uses a turn-based system inspired by classic tactical strategy games, with an important innovation: Skill Shot.
+Instead of relying on conventional percentage-based hit chances, players physically aim their attacks. Projectiles travel through the simulated environment and interact with characters, cover, objects and other obstacles.
+This creates opportunities for precision shooting, ricochets, penetration, suppression, environmental destruction and improvised tactics.
+The same physical environment supports both exploration and combat, allowing confrontations to emerge naturally from ordinary interactions.
+
+3. The races of Legendary Space
+The universe contains a mixture of established spacefaring civilisations, recently encountered species and more unusual forms of intelligent life.
+These are the races we've developed or identified so far.
+The founding GCAT species
+
+
+
+
+
+
+
+
+
+Vampires
+The earliest interstellar explorers and colonisers, with an ancient, influential civilisation. Proud, sophisticated and politically powerful, but burdened by a history of conquest and slavery.
+They were responsible for uplifting and enslaving the Minotaurs before the latter gained their freedom.
+Their relationship with other species is shaped by both their extraordinary achievements and their oppressive past.
+
+
+
+
+
+
+
+
+
+
+
+
+Djinn
+One of the founding GCAT civilisations and a species whose existence contributed to Earth's legends of supernatural spirits.
+Their detailed biology, culture and abilities remain to be developed. They offer an opportunity to explore a civilisation that appears magical to outsiders but operates within the universe's own physical rules.
+
+
+
+
+
+
+
+
+
+
+
+
+Sidhe
+An ancient GCAT founding species associated with the otherworldly beings of human folklore.
+Their culture, appearance and place within galactic society are still relatively open for development.
+
+
+
+
+
+
+
+
+
+
+
+
+Naga
+A serpentine intelligent species and founding member of GCAT.
+Their physiology and visual identity provide an opportunity to create a civilisation with very different movement, architecture and equipment requirements from humanoid species.
+
+
+
+
+
+
+
+
+
+
+
+
+Elementals
+A sophisticated species whose bodies can exist in different elemental states, including Earth, Water, Air and Fire.
+These changes are not simply momentary combat transformations. Elementals may inhabit a particular state for extended periods, reflecting their biology and the environmental cycles of their homeworld.
+Their philosophy emphasises that identity transcends physical state:
+“You are not your state. You hold your state.”
+Elementals founded the wealthy world of Sanarar, where enormous cities coexist with strictly protected natural environments.
+
+
+
+Other important species
+
+
+
+
+
+
+
+
+
+Minotaurs (Minos)
+Originally uplifted and enslaved by the Vampires, the Minotaurs eventually won their freedom and joined GCAT as its sixth member.
+Despite their imposing appearance, their culture need not be inherently aggressive or warlike. We've explored a compassionate Minotaur character named Bram, recognisable by his shorter stature and broken horn.
+Their homeworld is Garn, and their liberated city of Veyrharn carries a name meaning Free-Home.
+
+
+
+
+
+
+
+
+
+
+
+
+Amaroks
+Intelligent, bipedal wolf-like beings originating from a relatively small moon.
+We've explored a youthful, rebellious visual identity, including distinctive fur patterns, dyed colours and expressive clothing.
+Their pack-oriented culture could create interesting relationships between loyalty, independence and crew dynamics.
+
+
+
+
+
+
+
+
+
+
+
+
+Valkyries
+Artificial beings associated with Valhalla Corporation.
+They reinterpret the mythological Valkyrie through advanced technology rather than supernatural origins.
+Their artificial nature offers interesting questions about ownership, autonomy, employment and personhood.
+
+
+
+
+
+
+
+
+
+
+
+
+Yokai
+Shapeshifting beings whose abilities helped inspire Japanese folklore.
+Their potential to change appearance creates obvious opportunities for disguise, infiltration, identity and deception systems.
+
+
+
+
+
+
+
+
+
+
+
+
+Humans
+A relatively recent addition to the wider interstellar community.
+Humanity's discovery of the truth behind its mythology is a significant part of the setting, and we've previously discussed its introduction as a major revelation known as the Twist.
+Human Operators can occupy the same careers and tactical roles as other species, bringing their own cultural perspective to Known Space.
+
+
+
+Additional species and concepts
+Species	Current concept
+Echidnas	Myth-inspired alien species; detailed identity pending
+Wyverns	Dragon-related intelligent life; biology and society to develop
+Sirens	Species connected to Earth's siren mythology
+Dragons	A significant mythological species with potential for an unusual galactic role
+Colossus	A symbiotic species concept
+Phoenix	Extremely rare, potentially near-extinct species
+Arachne	Dangerous cave-dwelling creatures found on Spindle, producing valuable silk
+Not all of these are equally developed, and not every species necessarily needs to be playable.
+
+4. Operator classes
+We've established six starting class archetypes.
+These represent an Operator's specialist training and capabilities, while their species contributes a separate progression path.
+The intention is to allow interesting combinations between race and class rather than restricting characters to stereotypical roles.
+
+
+
+
+
+
+
+
+
+Soldier
+The conventional combat specialist. Skilled in firearms, positioning, suppression and battlefield control.
+Soldiers form the backbone of many professional security forces, mercenary companies and military organisations.
+
+
+
+
+
+
+
+
+
+
+
+
+Witch
+An Operator possessing the Maleficus gene, enabling extraordinary abilities that appear magical but are grounded in the universe's biology.
+Witches introduce unconventional ways to influence enemies, allies and the environment.
+
+
+
+
+
+
+
+
+
+
+
+
+Runner
+A fast, mobile specialist focused on movement, infiltration, repositioning and exploiting tactical opportunities.
+Runners are well suited to reaching difficult locations and operating around heavily defended positions.
+
+
+
+
+
+
+
+
+
+
+
+
+Mancer / Warlock
+A technology specialist who manipulates advanced nanobots and related systems to achieve effects that can resemble magic.
+The class name has varied during development, but its defining identity is technological manipulation rather than the Witch's biological abilities.
+
+
+
+
+
+
+
+
+
+
+
+
+Medic
+A specialist in treating injuries, stabilising wounded Operators and supporting crew survival.
+Given the game's physical combat and persistent consequences, Medics have an important role beyond simply restoring abstract health points.
+
+
+
+
+
+
+
+
+
+
+
+
+Breaker
+A powerful close-range and environmental specialist who can overcome obstacles, disrupt defensive positions and exploit physical destruction.
+Breakers should make particular use of the game's simulated environments.
+
+
+
+Class progression
+Our working direction uses two progression trees for each Operator:
+- Class progression, representing specialist training, equipment expertise and tactical techniques.
+- Race progression, representing species-specific biology, culture and unique capabilities.
+This should make combinations such as a Minotaur Medic, Amarok Runner or Elemental Soldier feel meaningfully different.
+
+5. Places of interest
+The Rook System
+Working system name · Primary starting region
+The main playable star system is an established commercial region transformed approximately a century ago by anomalous stellar activity.
+The resulting Rush has attracted prospectors, corporations, scientists, criminals and settlers seeking valuable new materials.
+The system has a distinct progression from the stable outer worlds through the Great Raft to the hazardous Inner Rush.
+
+
+
+
+
+
+
+
+
+Gateway — The Commercial Crossroads
+The starting planet and one of the busiest destinations in Known Space.
+Gateway is home to the enormous Thousand Species Bazaar, extensive shipyards and a diverse population of travellers, merchants and independent Operators.
+Its society has functioning law enforcement, established institutions and a broad range of legitimate and illegitimate opportunities.
+Key locations: Crossport, Thousand Species Bazaar, Ship Graveyard.
+
+
+
+
+
+
+
+
+
+
+
+
+Crossport — The Starting Port
+A busy public Port on Gateway where the player begins with two Operators.
+Its physical layout is consistent between playthroughs, while NPCs, inventories, events, police patrols and relationships vary.
+Proposed areas include the Cross central plaza, Market Lanes, Guild Row, Shipyard, Freight Quarter, Civic Quarter, residential Warrens, Transit Concourse and maintenance Undercroft.
+Crossport is intended to be a reusable systemic playground, not merely a quest hub.
+
+
+
+
+
+
+
+
+
+
+
+
+Rook — The Inter-Star Gate
+An enormous engineered gateway connecting the system to the wider Inter-Star network.
+Rook is itself a landable Object, potentially containing customs, transit administration, security facilities and commercial services.
+
+
+
+
+
+
+
+
+
+
+
+
+Sanarar — The Elemental World
+An ancient, wealthy world with beautiful vertical megacities and strictly protected wilderness.
+Its culture values restraint, longevity, environmental stewardship and sophisticated urban life.
+Potential gameplay includes diplomacy, luxury commerce, political intrigue and high-value theft.
+
+
+
+
+
+
+
+
+
+
+
+
+Spindle — The Arachne Moon
+A remote moon in the far outer system.
+Its pale rocky landscape contains glowing purple mineral veins and dangerous cave systems inhabited by Arachne.
+Valuable Arachne Silk attracts specialist expeditions and creates opportunities for exploration, collection and resource disputes.
+
+
+
+
+
+
+
+
+
+
+
+
+The Great Raft — The Last Safe Harbour
+An immense floating city constructed from thousands of interconnected spacecraft and industrial modules.
+A colossal directional shield, known as the Umbrella, protects the settlement from the star's dangerous emissions.
+It marks the practical boundary between the civilised system and the Inner Rush.
+Prospectors, mercenaries, scientists and merchants gather here before attempting dangerous expeditions.
+
+
+
+
+
+
+
+
+
+
+
+
+Ghostglass World — The Nineteen-Day Window
+An unnamed planet in the Inner Rush, subject to extreme stellar radiation storms.
+Valuable Ghostglass can be extracted during a limited 19-day period of relative safety.
+Temporary mining settlements attract fortune-seekers, competing corporations and opportunistic criminals.
+
+
+
+
+
+
+
+
+
+
+
+
+Solace — The Town of the Blessed
+A proposed religious settlement in the Inner Rush.
+Its inhabitants worship the star's anomalous activity, believing its radiation grants healing, long life and spiritual enlightenment.
+Prolonged exposure may create unusual biological adaptations and a shared consciousness among residents.
+The town offers a distinctive cosmic-horror tone, with morally ambiguous Contracts, disappearances and disturbing mysteries.
+The name and detailed lore remain provisional.
+
+
+
+Beyond the Rook System
+We have also developed several locations and concepts elsewhere in Known Space.
+Location	Description
+Garn	Minotaur homeworld, shaped by its history of Vampire domination and liberation.
+Veyrharn	The Minotaur city known as Free-Home, previously renamed Asterion under Vampire rule.
+Mercy	An outlaw city on the moon Weyl, with a multicultural population and dangerous frontier atmosphere.
+Weyl	Moon containing Mercy, located in the Shatterbelt system.
+Shatterbelt	A hazardous star system where a Dead Star's pulses contribute to meteor storms and dangerous conditions.
+We have also explored the idea of a Thousand Species Bazaar as one of the galaxy's most extraordinary centres of commerce, now established as a defining feature of Gateway.
+
+6. Other established world concepts
+Ships and ownership
+Spacecraft are persistent physical assets with owners, crews, conditions, cargo and locations.
+Players may buy, steal, inherit, salvage or otherwise acquire ships.
+One established example is the Orrix, a battered spacecraft owned by Varko, a Gateway businessman. Its name comes from a clever four-winged scavenger bird from Tavar, regarded by some spacers as a good-luck omen.
+The Orrix is a possible acquisition, not a compulsory story reward.
+Factions, crime and consequences
+Organisations and individuals pursue their own interests.
+A crime is not automatically known to every authority. Witnesses, evidence, rumours and investigations determine how information spreads.
+Killing an NPC can create consequences involving their employer, relatives, creditors, faction or insurer.
+NPCs can pursue goals and settle disputes without player involvement.
+Contracts
+Contracts establish obligations between characters or organisations rather than prescribing how players must achieve an objective.
+The player can fulfil, abandon, reinterpret or betray an agreement, with consequences emerging from the wider simulation.
+The Five Keys and the Crossing
+We've also explored five mysterious Keys as a possible long-term pursuit connected to reaching other universes through an event or mechanism known as the Crossing.
+In the current living-universe direction, pursuing the Keys would be optional rather than the backbone of a mandatory campaign.
+Their precise nature, locations and role remain to be developed.
+
+7. The identity of Legendary Space
+What I think is particularly distinctive about the setting is the combination of three ideas.
+First, the universe is spectacular and unfamiliar, but its societies are recognisable. Alien species have jobs, families, debts, ambitions, traditions and political disagreements. Not every location is corrupt or dangerous; some are prosperous, peaceful and genuinely pleasant places to live.
+Second, the world is physically and socially simulated. Objects exist, people own things, information spreads, authorities respond, and characters act according to their goals. Tactical combat is part of that simulation, not a separate activity disconnected from the world.
+Third, the player is not the centre of the universe. They begin as two relatively unknown Operators in Crossport. They can become wealthy merchants, feared criminals, respected professionals, explorers or something nobody anticipated.
+And because the same places can produce different events and relationships in each playthrough, the universe becomes somewhere players can return to repeatedly and discover new stories.
+The overarching creative principle remains:
+The player creates the story. The universe makes it interesting.
