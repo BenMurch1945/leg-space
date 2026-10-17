@@ -394,6 +394,15 @@
   .csWinHead{font-size:11px;letter-spacing:.3em;color:var(--brass);margin-bottom:14px;
     border-bottom:1px solid rgba(212,168,67,.3);padding-bottom:9px;white-space:nowrap;}
   #csSheet{width:500px;}
+  #csHand{width:170px;padding:20px 18px;display:flex;flex-direction:column;gap:12px;align-self:center;height:640px;box-sizing:border-box;}
+  .csGive{border:1.5px dashed rgba(212,168,67,.35);padding:10px 8px;text-align:center;cursor:default;}
+  .csGive.willing, .csDrop.willing{border-color:var(--brass);animation:csFlash .7s ease-in-out infinite;}
+  .csGivePv{width:56px;height:56px;display:block;margin:0 auto 6px;border:1.5px solid rgba(232,224,204,.25);background:#0b0e16;}
+  .csGiveName{font:800 11px 'Space Grotesk',sans-serif;letter-spacing:.14em;}
+  .csGiveLine{font:500 9.5px 'Space Grotesk',sans-serif;letter-spacing:.12em;color:rgba(232,224,204,.5);margin-top:3px;line-height:1.4;}
+  .csGiveNone{font-size:11px;line-height:1.5;color:rgba(232,224,204,.45);}
+  .csDrop{margin-top:auto;border:1.5px dashed rgba(224,72,62,.45);padding:14px 8px;text-align:center;}
+  .csDropLab{font:800 13px 'Space Grotesk',sans-serif;letter-spacing:.3em;color:#e0a33e;}
   .csTop{display:flex;align-items:center;gap:18px;margin-bottom:16px;}
   #csPortrait{width:60px;height:60px;border:2px solid rgba(212,168,67,.5);
     background:#0b0e16;flex:none;}   /* the painter sizes its own buffer: CSS pins the seal */
@@ -3421,10 +3430,16 @@ function openCharSheet(c, mode, corpse){
         const it = sheetDrag.item;
         const slotEl = drop && drop.closest ? drop.closest('.csSlot') : null;
         const lwEl = drop && drop.closest ? drop.closest('#csLoot') : null;
+        const giveEl = drop && drop.closest ? drop.closest('.csGive') : null;
+        const dropEl = drop && drop.closest ? drop.closest('.csDrop') : null;
         if(it.kind === 'weapon' && slotEl &&
            (slotEl.dataset.slot === 'primary' || slotEl.dataset.slot === 'sidearm')){
           if(packEquip(sheetCtx.c, sheetDrag.packIdx, slotEl.dataset.slot)) sheetCtx.render();
         }else if(lwEl && sheetCtx.corpse && lootLeave(sheetCtx.c, sheetCtx.corpse, sheetDrag.packIdx)){
+          sheetCtx.render();
+        }else if(giveEl && packGive(sheetCtx.c, sheetDrag.packIdx, giveEl.dataset.name)){
+          sheetCtx.render();
+        }else if(dropEl && packDrop(sheetCtx.c, sheetDrag.packIdx)){
           sheetCtx.render();
         }
       }else if(sheetDrag.fromSlot){
@@ -3441,7 +3456,7 @@ function openCharSheet(c, mode, corpse){
       if(sheetDrag.ghost && sheetDrag.ghost.remove) sheetDrag.ghost.remove();
       sheetDrag = null;
       for(const sl of ov.querySelectorAll('.csSlot')) sl.classList.remove('willing');
-      for(const el2 of ov.querySelectorAll('#csBag, #csPack, #csLoot')) el2.classList.remove('willing');
+      for(const el2 of ov.querySelectorAll('#csBag, #csPack, #csLoot, .csGive, .csDrop')) el2.classList.remove('willing');
     });
   }
   if(!ov.querySelector) return false;
@@ -3547,7 +3562,7 @@ function openCharSheet(c, mode, corpse){
     let sideHtml;
     if(mode === 'loot' && corpse){
       const items = lootOf(corpse);
-      const archL = (ARCHETYPES[corpse.type] || {}).label || 'the fallen';
+      const archL = corpse.cache ? 'dropped gear' : ((ARCHETYPES[corpse.type] || {}).label || 'the fallen');
       const cellsL = Math.max(8, Math.ceil(items.length / 4) * 4);
       let lg = '';
       for(let i2 = 0; i2 < cellsL; i2++){
@@ -3559,7 +3574,7 @@ function openCharSheet(c, mode, corpse){
           : '') + '</div>';
       }
       sideHtml = '<div id="csSide" class="csWin">' +
-        '<div class="csWinHead">THE FALLEN \u00B7 ' + archL.toUpperCase() + '</div>' +
+        '<div class="csWinHead">' + (corpse.cache ? 'ON THE FLOOR \u00B7 DROPPED GEAR' : 'THE FALLEN \u00B7 ' + archL.toUpperCase()) + '</div>' +
         '<div id="csLoot" class="csBagGrid">' + lg + '</div>' +
         '<div id="csInfoBox"></div>' +
       '</div>';
@@ -3612,7 +3627,25 @@ function openCharSheet(c, mode, corpse){
           '<div class="csdRow"><span>' + k2 + '</span><i></i><b>' + v + '</b></div>').join('') + '</div>' +
       '</div>';
     }
-    ov.innerHTML = sheetHtml + sideHtml;
+    let handHtml = '';
+    if(!foe && c.alive){
+      const nearOps = nearOperators(c);
+      handHtml = '<div id="csHand" class="csWin">' +
+        '<div class="csWinHead">HAND OFF</div>' +
+        (nearOps.length ? nearOps.map(o => '<div class="csGive" data-name="' + o.name + '">' +
+            '<canvas class="csGivePv" width="56" height="56" data-name="' + o.name + '"></canvas>' +
+            '<div class="csGiveName" style="color:' + o.color + '">' + o.name.toUpperCase() + '</div>' +
+            '<div class="csGiveLine">PACK ' + ((o.def.pack || []).length) + ' / 4</div></div>').join('')
+          : '<div class="csGiveNone">Nobody in reach. Stand beside a squadmate to hand them something.</div>') +
+        '<div class="csDrop"><div class="csDropLab">DROP</div><div class="csGiveLine">Set it on the floor. Anyone can pick it up.</div></div>' +
+      '</div>';
+    }
+    ov.innerHTML = handHtml + sheetHtml + sideHtml;
+    for(const cvp of ov.querySelectorAll('.csGivePv')){
+      const o = (state.squad || []).find(o2 => o2.name === cvp.dataset.name);
+      if(o && cvp.getContext && typeof paintPortrait === 'function')
+        paintPortrait(cvp, o.kind, o.color, o.alive ? 1 - o.hp / (o.maxHp || 1) : 1, o.def.icon || o.name[0]);
+    }
     const pv = ov.querySelector('#csPortrait');
     if(pv && pv.getContext && typeof paintPortrait === 'function')
       paintPortrait(pv, foe ? 'human' : c.kind, foe ? (arch.color || '#e0483e') : c.color,
@@ -5529,6 +5562,7 @@ function newGameStart(){
   ship.where = 'port';
   ship.district = PORT_HOME[ship.at] || null;   // a new run starts on the Cross; the Orrix waits in the Lanes
   enterPort(ship.district);
+  camFocusCrew(2.4);
   opPickShow();
   return true;
 }
@@ -5594,6 +5628,7 @@ function opPickGo(){
   if(ov && ov.style) ov.style.display = 'none';
   const changed = !opPick.applied || opPick.applied[0] !== opPick.idx[0] || opPick.applied[1] !== opPick.idx[1];
   if(changed){ opApply(); enterPort(ship.district); }   // the floor is rebuilt around the two who actually walked out
+  camFocusCrew(2.4);
   simResume();
   const nm = SQUAD_DEFS.map(d => d.name);
   chronicle('event', nm.join(' and ') + ' stepped onto the Cross with standard issue and five hundred credits between them. The Orrix is parked in Market Lanes, through the north arch. Everything that happens next is theirs.');
@@ -5602,7 +5637,7 @@ function opPickGo(){
 // continue: a saved run resumes where it stood, on the concourse or aboard
 function continueGame(){
   titleHide();
-  if(ship.where === 'port' && (districtsOf(ship.at) || PORT_LEVELS[ship.at]) && livingRoster().length){ enterPort(ship.district); return 'port'; }
+  if(ship.where === 'port' && (districtsOf(ship.at) || PORT_LEVELS[ship.at]) && livingRoster().length){ enterPort(ship.district); camFocusCrew(2.4); return 'port'; }
   const r = document.getElementById('roster'); if(r && r.classList) r.classList.remove('hidden');
   renderRoster();
   return 'ship';
@@ -6809,6 +6844,16 @@ function camClamp(){
   cam.cy = Math.max(hh, Math.min(H - hh, cam.cy));
 }
 function camReset(){ cam.zoom = 1; cam.cx = W / 2; cam.cy = H / 2; cam.pan = null; }
+// close on the crew: a new player should see two people and a street, not a whole port
+function camFocusCrew(zoom){
+  const live = (state.squad || []).filter(c => c.alive);
+  if(!live.length) return false;
+  cam.cx = live.reduce((a, c) => a + c.x, 0) / live.length;
+  cam.cy = live.reduce((a, c) => a + c.y, 0) / live.length;
+  cam.zoom = zoom || 2.4; cam.pan = null;
+  camClamp();
+  return true;
+}
 function camApply(){
   const a = DPR * viewScale * cam.zoom;
   ctx.setTransform(a, 0, 0, a,
@@ -8963,7 +9008,7 @@ function initFog(){
   coneCanvas = document.createElement('canvas');
   // native resolution: logical field x view scale x DPR, so no compositing step ever upscales
   const os = Math.max(0.5, viewScale) * DPR;
-  const PW = Math.max(1, Math.round(LW * os)), PH = Math.max(1, Math.round(LH * os));
+  const PW = Math.max(1, Math.round(W * os)), PH = Math.max(1, Math.round(H * os));   // the world of this level, not the reference field
   for(const cv of [fogCanvas, expCanvas, coneCanvas]){ cv.width = PW; cv.height = PH; }
   fogCtx = fogCanvas.getContext('2d');
   expCtx = expCanvas.getContext('2d');
@@ -9034,8 +9079,17 @@ function drawEnemyCones(){
   }
 }
 
+// only walls a ray could reach matter: a rect further than R from the eye cannot occlude anything
+function wallsWithin(px, py, R){
+  const out = [];
+  for(const w of highWalls()){
+    const nx = Math.max(w.x, Math.min(w.x + w.w, px)), ny = Math.max(w.y, Math.min(w.y + w.h, py));
+    if(Math.hypot(nx - px, ny - py) <= R) out.push(w);
+  }
+  return out;
+}
 function visionPolyAt(px, py, R, peeks){
-  const segsRects = highWalls();
+  const segsRects = wallsWithin(px, py, R);
   // ray angles: a regular full-circle sweep plus every wall corner
   const angles = [];
   for(let a = -Math.PI; a < Math.PI; a += 6*DEG) angles.push(a);
@@ -9054,8 +9108,14 @@ function visionPolyAt(px, py, R, peeks){
   return pts;
 }
 function visionPoly(c){
+  // a standing operator sees the same floor every frame: cast once, reuse until they or the walls move
+  const R = charVisionRange(c);
+  const vk = c.x + ':' + c.y + ':' + R + ':' + state.walls.length + ':' + (W | 0);
+  if(c._vp && c._vp.k === vk) return c._vp.pts;
   const exm = shooterExemptions(c.x, c.y, c.r);
-  return visionPolyAt(c.x, c.y, charVisionRange(c), exm ? exm.peeks : null);
+  const pts = visionPolyAt(c.x, c.y, R, exm ? exm.peeks : null);
+  c._vp = {k: vk, pts};
+  return pts;
 }
 
 // an enemy's cone, occluded: rays stop at high walls so the drawn wedge
@@ -9064,7 +9124,7 @@ function conePolyAt(e, rOverride){
   const R = rOverride || enemyVisionRange(e);
   const f = e.facing;
   const half = visionArcHalf(e);
-  const segsRects = highWalls();
+  const segsRects = wallsWithin(e.x, e.y, R);
   const angles = [f - half, f + half];
   for(let a = -half; a <= half; a += 5*DEG) angles.push(f + a);
   for(const w of segsRects){
@@ -9781,7 +9841,8 @@ function districtPark(){
     ((cv.kind === 'fan' && !cv.spooked) || (cv.kind === 'constable' && (cv.attend || cv.hunt))));
   const stay = (state.civs || []).filter(cv => !followers.includes(cv));
   state.districts[id] = {t: performance.now(), civs: stay, props: (state.props || []).filter(p => !carry.includes(p)),
-    enemies: (state.enemies || []).filter(e => !e.alive), walls: state.walls, day: ship.day || 0};
+    enemies: (state.enemies || []).filter(e => !e.alive), walls: state.walls, day: ship.day || 0,
+    exp: (typeof expCanvas !== 'undefined' && expCanvas) ? expCanvas : null, W, H};
   return {carry, followers};
 }
 // a parked floor catches up on the time it was alone: the tide moved on, the slinkers left, the crew finished bagging
@@ -9810,6 +9871,9 @@ function districtWake(snap){
   state.enemies = enemies.concat((state.enemies || []).filter(e => e.alive));
   state.props = props;
   if(snap.walls && snap.walls.length === state.walls.length) state.walls = snap.walls;   // the same plan: keep its damage
+  if(snap.exp && typeof expCtx !== 'undefined' && expCtx && snap.W === W && snap.H === H){
+    try{ expCtx.drawImage(snap.exp, 0, 0, W, H); }catch(e){}   // what you had explored, you still remember
+  }
   cnavDirty();
 }
 // walk the crew through an arch into another district of the same port
@@ -9826,6 +9890,7 @@ function districtGo(to){
     slot: c.slot, weapon: c.weapon, downed: c.downed, downTimer: c.downTimer, ko: c.ko, sed: c.sed, cuffed: c.cuffed, friskT: c.friskT};
   enterPort(to, {from, carry: parked.carry});
   for(const c of state.squad){ const v = vitals[c.name]; if(v) Object.assign(c, v); }
+  camFocusCrew(2.4);
   const back = (state.doors || []).find(d => d.to === from) || state.doors[0] || {x: W / 2, y: H / 2};
   state.arrivals = state.arrivals || [];
   parked.followers.forEach((cv, i) => {
@@ -9941,8 +10006,10 @@ function faceArrive(cv, tg){
     return;
   }
   if(cv.face === 'friend'){
-    const sidearm = WPN_SLOTS.sidearm.find(k => WPN_PRICE[k] && !(WEAPONS[k] && WEAPONS[k].race)) || 'pistol';
     const d = tg.def || SQUAD_DEFS.find(d2 => d2.name === tg.name);
+    // the piece has to be one THIS operator is rated for: a breaker gets a shotgun back, not a pistol
+    const okKeys = WPN_SLOTS.sidearm.filter(k => WPN_PRICE[k] && d && weaponAllowed(d, k));
+    const sidearm = okKeys.length ? okKeys[Math.floor(rngFor('friend|' + (bz().visit ? bz().visit.n : 0))() * okKeys.length)] : 'stdknife';
     const give = () => {
       if(d){
         d.pack = d.pack || [];
@@ -10049,7 +10116,7 @@ const BZ_CLEANUP = [
 function bodiesOnFloor(){
   const out = [];
   for(const cv of (state.civs || [])) if(!cv.alive && !cv.bagged && !inShipZone(cv.x, cv.y)) out.push({obj: cv, list: 'civs'});
-  for(const e of (state.enemies || [])) if(!e.alive && !e.bagged && !inShipZone(e.x, e.y)) out.push({obj: e, list: 'enemies'});
+  for(const e of (state.enemies || [])) if(!e.alive && !e.cache && !e.bagged && !inShipZone(e.x, e.y)) out.push({obj: e, list: 'enemies'});
   return out;
 }
 function cleanupCall(){
@@ -10170,6 +10237,7 @@ function propLand(obj, isPkg){
 function tickProps(dt){
   if(state && state.simPause && state.shipDeck && !state.deckCombat) return;   // held under glass
   if(!state || !state.squad) return;
+  if(state.enemies && state.enemies.some(e => e.cache && lootSpent(e))) state.enemies = state.enemies.filter(e => !(e.cache && lootSpent(e)));
   for(const c of state.squad){
     const held = carriedThing(c);
     if(held && held.type === 'prop'){ held.prop.x = c.x; held.prop.y = c.y - c.r - 14; }
@@ -10773,6 +10841,45 @@ function lootLeave(c, e, pi){
   shipSave();
   return true;
 }
+// gear moves between hands: a pocketed thing goes to a squadmate standing close enough to take it
+function nearOperators(c){
+  return (state.squad || []).filter(o => o !== c && o.alive && !o.downed && !o.ko &&
+    Math.hypot(o.x - c.x, o.y - c.y) <= c.r + o.r + ADJACENT_REACH * 5);
+}
+function packGive(c, pi, name){
+  const o = (state.squad || []).find(o2 => o2.name === name);
+  if(!o || !nearOperators(c).includes(o)) return false;
+  const it = (c.def.pack || [])[pi];
+  if(!it) return false;
+  if(!Array.isArray(o.def.pack)) o.def.pack = [];
+  if(o.def.pack.length >= 4) return false;
+  c.def.pack.splice(pi, 1);
+  o.def.pack.push(it);
+  addPopup(o.x, o.y - o.r - 16, lootLabelOf(it).toUpperCase() + ' \u00B7 FROM ' + c.name.toUpperCase(), '#9fe08e');
+  shipSave();
+  return true;
+}
+// a thing set down on the floor is loot like any other: a ring on the ground, anyone can pick it up
+function cacheAt(x, y){
+  let cache = (state.enemies || []).find(e => e.cache && Math.hypot(e.x - x, e.y - y) < 40);
+  if(!cache){
+    cache = {cache: true, alive: false, looted: false, everSeen: true, visible: true, x, y, r: 9, type: 'cache',
+      name: 'Dropped gear', loot: [], bob: Math.random() * 6};
+    state.enemies.push(cache);
+  }
+  return cache;
+}
+function packDrop(c, pi){
+  const it = (c.def.pack || [])[pi];
+  if(!it) return false;
+  c.def.pack.splice(pi, 1);
+  const cache = cacheAt(c.x, c.y + c.r + 6);
+  cache.loot.push(it);
+  cache.looted = false;
+  addPopup(c.x, c.y - c.r - 16, lootLabelOf(it).toUpperCase() + ' \u00B7 SET DOWN', '#e0a33e');
+  shipSave();
+  return true;
+}
 function sellable(it){ return !it.kind || it.kind === 'trinket'; }
 function packTotal(){
   let n = 0, v = 0;
@@ -11097,7 +11204,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '17 Oct \u00B7 PACE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '17 Oct \u00B7 GEAR';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -15264,6 +15371,14 @@ function draw(){
     if(!e.alive){
       // the fallen stay fallen: a sprawled shape where they dropped, worth a search
       if(!e.everSeen && !e.visible) continue;
+      if(e.cache){
+        // a bundle set down on the floor
+        ctx.fillStyle = 'rgba(212,168,67,.55)';
+        ctx.strokeStyle = 'rgba(232,224,204,.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.rect(e.x - 7, e.y - 5, 14, 10); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(e.x - 7, e.y); ctx.lineTo(e.x + 7, e.y); ctx.stroke();
+      }else{
       const archD = ARCHETYPES[e.type] || {};
       ctx.save();
       ctx.globalAlpha = 0.34;
@@ -15278,6 +15393,7 @@ function draw(){
       ctx.moveTo(e.x - 5, e.y - 4); ctx.lineTo(e.x + 5, e.y + 4);
       ctx.moveTo(e.x + 5, e.y - 4); ctx.lineTo(e.x - 5, e.y + 4);
       ctx.stroke();
+      }
       if(!e.looted && !lootSpent(e)){
         const nearC = pc() && pc().alive && Math.hypot(pc().x - e.x, pc().y - e.y) < 52;
         const gl = 0.45 + 0.4 * Math.sin(t * 3 + (e.bob || 0));
@@ -16763,7 +16879,7 @@ function buildDistrict(def, node, dname){
     par: 0, brief: '',
     player: def.player ? {...def.player} : {x: 0.5, y: 0.5},
     world: {w: PW, h: PH},
-    ship: false, noFog: def.noFog !== false,
+    ship: false, noFog: def.noFog === true,   // the port is unknown until walked
     walls: (def.walls || []).map(w => ({...w})),
     enemies: [], civilians: 0,
     npcs: (def.npcs || []).map(n2 => ({...n2})),
@@ -16800,7 +16916,7 @@ function embedShipInPort(def, node){
     par: 0, brief: '',
     player: {x: SHIP_LEVEL.player.x * sx + ox, y: SHIP_LEVEL.player.y * sy + oy},
     world: {w: PW, h: PH},
-    ship: true, noFog: def.noFog !== false,
+    ship: true, noFog: def.noFog === true,
     walls: hull.concat(def.walls || []),
     enemies: [],
     civilians: 0,

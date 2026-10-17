@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 368-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 371-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -61,7 +61,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Civs are parked out of the way with `cv.x = W*0.95; cv.y = H*0.05; cv.errand = null`.
 - Beat patrol wanders constables: tests that stage a face-to-face stop pin `dr.beat = {at:null, wt:999}`.
 - Tests that need the crew hidden from enemies put them inside the hull (`W*0.5, H*0.5`).
-- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS DT ED EM ET EV EX FA FC FD FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NV NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN TU UA UC UL UN VA WD WG WN WR WS WT WV.
+- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS DT ED EM ET EV EX FA FC FD FF FL FR FS FT GE GH GM GR GS HO HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NV NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN TU UA UC UL UN VA WD WG WN WR WS WT WV.
 - Export shim (line ~63) lists everything reachable as `G.*`; extend it when adding verbs.
 - **`G.sitDealAll(true)`** is switched on at the top of the test run: the picker deals EVERY open ambient so fixtures that pump into cutpurses/stops/faces are deterministic. SI1/SI4 switch it off to test the 1–2 narrowing and back on after. Any new test that needs a specific situation live must not assume the roll.
 - **Faces in tests**: `faceTrigger(key, cv)` forces a face onto a given civ; `faSetup()` parks the crowd, pins the beat, and adds `familiarface` to the visit's picks. Headless, the face modals auto-take their first action (DRAW / TAKE IT / TAKE THE PAPER) because `showEventModal` returns `false`.
@@ -115,7 +115,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 
 ### Placement & situations (16 Oct)
 - `portAnchors(lvl)` = tagged spots (`SPOT_TAGS` by kind) + `lvl.anchors`. `placeAt(req, rng, used)` with `{tags, near, far, los, fallback}`; `placeBeside`. `rngFor(key)` is a seeded PRNG from `world.seed|portId|key`. **Placements are re-rolled from the seed on every port build, never stored** — editing the map in the Designer just re-rolls. `castPlacements()`: crate on a `freight` anchor, June 60–110 px away in LOS, Varric a `stall` ≥500 px from June, Hask a `counter`. `state.placed` holds the roll; the crate prop uses it.
-- Landing logs "Docked at Crossport, Gateway. Port roll XXXX. Build 17 Oct · PACE." (`BUILD` constant — bump it every delivery). A stored `visit` carries `reg` (sorted registry ids); a save whose `reg` differs re-deals the same visit, so a new build never inherits a stale hand.
+- Landing logs "Docked at Crossport, Gateway. Port roll XXXX. Build 17 Oct · GEAR." (`BUILD` constant — bump it every delivery). A stored `visit` carries `reg` (sorted registry ids); a save whose `reg` differs re-deals the same visit, so a new build never inherits a stale hand.
 - `SITUATIONS` registry: `crate` has `met()` (clock starts on first contact with June/Varric or Varric's approach) and `tick()` (30 days unattended → June sells it herself: `crateHolder 'lost'`, `resolved 'junesold'`, Varric cold). `situationsTick()` runs on landing and every frame on the concourse.
 - **Varric's approach**: 6–16 s after an operator is on open ground, Varric walks over (`approach` errand, 45 s give-up), scene popup with the offer, `varricAsked`, back to his stall.
 
@@ -157,6 +157,13 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### Camera, fog, hand-off (17 Oct, evening)
+- `camFocusCrew(zoom=2.4)` centres the camera on the living crew and zooms in; called after `newGameStart`, `opPickGo`, `districtGo` and `continueGame` (port). `camReset` still runs inside `enterPort`, so call focus AFTER it.
+- **Fog of war is on in ports**: `embedShipInPort`/`buildDistrict` now set `noFog: def.noFog === true` (the ship deck keeps `noFog: true`). `initFog` sizes its canvases to W×H (was LW×LH: a 5600-wide world only got a quarter covered). Performance: `wallsWithin(px, py, R)` limits ray casting to walls a ray could reach (exact, not approximate), and `visionPoly(c)` caches its polygon per operator while position/range/wall count are unchanged (`c._vp`). A parked district keeps its explored memory (`snap.exp`, redrawn into `expCtx` on wake when W/H match). In the harness fog runs too (suite ~29 s; was 23 s pre-fog, 128 s before the two optimisations). Enemies in port fights now obey `visible` like any other map.
+- The old friend's gift is chosen from `WPN_SLOTS.sidearm` filtered by `weaponAllowed(def, key)` (seeded pick), so a Breaker gets a shotgun or Stunner back, never a pistol he cannot rate.
+- **Hand-off**: `openCharSheet` prepends `#csHand` (left of the sheet) for a living operator: a `.csGive` portrait per squadmate within reach (`nearOperators(c)`: gap ≤ `ADJACENT_REACH*5` = 60 px) and a `.csDrop` target. Drag a PACK tile onto a portrait → `packGive(c, pi, name)` (refuses out of reach or a full pack); onto DROP → `packDrop(c, pi)`. Equipped slots must be unequipped to the pack first (existing drag).
+- **Floor caches**: `packDrop` puts the item in a cache at the operator's feet: `cacheAt(x, y)` returns/creates a pseudo-corpse `{cache: true, alive: false, type: 'cache', name: 'Dropped gear', loot: []}` in `state.enemies`, so the existing LOOT button, loot sheet (header ON THE FLOOR · DROPPED GEAR), dashed ring and `lootTake/lootEquip` all work unchanged. Caches merge within 40 px, are drawn as a bundle, are excluded from `bodiesOnFloor()` (the recovery crew never bags them), survive district parking (dead enemies are kept), and vanish when emptied (`tickProps`). Tests `HO1–HO3`.
 
 ### Tidy-up (17 Oct)
 - `enterPort` adds the `deck` body class (free-roam UI) itself when not in combat, plus `resize()`/`updateHud()`, so a port entered from the title or picker no longer shows the turn bars. Also resets `state.faceT` so a fresh landing starts the familiar-face clock afresh (this was also hijacking tide civs in older fixtures).
