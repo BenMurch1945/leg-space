@@ -5487,6 +5487,7 @@ function opApply(){
   rosterSelection.length = 0; rosterSelection.push(0, 1);
   opPick.applied = opPick.idx.slice();
   shipSave();
+  shipCreditsRefresh();   // the banner counts the two who are actually here
 }
 function newGameStart(){
   titleHide();
