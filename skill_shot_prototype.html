@@ -619,14 +619,14 @@
   .opArrow{width:38px;font:800 22px 'Space Grotesk',sans-serif;color:#d4a843;background:rgba(212,168,67,.06);border:none;border-right:1px solid rgba(212,168,67,.25);cursor:pointer;}
   .opArrow.r{border-right:none;border-left:1px solid rgba(212,168,67,.25);}
   .opArrow:hover{background:rgba(212,168,67,.18);}
-  .opCard{flex:1;padding:18px 18px 14px;display:flex;flex-direction:column;gap:9px;min-height:380px;}
+  .opCard{flex:1;padding:18px 18px 14px;display:flex;flex-direction:column;gap:9px;height:436px;box-sizing:border-box;}
   .opName{font-family:'Cinzel',serif;font-size:21px;font-weight:800;letter-spacing:.12em;}
   .opLine{font:700 10.5px 'Space Grotesk',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(232,224,204,.6);}
-  .opBio{font-size:12px;line-height:1.55;color:rgba(232,224,204,.78);min-height:74px;}
+  .opBio{font-size:12px;line-height:1.55;color:rgba(232,224,204,.78);height:134px;overflow-y:auto;flex:none;}
   .opStats{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;border-top:1px solid rgba(212,168,67,.2);padding-top:9px;}
   .opStats div{display:flex;justify-content:space-between;font:600 11px 'Space Grotesk',sans-serif;letter-spacing:.12em;color:rgba(232,224,204,.65);}
   .opStats b{color:var(--bone);}
-  .opKit{font:600 10.5px 'Space Grotesk',sans-serif;letter-spacing:.14em;color:rgba(159,224,142,.8);border-top:1px solid rgba(212,168,67,.2);padding-top:8px;}
+  .opKit{font:600 10.5px 'Space Grotesk',sans-serif;letter-spacing:.14em;color:rgba(159,224,142,.8);border-top:1px solid rgba(212,168,67,.2);padding-top:8px;height:44px;overflow:hidden;flex:none;}
   .opKit span{display:block;color:rgba(232,224,204,.45);font-weight:500;}
   #opGo{margin-top:24px;font:700 14px 'Space Grotesk',sans-serif;letter-spacing:.34em;color:var(--void);background:#d4a843;border:none;padding:14px 64px;cursor:pointer;}
   #opGo:hover{background:#e8c060;}
@@ -8304,11 +8304,13 @@ function civBlocked(cv, x, y, r){
   // the hull is a threshold: those outside never cross it; one somehow inside may leave
   return !inShipZone(cv.x, cv.y) && inShipZone(x, y);
 }
+// the pace of the port: every NPC stride passes through here (Ben, 17 Oct: half what it was)
+const NPC_PACE = 0.5;
 // steering, not sliding: a walker bends around what's ahead before touching it
 function civStep(cv, tx, ty, speed, dt){
   const dx = tx - cv.x, dy = ty - cv.y;
   const d = Math.hypot(dx, dy) || 1;
-  const step = Math.min(d, speed * dt);
+  const step = Math.min(d, speed * NPC_PACE * dt);
   const base = Math.atan2(dy, dx);
   const look = Math.min(d, step + 30);
   for(const off of [0, 0.45, -0.45, 0.9, -0.9, 1.45, -1.45]){
@@ -11095,7 +11097,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '17 Oct \u00B7 CROSS';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '17 Oct \u00B7 PACE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],

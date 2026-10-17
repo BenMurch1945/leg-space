@@ -4152,7 +4152,7 @@ const po1 = (() => {
   const sent = G.shopSend(0);
   const porter = G.state.civs.find(cv => cv.kind === 'porter');
   if(porter) porter.robAt = 0;   // this walk is uneventful
-  pump(2200, 16);
+  pump(4400, 16);   // the port walks at half pace now
   const delivered = G.ship.armoury.map(G.armKey).includes(k0) &&
     G.ship.chronicle.some(en => en.text.indexOf('inside the Orrix') >= 0);
   // leg two: the crowd's hands
@@ -4211,7 +4211,7 @@ const pb1 = (() => {
   const held = G.state.phase === 'enemy' && G.state.worldBeatT > 0;
   pump(100, 16);
   const back = G.state.phase === 'player';
-  const fled = Math.hypot(perp.x - px0, perp.y - py0) > 80;
+  const fled = Math.hypot(perp.x - px0, perp.y - py0) > 40;   // a 1.2 s world beat at half pace: a bolt still shows
   G.ironsToggle();
   G.undockToDeck(); G.doShipReset();
   return {ok: walks && held && back && fled, walks, moved: Math.round(moved), held, back, fled};
@@ -5213,7 +5213,7 @@ const tu1 = (() => {
   pump(3, 16);
   const sent = !!cop.scene && Math.abs(cop.scene.x - (hero.x + 30)) < 1;
   const d0 = Math.hypot(cop.x - cop.scene.x, cop.y - cop.scene.y);
-  pump(120, 16);
+  pump(240, 16);
   const d1 = Math.hypot(cop.x - (hero.x + 30), cop.y - hero.y);
   const walking = d1 < d0 - 60;
   cop.x = hero.x + 60; cop.y = hero.y;   // skip the rest of the walk
