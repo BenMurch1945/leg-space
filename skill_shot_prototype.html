@@ -596,6 +596,40 @@
   #mpClose{width:100%;font:700 10.5px 'Space Grotesk',sans-serif;letter-spacing:.18em;
     color:var(--bone);background:rgba(232,224,204,.06);border:1.5px solid rgba(232,224,204,.3);
     padding:8px;cursor:pointer;}
+  /* the front door */
+  #titleScreen{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%, rgba(24,30,52,.96), rgba(7,9,15,.99) 70%);color:var(--bone);}
+  #ttTitle{font-family:'Cinzel',serif;font-size:56px;font-weight:800;letter-spacing:.32em;color:#d4a843;text-shadow:0 0 40px rgba(212,168,67,.35);margin-left:.32em;}
+  #ttStrap{font:600 12px 'Space Grotesk',sans-serif;letter-spacing:.42em;text-transform:uppercase;color:rgba(232,224,204,.55);margin:10px 0 48px .42em;}
+  #ttBtns{display:flex;flex-direction:column;gap:14px;align-items:center;}
+  #ttBtns button{font:700 13px 'Space Grotesk',sans-serif;letter-spacing:.3em;color:var(--bone);background:rgba(212,168,67,.1);
+    border:1.5px solid rgba(212,168,67,.6);padding:14px 0;width:300px;cursor:pointer;}
+  #ttBtns button:hover{background:rgba(212,168,67,.22);}
+  #ttBtns button[disabled]{opacity:.3;cursor:default;}
+  .ttSub{display:block;font-weight:500;font-size:10px;letter-spacing:.18em;color:rgba(232,224,204,.5);margin-top:5px;}
+  #ttDev{position:fixed;left:18px;bottom:14px;font:600 10px 'Space Grotesk',sans-serif;letter-spacing:.2em;color:rgba(232,224,204,.3);cursor:pointer;}
+  #ttDev:hover{color:rgba(232,224,204,.7);}
+  #ttBuild{position:fixed;right:18px;bottom:14px;font:600 10px 'Space Grotesk',sans-serif;letter-spacing:.2em;color:rgba(232,224,204,.3);}
+  /* choose your operators */
+  #opPick{position:fixed;inset:0;z-index:82;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(7,9,15,.82);color:var(--bone);}
+  #opTitle{font-family:'Cinzel',serif;font-size:24px;font-weight:800;letter-spacing:.24em;color:#d4a843;margin-bottom:6px;}
+  #opHint{font:500 11px 'Space Grotesk',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:rgba(232,224,204,.5);margin-bottom:22px;}
+  #opSlots{display:flex;gap:26px;}
+  .opSlot{display:flex;align-items:stretch;background:rgba(14,18,32,.97);border:1.5px solid rgba(212,168,67,.5);width:400px;box-shadow:0 0 50px rgba(0,0,0,.6);}
+  .opArrow{width:38px;font:800 22px 'Space Grotesk',sans-serif;color:#d4a843;background:rgba(212,168,67,.06);border:none;border-right:1px solid rgba(212,168,67,.25);cursor:pointer;}
+  .opArrow.r{border-right:none;border-left:1px solid rgba(212,168,67,.25);}
+  .opArrow:hover{background:rgba(212,168,67,.18);}
+  .opCard{flex:1;padding:18px 18px 14px;display:flex;flex-direction:column;gap:9px;min-height:380px;}
+  .opName{font-family:'Cinzel',serif;font-size:21px;font-weight:800;letter-spacing:.12em;}
+  .opLine{font:700 10.5px 'Space Grotesk',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(232,224,204,.6);}
+  .opBio{font-size:12px;line-height:1.55;color:rgba(232,224,204,.78);min-height:74px;}
+  .opStats{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;border-top:1px solid rgba(212,168,67,.2);padding-top:9px;}
+  .opStats div{display:flex;justify-content:space-between;font:600 11px 'Space Grotesk',sans-serif;letter-spacing:.12em;color:rgba(232,224,204,.65);}
+  .opStats b{color:var(--bone);}
+  .opKit{font:600 10.5px 'Space Grotesk',sans-serif;letter-spacing:.14em;color:rgba(159,224,142,.8);border-top:1px solid rgba(212,168,67,.2);padding-top:8px;}
+  .opKit span{display:block;color:rgba(232,224,204,.45);font-weight:500;}
+  #opGo{margin-top:24px;font:700 14px 'Space Grotesk',sans-serif;letter-spacing:.34em;color:var(--void);background:#d4a843;border:none;padding:14px 64px;cursor:pointer;}
+  #opGo:hover{background:#e8c060;}
   #eventModal{position:fixed;inset:0;background:rgba(7,9,15,.78);z-index:85;
     display:flex;align-items:center;justify-content:center;}
   #eventBox{background:rgba(14,18,32,.98);border:1.5px solid rgba(224,72,62,.6);
@@ -2579,6 +2613,7 @@ function updateOrbitStatus(){
   if(show) document.getElementById('orbitText').textContent = 'CURRENTLY ORBITING: ' + n.name.toUpperCase();
 }
 function undockToDeck(){
+  ship.where = 'deck'; shipSave();
   if(!state.portDock) return false;
   if(state.respT || (state.civs || []).some(cv => cv.respond && cv.alive)){
     chronicle('ship', 'Lifted off ahead of the Constabulary response. The warrant stays on the books.');
@@ -2646,6 +2681,7 @@ function enterPort(){
   state.shipDeck = true;
   state.portDock = ship.at;
   state.enemies.length = 0;
+  ship.where = 'port';
   situationPick();
   situationsTick();
   {
@@ -3533,7 +3569,7 @@ function openCharSheet(c, mode, corpse){
         '<div class="csWinHead">SERVICE DOSSIER</div>' +
         '<div class="csdRace">' + (rname || '').toUpperCase() + '</div>' +
         '<div class="csdFlavor">' + (rflavor || '') + '</div>' +
-        '<div class="csdBio">' + (CHAR_BIOS[i0] || d.bio || 'Service record sealed. The bureau keeps its reasons.') + '</div>' +
+        '<div class="csdBio">' + (d.bio || CHAR_BIOS[i0] || 'Service record sealed. The bureau keeps its reasons.') + '</div>' +
         '<div class="csWinHead" style="margin-top:20px">SERVICE RECORD</div>' +
         '<div class="csdRec">' + recRows.map(([k2, v]) =>
           '<div class="csdRow"><span>' + k2 + '</span><i></i><b>' + v + '</b></div>').join('') + '</div>' +
@@ -5331,12 +5367,208 @@ const RACE_LORE = {
   human: 'Still finding their feet in this strange new Universe, humans believed themselves to be utterly alone until a few thousand years ago. Upon the grand reveal of extra-terrestrial life (known as the \u201cTwist\u201d), most dropped their preconceptions and leapt into the unknown. However, some radical groups cried heresy and dove further into their beliefs living in small colonies away from civilized space. These pockets of humanity are viewed differently across the GCAT, some happy to ignore, and others desperate to eradicate them. The rest adapt: humans figure out foreign equipment nobody taught them, fit into most rooms they walk into, and obsess over other species\' fashion, music and food before folding it into their own.',
 };
 
+const CHAR_BIOS_MARK = 1;
 const CHAR_BIOS = [
   'Born Rennar, and small for a Minotaur: their females tower, and he never grew into the silhouette Earth\'s stories promised. A squadmate\'s grandmother called him Bram once, and it fit: something warm about it, and something like a door closing. Old enough to remember worse laws, patient, deliberate, and kinder than he looks. The Stunner on his hip is a philosophy.',
   'A century and a half of service, most of it spent waiting for exactly the right moment. Ghant speaks rarely, wastes nothing, and considers a fired round a small failure of planning.',
   'Young, loud in company, and utterly silent on the approach. Kallik fights like he has something to prove, because he does: inexperience gnaws at him, and it flares into jealousy when someone else takes the glory.',
   'Humanity\'s kind of soldier: adaptable, unflappable, impossible to embarrass. Mara enlisted the week her colony got the news of the Twist, and she has treated the whole galaxy as her jurisdiction ever since.',
 ];
+
+// ---- the front door: twenty operators, two slots, one port ----
+// Four races, four classes, every pairing covered, four doubled. Standard issue only: an autogun and a knife.
+// Stats follow the race's frame and the class's trade; the numbers are the ones the field already runs on.
+const OPERATOR_PRESETS = [
+  {name:'Bram', kind:'minotaur', cls:'breaker', sex:'m', color:'#d4a843', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:28, move:123, strength:17, aim:9, bravery:22, luck:6, vision:378, agility:5, armor:0, fearless:1}, bio: CHAR_BIOS[0]},
+  {name:'Ghant', kind:'vampire', cls:'soldier', sex:'m', color:'#c5556f', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:16, move:211, strength:7, aim:14, bravery:18, luck:10, vision:458, agility:12, armor:0, fearless:0}, bio: CHAR_BIOS[1]},
+  {name:'Kallik', kind:'amarok', cls:'runner', sex:'f', color:'#c96b3e', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:20, move:264, strength:16, aim:8, bravery:14, luck:8, vision:440, agility:16, armor:0, fearless:0, stealth:0.6}, bio: CHAR_BIOS[2]},
+  {name:'Mara', kind:'human', cls:'soldier', sex:'f', color:'#7f9fc4', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:20, move:194, strength:9, aim:11, bravery:19, luck:12, vision:405, agility:10, armor:0, fearless:0}, bio: CHAR_BIOS[3]},
+  {name:'Orrin Vael', kind:'minotaur', cls:'soldier', sex:'m', color:'#c9a24a', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:24, move:140, strength:15, aim:11, bravery:23, luck:6, vision:390, agility:6, armor:0, fearless:1},
+   bio:'Twelve years in a Garn line regiment, where the drill is to stand still and be shot at until the other side gets bored. Orrin got bored first. Shoots better than a Minotaur should and apologises for it.'},
+  {name:'Teth', kind:'minotaur', cls:'runner', sex:'f', color:'#b8894a', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:24, move:160, strength:15, aim:8, bravery:20, luck:8, vision:380, agility:9, armor:0, fearless:1, stealth:0.4},
+   bio:'Small for her kind, which on Garn means merely enormous. Learned to move quietly because nobody expected her to, and found that doors open faster for a Minotaur who is already through them.'},
+  {name:'Halda Brune', kind:'minotaur', cls:'mancer', sex:'f', color:'#a88f5a', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:26, move:120, strength:16, aim:10, bravery:21, luck:9, vision:400, agility:5, armor:0, fearless:1},
+   bio:'A Veyrharn foundry engineer who taught herself the nanite trade from manuals written for hands half the size of hers. Patient with machines, patient with people, immovable with both.'},
+  {name:'Vond', kind:'minotaur', cls:'breaker', sex:'m', color:'#e0b25a', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:30, move:112, strength:19, aim:7, bravery:24, luck:4, vision:360, agility:4, armor:0, fearless:1},
+   bio:'Pit fighter, debt collector, door. Vond has been all three and ranks them in that order. Says very little and has never once needed to repeat it.'},
+  {name:'Isolde Marr', kind:'vampire', cls:'soldier', sex:'f', color:'#b0526d', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:15, move:205, strength:7, aim:16, bravery:17, luck:9, vision:470, agility:12, armor:0, fearless:0},
+   bio:'Ninety years with a Sanarar private security house, guarding people who were never in any danger. Resigned the week something finally happened and she was not allowed to shoot it.'},
+  {name:'Corvane', kind:'vampire', cls:'breaker', sex:'m', color:'#9a4458', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:21, move:180, strength:11, aim:11, bravery:19, luck:8, vision:440, agility:9, armor:0, fearless:0},
+   bio:'A Vampire who chose the heavy trade, which his family considers roughly equivalent to taking up farming. Light for a Breaker, fast for one, and has never lost a doorway yet.'},
+  {name:'Liss Aurel', kind:'vampire', cls:'runner', sex:'f', color:'#d06a82', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:14, move:245, strength:6, aim:13, bravery:16, luck:11, vision:480, agility:16, armor:0, fearless:0, stealth:0.7},
+   bio:'Sees further than anyone on the field and moves before they have finished looking. Treats locks as an insult and witnesses as a scheduling problem.'},
+  {name:'Severin Tal', kind:'vampire', cls:'mancer', sex:'m', color:'#8c4a6a', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:14, move:200, strength:6, aim:14, bravery:17, luck:13, vision:478, agility:11, armor:0, fearless:0},
+   bio:'Two centuries of study and a reputation for putting things to sleep that were not, strictly, alive to begin with. Courteous, exact, and very hard to surprise.'},
+  {name:'Jorah Vex', kind:'amarok', cls:'soldier', sex:'m', color:'#b8763f', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:21, move:240, strength:15, aim:11, bravery:16, luck:8, vision:445, agility:14, armor:0, fearless:0},
+   bio:'Pack-raised, strike-team trained, and dyes a white stripe down his spine so his squad can find him in the smoke. Loud, loyal, and faster than the plan.'},
+  {name:'Grizel', kind:'amarok', cls:'breaker', sex:'f', color:'#a0623a', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:26, move:215, strength:19, aim:6, bravery:17, luck:6, vision:420, agility:12, armor:0, fearless:0},
+   bio:'Built like the tower-blocks she grew up stacked in. Grizel breaks what is in front of her and then looks for the next thing. Her fur is cropped to the skin: nothing to grab.'},
+  {name:'Wick Tallow', kind:'amarok', cls:'mancer', sex:'m', color:'#c48a52', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:18, move:235, strength:12, aim:10, bravery:15, luck:11, vision:460, agility:14, armor:0, fearless:0},
+   bio:'Reads a room by scent and a machine by touch. Wears his rebellion in UV ink that only shows under the wrong lights, which is where he does most of his work.'},
+  {name:'Pyre', kind:'amarok', cls:'runner', sex:'f', color:'#e0742e', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:18, move:285, strength:14, aim:7, bravery:13, luck:9, vision:450, agility:18, armor:0, fearless:0, stealth:0.65},
+   bio:'Named for the colour she dyes herself and the speed she leaves at. Pyre does not do cover. Pyre does arriving somewhere else before the shooting catches up.'},
+  {name:'Ade Kuroki', kind:'human', cls:'soldier', sex:'m', color:'#6f8fb8', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:21, move:190, strength:10, aim:13, bravery:18, luck:11, vision:410, agility:9, armor:0, fearless:0},
+   bio:'Colony militia, then a Bureau line contract, then the quiet realisation that nobody was going to promote him for doing it properly. Does it properly anyway.'},
+  {name:'Dez Okafor', kind:'human', cls:'runner', sex:'m', color:'#8fb08a', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:17, move:235, strength:8, aim:10, bravery:15, luck:15, vision:410, agility:14, armor:0, fearless:0, stealth:0.6},
+   bio:'Grew up in a Gateway freight quarter and knows every way through a locked district that was not designed as one. Lucky in the way people are when they have practised.'},
+  {name:'Ines Castellan', kind:'human', cls:'breaker', sex:'f', color:'#5f7fa8', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:25, move:165, strength:13, aim:9, bravery:21, luck:10, vision:395, agility:7, armor:0, fearless:0},
+   bio:'Shipyard demolition before it was legal to be, then after. Ines treats a bulkhead as a conversation she intends to win. Human, so she needs the plate; wears it like skin.'},
+  {name:'Joss Pemberly', kind:'human', cls:'mancer', sex:'m', color:'#9f8fc4', loadout:{primary:'stdautogun', sidearm:'stdknife'},
+   stats:{health:18, move:190, strength:8, aim:12, bravery:17, luck:14, vision:425, agility:10, armor:0, fearless:0},
+   bio:'Taught himself the nanite trade off a stolen Djinn manual and a great deal of optimism. Half of what he builds works. The half that works is remarkable.'},
+];
+function saveExists(){ try{ return !!localStorage.getItem(SHIP_SAVE_KEY); }catch(e){ return false; } }
+function titleHide(){ const ov = document.getElementById('titleScreen'); if(ov && ov.style) ov.style.display = 'none'; }
+// the title: NEW · CONTINUE, the build in the corner, the ship screen behind a small door for the designer
+function titleShow(){
+  if(!document.body || !document.body.appendChild) return false;
+  let ov = document.getElementById('titleScreen');
+  if(!ov || !ov.querySelector){
+    ov = document.createElement('div'); ov.id = 'titleScreen';
+    if(!ov.querySelector) return false;   // headless: no front door to draw
+    document.body.appendChild(ov);
+  }
+  const has = saveExists();
+  const node = galaxyNode(ship.at);
+  const where = has ? ('DAY ' + (ship.day || 0) + ' · ' + (node ? (node.port || node.name) : ship.at).toUpperCase() +
+    ' · ' + livingRoster().map(d => d.name.toUpperCase()).slice(0, 2).join(' & ')) : 'NO SAVE ON THIS MACHINE';
+  ov.innerHTML =
+    '<div id="ttTitle">LEGENDARY SPACE</div>' +
+    '<div id="ttStrap">Take your shot at the big time</div>' +
+    '<div id="ttBtns">' +
+      '<button id="ttNew">NEW GAME</button>' +
+      '<button id="ttContinue"' + (has ? '' : ' disabled') + '>CONTINUE<span class="ttSub">' + where + '</span></button>' +
+    '</div>' +
+    '<div id="ttDev">SHIP SCREEN · DESIGNER</div>' +
+    '<div id="ttBuild">BUILD ' + BUILD + '</div>';
+  ov.style.display = 'flex';
+  ov.querySelector('#ttNew').addEventListener('click', () => {
+    if(!saveExists()) return newGameStart();
+    showEventModal('NEW GAME', 'There is a run in the save on this machine: ' + where.toLowerCase() + '. Starting new writes over it — the world, the ledgers, the graves. There is only one save.',
+      [{label: 'WRITE OVER IT', cb: newGameStart}, {label: 'KEEP IT'}]);
+  });
+  if(has) ov.querySelector('#ttContinue').addEventListener('click', continueGame);
+  ov.querySelector('#ttDev').addEventListener('click', () => {
+    titleHide();
+    const r = document.getElementById('roster'); if(r && r.classList) r.classList.remove('hidden');
+    renderRoster();
+  });
+  return true;
+}
+// a new run: the Orrix for now (the ship-less landing is its own step), two operators, Crossport, the picker over the floor
+const opPick = {idx: [0, 1], applied: null};
+function opApply(){
+  SQUAD_DEFS.length = 0;
+  for(const i of opPick.idx) SQUAD_DEFS.push(JSON.parse(JSON.stringify(OPERATOR_PRESETS[i])));
+  rosterSelection.length = 0; rosterSelection.push(0, 1);
+  opPick.applied = opPick.idx.slice();
+  shipSave();
+}
+function newGameStart(){
+  titleHide();
+  doShipReset();
+  opPick.idx = [0, 1];
+  opApply();
+  ship.where = 'port';
+  enterPort();
+  opPickShow();
+  return true;
+}
+function opPickCycle(slot, dir){
+  const n = OPERATOR_PRESETS.length, other = opPick.idx[1 - slot];
+  let i = opPick.idx[slot];
+  for(let k = 0; k < n; k++){ i = (i + dir + n) % n; if(i !== other) break; }
+  opPick.idx[slot] = i;
+  opPickRender();
+  return i;
+}
+function opKitLine(d){
+  const p = d.loadout && d.loadout.primary, s = d.loadout && d.loadout.sidearm;
+  return (p ? (WPN_NAMES[p] || p) : 'nothing shouldered') + ' · ' + (s ? (WPN_NAMES[s] || s) : 'empty holster');
+}
+function opPickRender(){
+  const ov = document.getElementById('opPick');
+  if(!ov || !ov.querySelector) return;
+  const slots = ov.querySelector('#opSlots');
+  slots.innerHTML = '';
+  opPick.idx.forEach((pi, slot) => {
+    const d = OPERATOR_PRESETS[pi], st = d.stats;
+    const el = document.createElement('div');
+    el.className = 'opSlot';
+    el.innerHTML =
+      '<button class="opArrow l" data-slot="' + slot + '" data-dir="-1">‹</button>' +
+      '<div class="opCard">' +
+        '<div class="opName" style="color:' + d.color + '">' + d.name.toUpperCase() + '</div>' +
+        '<div class="opLine">' + (RACE_INFO[d.kind] || [d.kind])[0] + ' · ' + (CLS_INFO[d.cls] || [d.cls])[0] + '</div>' +
+        '<div class="opBio">' + d.bio + '</div>' +
+        '<div class="opStats">' +
+          '<div><span>HEALTH</span><b>' + st.health + '</b></div><div><span>MOVE</span><b>' + st.move + '</b></div>' +
+          '<div><span>STRENGTH</span><b>' + st.strength + '</b></div><div><span>AIM</span><b>' + st.aim + '</b></div>' +
+          '<div><span>BRAVERY</span><b>' + st.bravery + '</b></div><div><span>LUCK</span><b>' + st.luck + '</b></div>' +
+          '<div><span>VISION</span><b>' + st.vision + '</b></div><div><span>AGILITY</span><b>' + st.agility + '</b></div>' +
+        '</div>' +
+        '<div class="opKit">STANDARD ISSUE<span>' + opKitLine(d) + (st.stealth ? ' · light-footed' : '') + (st.fearless ? ' · does not break' : '') + '</span></div>' +
+      '</div>' +
+      '<button class="opArrow r" data-slot="' + slot + '" data-dir="1">›</button>';
+    slots.appendChild(el);
+  });
+  slots.querySelectorAll('.opArrow').forEach(b => b.addEventListener('click', () => opPickCycle(+b.dataset.slot, +b.dataset.dir)));
+}
+function opPickShow(){
+  if(!document.body || !document.body.appendChild) return false;
+  let ov = document.getElementById('opPick');
+  if(!ov || !ov.querySelector){
+    ov = document.createElement('div'); ov.id = 'opPick';
+    if(!ov.querySelector) return false;
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = '<div id="opTitle">CHOOSE YOUR OPERATORS</div>' +
+    '<div id="opHint">Two of you, standard issue, and whatever Crossport turns out to be</div>' +
+    '<div id="opSlots"></div><button id="opGo">GO</button>';
+  ov.style.display = 'flex';
+  opPickRender();
+  ov.querySelector('#opGo').addEventListener('click', opPickGo);
+  simPauseStart();   // the port waits while you decide who walks into it
+  return true;
+}
+function opPickGo(){
+  const ov = document.getElementById('opPick');
+  if(ov && ov.style) ov.style.display = 'none';
+  const changed = !opPick.applied || opPick.applied[0] !== opPick.idx[0] || opPick.applied[1] !== opPick.idx[1];
+  if(changed){ opApply(); enterPort(); }   // the floor is rebuilt around the two who actually walked out
+  simResume();
+  const nm = SQUAD_DEFS.map(d => d.name);
+  chronicle('event', nm.join(' and ') + ' walked down the Orrix’s ramp onto the Crossport concourse with standard issue and five hundred credits between them. Everything that happens next is theirs.');
+  return true;
+}
+// continue: a saved run resumes where it stood, on the concourse or aboard
+function continueGame(){
+  titleHide();
+  if(ship.where === 'port' && PORT_LEVELS[ship.at] && livingRoster().length){ enterPort(); return 'port'; }
+  const r = document.getElementById('roster'); if(r && r.classList) r.classList.remove('hidden');
+  renderRoster();
+  return 'ship';
+}
+
 
 const SERVICE_RECORDS = [
   {'Contracts served': 214, 'Wins': 201, 'Losses': 13, 'Confirmed kills': 486, 'Subdued': 371,
@@ -5381,7 +5613,7 @@ if(document.addEventListener){
   const pb = document.getElementById('pvBack');
     if(pb) pb.addEventListener('click', () => portGo('overview'));
     const ng = document.getElementById('bnNewGame');
-    if(ng) ng.addEventListener('click', showResetConfirm);
+    if(ng) ng.addEventListener('click', () => { const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden'); titleShow(); });
     const lg = document.getElementById('bnLog');
     if(lg) lg.addEventListener('click', openChronicle);
     // the banner belongs to the whole ship: out of the menu, onto the glass
@@ -6490,7 +6722,7 @@ function openDossier(i){
     '<div id="dossierCard">' +
       '<div class="dhead" style="color:' + def.color + '">' + def.name.toUpperCase() + '</div>' +
       '<div class="dsub">' + rname + ' · ' + cname + '</div>' +
-      '<div class="dbio">' + (CHAR_BIOS[i] || def.bio || 'Service record sealed. The bureau keeps its reasons.') + '</div>' +
+      '<div class="dbio">' + (def.bio || CHAR_BIOS[i] || 'Service record sealed. The bureau keeps its reasons.') + '</div>' +
       statGrid(st, 'dstatgrid') +
       '<div class="dcols">' +
         '<div class="dcol">' +
@@ -10712,7 +10944,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '17 Oct \u00B7 NAV';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '17 Oct \u00B7 TITLE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -11895,6 +12127,7 @@ function shipSave(){
       world: ship.world || null,
       cargoProps: (ship.cargoProps || []).slice(),
       roster, career: CAREER, missionsWon: missionsWon,
+      where: ship.where || null,
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -11913,6 +12146,7 @@ function shipLoad(){
     ship.world = (d.world && (d.world.ports || d.world.bazaar)) ? d.world : null;
     worldEnsure();
     ship.cargoProps = Array.isArray(d.cargoProps) ? d.cargoProps : [];
+    ship.where = d.where || null;
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -17275,7 +17509,8 @@ if(!livingRoster().length && ship.credits < Math.min(...RECRUIT_POOL.map(p => p.
   ship.credits = 400;
 }
 shipCreditsRefresh();
-renderRoster();   // the demo opens on the ship screen
+renderRoster();
+titleShow();      // the game opens on the title; headless, this is a no-op and tests drive the verbs directly
 updateHud();
 requestAnimationFrame(frame);
 

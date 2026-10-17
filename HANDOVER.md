@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 361-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 363-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -61,7 +61,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Civs are parked out of the way with `cv.x = W*0.95; cv.y = H*0.05; cv.errand = null`.
 - Beat patrol wanders constables: tests that stage a face-to-face stop pin `dr.beat = {at:null, wt:999}`.
 - Tests that need the crew hidden from enemies put them inside the hull (`W*0.5, H*0.5`).
-- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FA FC FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NV NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL UN VA WD WG WN WR WS WT WV.
+- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FA FC FD FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NV NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL UN VA WD WG WN WR WS WT WV.
 - Export shim (line ~63) lists everything reachable as `G.*`; extend it when adding verbs.
 - **`G.sitDealAll(true)`** is switched on at the top of the test run: the picker deals EVERY open ambient so fixtures that pump into cutpurses/stops/faces are deterministic. SI1/SI4 switch it off to test the 1–2 narrowing and back on after. Any new test that needs a specific situation live must not assume the roll.
 - **Faces in tests**: `faceTrigger(key, cv)` forces a face onto a given civ; `faSetup()` parks the crowd, pins the beat, and adds `familiarface` to the visit's picks. Headless, the face modals auto-take their first action (DRAW / TAKE IT / TAKE THE PAPER) because `showEventModal` returns `false`.
@@ -113,7 +113,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 
 ### Placement & situations (16 Oct)
 - `portAnchors(lvl)` = tagged spots (`SPOT_TAGS` by kind) + `lvl.anchors`. `placeAt(req, rng, used)` with `{tags, near, far, los, fallback}`; `placeBeside`. `rngFor(key)` is a seeded PRNG from `world.seed|portId|key`. **Placements are re-rolled from the seed on every port build, never stored** — editing the map in the Designer just re-rolls. `castPlacements()`: crate on a `freight` anchor, June 60–110 px away in LOS, Varric a `stall` ≥500 px from June, Hask a `counter`. `state.placed` holds the roll; the crate prop uses it.
-- Landing logs "Docked at Crossport, Gateway. Port roll XXXX. Build 17 Oct · NAV." (`BUILD` constant — bump it every delivery). A stored `visit` carries `reg` (sorted registry ids); a save whose `reg` differs re-deals the same visit, so a new build never inherits a stale hand.
+- Landing logs "Docked at Crossport, Gateway. Port roll XXXX. Build 17 Oct · TITLE." (`BUILD` constant — bump it every delivery). A stored `visit` carries `reg` (sorted registry ids); a save whose `reg` differs re-deals the same visit, so a new build never inherits a stale hand.
 - `SITUATIONS` registry: `crate` has `met()` (clock starts on first contact with June/Varric or Varric's approach) and `tick()` (30 days unattended → June sells it herself: `crateHolder 'lost'`, `resolved 'junesold'`, Varric cold). `situationsTick()` runs on landing and every frame on the concourse.
 - **Varric's approach**: 6–16 s after an operator is on open ground, Varric walks over (`approach` errand, 45 s give-up), scene popup with the offer, `varricAsked`, back to his stall.
 
@@ -136,6 +136,15 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Tooltips: KNOWS YOU / OLD FRIEND / STARSTRUCK·SPOOKED / RECOVERY · n BAGGED. `portTalk` lines for cleaner, fan, friend.
 - Tests `FA1–FA5`. Banked: GCAT representative and old enemy faces (need operator history); the assassin's client; the fan recognising a *real* famous NPC.
 
+### The front door (17 Oct)
+- **Boot**: the tail still runs `shipLoad(); worldEnsure(); renderRoster();` then `titleShow()`. Headless `titleShow` returns false (no `querySelector` on stubs) and tests drive the verbs directly. `#bnNewGame` on the ship screen now returns to the title.
+- **Title** (`#titleScreen`, z 80): LEGENDARY SPACE · strapline · NEW GAME · CONTINUE (caption "DAY n · PORT · A & B", disabled with no save) · corner link SHIP SCREEN · DESIGNER (old roster/dev screen) · BUILD stamp. NEW over an existing save → `showEventModal` confirm (WRITE OVER IT / KEEP IT); one save only (`SHIP_SAVE_KEY`).
+- **`OPERATOR_PRESETS`** (20): the founding four + 16 new, 4 races (human, amarok, vampire, minotaur) × 4 classes (soldier, runner, breaker, mancer), every pairing, four doubled. All standard issue `{primary:'stdautogun', sidearm:'stdknife'}` — a pistol can't be a primary under `slotLegal`, so "sidearm + knife" literally would need a slot-rule change; parked. Every preset carries `bio`; `openCharSheet`/roster cards now prefer `d.bio` over `CHAR_BIOS[i]`.
+- **`newGameStart()`**: `doShipReset()` (option (b): the Orrix, 500 CR, seeded world — the dev reset underneath, which tests still use and which restores the founding four), `opPick.idx=[0,1]`, `opApply()` (SQUAD_DEFS = two clones, `rosterSelection=[0,1]`, save), `enterPort()`, `opPickShow()` (overlay `#opPick` z 82, world paused). Arrows `opPickCycle(slot, ±1)` skip the other slot's index; GO (`opPickGo`) re-applies and re-enters the port only if the pair changed, resumes, logs the ramp line.
+- **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
+- Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
+- **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
 ### Fixes (16 Oct, late)
 - **Bodies don't wall each other in**: `buildMoveGraph` skips a squadmate already overlapping the mover; `squadUnstack(c, from)` steps a stacked body a clear radius away (deterministic angle, wall-aware), called from `standUp` and from `deckSeparate` when two still bodies sit on one spot. Tests `UN1`.
 - **Melee hits bystanders**: `civStruck(cv, dmg, team, owner, sed, src)` is the one law for a civilian struck by anything — lifted out of the bullet loop (which now calls it) and used by the blade/charge dash contact loop in `followRun` and by `bluntSlam`. Thief → converts, badge → `startConstableFight`, sedative → KO, else dead + witnesses/keeper/cam logic. Tests `UN2`.
@@ -157,7 +166,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 
 1. ~~Situation picker~~ **DONE 16 Oct.** Still open from it: per-run cast variation (which named faces a run gets) and per-visit arrivals (new faces per landing) — the picker only rolls situations today.
 2. ~~First new situation~~ **A Familiar Face DONE 16 Oct.** Library (from `docs/star_system_and_ports_v0.1.txt`, 19 entries): Light Fingers ✓, Stop and Search ✓, A Familiar Face ✓, Varric's Package ✓; Wrong Address, The Unpaid Mechanic, Something Got Loose, Going Cheap, The Competition, The Collector, The Job Interview, Fire in the Market, The Abduction, The Bounty Hunter, The Guild Dispute, The Riot, Emergency Landing, Port Lockdown, The Blackout, The Guild War. One at a time. Ben wants **multi-map ports** (doors load other districts; police station for arrests) — after situations.
-3. Then: Gateway start proper — starting pair picker from presets (creator later), ship-less landing (Varko owns the Orrix; acquisition is an opportunity in the Ship Graveyard), Spindle as a small outpost map, other Gateway ports.
+3. ~~Starting pair picker~~ DONE 17 Oct (title + presets). Then: creator (later), ship-less landing (Varko owns the Orrix; acquisition is an opportunity in the Ship Graveyard), Spindle as a small outpost map, other Gateway ports.
 4. Open design questions: collective term for guilds/mobs/factions; failure model; whether June "moves around a little with the package" within a visit.
 
 **Banked backlog** (do not build unasked): insurance hunters / vengeful families for a dead keeper; lock-up + bail + breakout contracts; distraction heist (keeper "engaged" after a conversation); armour/gear on shelves; cargo hauling & smuggling between ports (needs multi-port); sized inventory grid; character creator; organisations with heads/successions; word-travels-between-ports; blood-price settlement; HANDOVER refresh each milestone.
