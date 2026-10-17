@@ -14,7 +14,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 2. **Everything is physically modelled. NO percentage dice.** Outcomes are comparisons of real stats, line of sight, distance, nerve vs intimidation. Never add an RNG roll to resolve an action.
 3. **The game sets the scene; the player's in-game tools write the ending.** Event popups INFORM (single OK/UNDERSTOOD button, identify the actor, pause the world). They never offer solution buttons. Resolution happens through existing verbs: draw irons, walk up and talk, report to a constable, steal, buy, chase. (Exception: *verbs at a physical location* — COMPLY/RESIST to a search, BUY/STEAL on a shelf card — are fine; those are the player's actions, not the game resolving an event for them.)
 
-**Standing rules from Ben:** any systemic action must be explained to the player by a popup or log line; British spelling in UI ("Armour"); crimes attach to the OPERATOR who did them, never the crew; rap sheets never fade ("why would a file fade from a computer?"); the world must keep a memory (per-run cast, per-visit arrivals); build one situation at a time.
+**Standing rules from Ben:** any systemic action must be explained to the player by a popup or log line; British spelling in UI ("Armour"); **no long dashes (em dashes) anywhere the player reads** (17 Oct: all stripped; `TU2` greps every string literal for `—`/`\u2014` and fails the build on one, so write prose with commas, colons, full stops or `·` separators); crimes attach to the OPERATOR who did them, never the crew; rap sheets never fade ("why would a file fade from a computer?"); the world must keep a memory (per-run cast, per-visit arrivals); build one situation at a time.
 
 **Vision ("taking your shot"):** the player picks/creates TWO operators who land at Crossport (Gateway) with minimal gear and no ship, and write their own story through systems — police, factions, crime, commerce. Ship-less start NOT yet implemented (Ben wants to test other systems first; dev boot still owns the Orrix). Failure model undecided.
 
@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 363-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 365-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -38,7 +38,7 @@ The harness reads `/home/claude/game_local.html` via `readFileSync`.
 ## 3. WORKFLOW (hard-won — follow exactly)
 
 1. **Patch with Python `rep(old, new)` using `assert src.count(old) == 1`.** Write the whole patch as a script in the scratchpad; it is atomic (nothing writes on a mismatched anchor). On an assertion failure the file is untouched — fix the anchor and re-run the whole script.
-2. **Anchor spelling is the recurring trap.** Original game code contains REAL unicode characters (`—`, `·`, `’`). Code *I* authored via double-escaped Python strings contains literal `—`/`·` escapes in the JS. Grep the exact text before writing an anchor. A full-width parenthesis `（` once slipped into a patch — `node --check` catches it.
+2. **Anchor spelling is the recurring trap.** Original game code contains REAL unicode characters (`·`, `’`). Code *I* authored via double-escaped Python strings contains literal `\u00B7`/`\u2019` escapes in the JS. (Em dashes are gone from the file as of 17 Oct; don't reintroduce them.) Grep the exact text before writing an anchor. A full-width parenthesis `（` once slipped into a patch — `node --check` catches it.
 3. **After every change**: re-extract the script (`re.search(r'<script>(.*)</script>', src, re.S)` → `check2.js`) → `node --check check2.js` → `node smoketest.js | grep -c ': PASS'` (count with the colon; a stray "FAIL" word in flag text broke bare counting once) → battery. **Fold these into ONE shell call** to save tokens.
 4. **Batteries**: 10 runs is enough; 20–30 was belt-and-braces. Count strict `': PASS'` lines; grep `': FAIL'` for culprits. Each full run takes ~12 s.
 5. **Deliver**: `cp` both files to outputs, `cmp` to verify, then `SendUserFile` on the prototype. If Ben's browser serves a stale cached copy (it happened on the 14th and cost a day), deliver under a fresh filename.
@@ -61,7 +61,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Civs are parked out of the way with `cv.x = W*0.95; cv.y = H*0.05; cv.errand = null`.
 - Beat patrol wanders constables: tests that stage a face-to-face stop pin `dr.beat = {at:null, wt:999}`.
 - Tests that need the crew hidden from enemies put them inside the hull (`W*0.5, H*0.5`).
-- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FA FC FD FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NV NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN UA UC UL UN VA WD WG WN WR WS WT WV.
+- Labels in use (grep before naming): AA AC AI AL AM AP AR BA BE BF BK BL BN BO BR BV BZ CD CG CH CL CM CN CR CS CT CU CV CW CY DD DP DS ED EM ET EV EX FA FC FD FF FL FR FS FT GE GH GM GR GS HP HR HW IJ IR KB KD KO KP LD LG LO LP LR MG MP MS NC NG NM NV NW OB OW PB PD PH PK PL PM PN PO PR PT PV PZ QM RC RD RG RK RO RP RS RW SB SC SE SG SH SI SK SL SM SP SQ SS ST SW SY TB TM TN TU UA UC UL UN VA WD WG WN WR WS WT WV.
 - Export shim (line ~63) lists everything reachable as `G.*`; extend it when adding verbs.
 - **`G.sitDealAll(true)`** is switched on at the top of the test run: the picker deals EVERY open ambient so fixtures that pump into cutpurses/stops/faces are deterministic. SI1/SI4 switch it off to test the 1–2 narrowing and back on after. Any new test that needs a specific situation live must not assume the roll.
 - **Faces in tests**: `faceTrigger(key, cv)` forces a face onto a given civ; `faSetup()` parks the crowd, pins the beat, and adds `familiarface` to the visit's picks. Headless, the face modals auto-take their first action (DRAW / TAKE IT / TAKE THE PAPER) because `showEventModal` returns `false`.
@@ -113,7 +113,7 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 
 ### Placement & situations (16 Oct)
 - `portAnchors(lvl)` = tagged spots (`SPOT_TAGS` by kind) + `lvl.anchors`. `placeAt(req, rng, used)` with `{tags, near, far, los, fallback}`; `placeBeside`. `rngFor(key)` is a seeded PRNG from `world.seed|portId|key`. **Placements are re-rolled from the seed on every port build, never stored** — editing the map in the Designer just re-rolls. `castPlacements()`: crate on a `freight` anchor, June 60–110 px away in LOS, Varric a `stall` ≥500 px from June, Hask a `counter`. `state.placed` holds the roll; the crate prop uses it.
-- Landing logs "Docked at Crossport, Gateway. Port roll XXXX. Build 17 Oct · TITLE." (`BUILD` constant — bump it every delivery). A stored `visit` carries `reg` (sorted registry ids); a save whose `reg` differs re-deals the same visit, so a new build never inherits a stale hand.
+- Landing logs "Docked at Crossport, Gateway. Port roll XXXX. Build 17 Oct · TIDY." (`BUILD` constant — bump it every delivery). A stored `visit` carries `reg` (sorted registry ids); a save whose `reg` differs re-deals the same visit, so a new build never inherits a stale hand.
 - `SITUATIONS` registry: `crate` has `met()` (clock starts on first contact with June/Varric or Varric's approach) and `tick()` (30 days unattended → June sells it herself: `crateHolder 'lost'`, `resolved 'junesold'`, Varric cold). `situationsTick()` runs on landing and every frame on the concourse.
 - **Varric's approach**: 6–16 s after an operator is on open ground, Varric walks over (`approach` errand, 45 s give-up), scene popup with the offer, `varricAsked`, back to his stall.
 
@@ -144,6 +144,10 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### Tidy-up (17 Oct)
+- `enterPort` adds the `deck` body class (free-roam UI) itself when not in combat, plus `resize()`/`updateHud()`, so a port entered from the title or picker no longer shows the turn bars. Also resets `state.faceT` so a fresh landing starts the familiar-face clock afresh (this was also hijacking tide civs in older fixtures).
+- A witnessed crime carries its place: `bzCrimeWitness` sets `crime.at = {x, y}`; when the runner reaches a constable, that officer gets `cv.scene` ("SHOW ME WHERE") and walks there in the law region (before `attend`/beat), marks bodies within 160 px `lawSeen`, logs, calls `cleanupCall()`. The response detail already targets `respScene`. Test `TU1`.
 
 ### Fixes (16 Oct, late)
 - **Bodies don't wall each other in**: `buildMoveGraph` skips a squadmate already overlapping the mover; `squadUnstack(c, from)` steps a stacked body a clear radius away (deterministic angle, wall-aware), called from `standUp` and from `deckSeparate` when two still bodies sit on one spot. Tests `UN1`.

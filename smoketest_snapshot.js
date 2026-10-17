@@ -5190,3 +5190,48 @@ const op2 = (() => {
 })();
 console.log('FD2 two walk down the ramp, and the save remembers the floor:', op2.ok ? 'PASS' : 'FAIL',
   `(two ${op2.two}, save ${op2.inSave}, skip ${op2.skip}, wrap ${op2.wrap}, went ${op2.went}, orrix ${op2.orrix}, deck ${op2.deckSaved}, loaded ${op2.loaded}, resumed ${op2.resumed}, restored ${op2.restored})`);
+
+
+// ---- TU: tidy-up ----
+// TU1 a report sends the officer who heard it to the place it happened
+const tu1 = (() => {
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT; G.doShipReset(); G.enterPort();
+  const hero = G.state.squad[0];
+  hero.x = G.W * 0.45; hero.y = G.H * 0.55;
+  for(const cv of G.state.civs){ cv.x = G.W * 0.95; cv.y = G.H * 0.05; cv.errand = null; }
+  const cops = G.state.civs.filter(c2 => c2.kind === 'constable');
+  for(const cp of cops){ cp.beat = {at: null, wt: 999}; cp.ko = true; }
+  const cop = cops[0]; cop.x = hero.x + 700; cop.y = hero.y + 250;
+  const wit = G.state.civs.find(c2 => c2.tide && !c2.name);
+  wit.x = hero.x - 100; wit.y = hero.y; wit.brave = 16;
+  const vic = G.state.civs.find(c2 => c2.tide && !c2.name && c2 !== wit);
+  vic.alive = false; vic.x = hero.x + 30; vic.y = hero.y; vic.name = 'Test Victim';
+  G.bzCrimeWitness(hero.x + 30, hero.y, {grade: 'major', who: hero.name, what: 'a test killing'}, hero);
+  for(const cp of cops) cp.ko = false;
+  const ran = wit.errand && wit.errand.kind === 'law' && wit.errand.crime && wit.errand.crime.at;
+  wit.x = cop.x + 20; wit.y = cop.y;
+  pump(3, 16);
+  const sent = !!cop.scene && Math.abs(cop.scene.x - (hero.x + 30)) < 1;
+  const d0 = Math.hypot(cop.x - cop.scene.x, cop.y - cop.scene.y);
+  pump(120, 16);
+  const d1 = Math.hypot(cop.x - (hero.x + 30), cop.y - hero.y);
+  const walking = d1 < d0 - 60;
+  cop.x = hero.x + 60; cop.y = hero.y;   // skip the rest of the walk
+  pump(3, 16);
+  const arrived = !cop.scene && vic.lawSeen && G.state.civs.some(c2 => c2.kind === 'cleaner') &&
+    G.ship.chronicle.some(en => en.text.indexOf('reached the place') >= 0);
+  G.rapClear(hero.name); G.state.respT = 0;
+  G.undockToDeck(); G.doShipReset();
+  return {ok: ran && sent && walking && arrived, ran: !!ran, sent, walking, arrived};
+})();
+console.log('TU1 the law goes where it was told:', tu1.ok ? 'PASS' : 'FAIL', `(ran ${tu1.ran}, sent ${tu1.sent}, walking ${tu1.walking}, arrived ${tu1.arrived})`);
+
+// TU2 no long dashes anywhere the player reads
+const tu2 = (() => {
+  const src = require('fs').readFileSync('/home/claude/game_local.html', 'utf8');
+  const script = src.slice(src.indexOf('<script>'));
+  const strings = script.match(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`/g) || [];
+  const bad = strings.filter(s => s.indexOf('—') >= 0 || s.indexOf('\\u2014') >= 0);
+  return {ok: bad.length === 0, n: bad.length, first: bad[0] ? bad[0].slice(0, 60) : ''};
+})();
+console.log('TU2 no long dashes in the copy:', tu2.ok ? 'PASS' : 'FAIL', `(${tu2.n} left${tu2.first ? ': ' + tu2.first : ''})`);

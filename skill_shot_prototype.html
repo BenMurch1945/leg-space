@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Legendary Space — Skill Shot Prototype</title>
+<title>Legendary Space, Skill Shot Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -966,7 +966,7 @@
   .wgTile:hover{border-color:var(--brass);background:rgba(212,168,67,.08);transform:translateY(-2px);}
   .wgTile.current{border-color:#6fd6ff;box-shadow:0 0 12px rgba(111,214,255,.35);}
   .wgGlyph{font-family:'Cinzel',serif;font-weight:800;font-size:30px;line-height:1;}
-  /* the inspect card: big title, label/value rows, free-text rules — never resizes */
+  /* the inspect card: big title, label/value rows, free-text rules, never resizes */
   #wgInfo{margin-top:16px;height:284px;box-sizing:border-box;overflow:hidden;
     border-top:1px solid rgba(212,168,67,.18);padding-top:12px;text-align:center;}
   #wgInfoName{font-family:'Cinzel',serif;font-size:19px;font-weight:800;color:var(--bone);
@@ -1221,7 +1221,7 @@
     <div id="topBanner">
       <span id="bnTitle">LEGENDARY SPACE</span>
       <span id="shipName">THE ORRIX · INDEPENDENT REGISTRY</span>
-      <span class="bnStat">CREW <b id="bnCrew">—</b></span>
+      <span class="bnStat">CREW <b id="bnCrew">-</b></span>
       <span class="bnStat"><b id="shipCredits">0</b> CR</span>
       <span class="bnStat">DAY <b id="bnDay">0</b></span>
       <span id="bnLog">ship's log</span>
@@ -1322,7 +1322,7 @@
     <div id="banner"></div>
     <div id="tune"></div>
     <div id="edpanel"></div>
-    <div id="title">Legendary Space — Contract 001</div>
+    <div id="title">Legendary Space, Contract 001</div>
     <div id="inspect"></div>
     <div id="objtrack"></div>
     <div id="statetoast"></div>
@@ -1347,7 +1347,7 @@
     <button class="mode" id="squadbtn">Exit</button>
     <button id="gear">⚙ Tuning</button>
     <button id="edbtn">✎ Designer</button>
-    <button class="mode" id="endturnbtn" style="margin-top:auto" title="Hold position and hand the turn over. Unspent AP is lost — Watch banks it instead.">End Turn ▸<span class="apcost">free</span></button>
+    <button class="mode" id="endturnbtn" style="margin-top:auto" title="Hold position and hand the turn over. Unspent AP is lost, Watch banks it instead.">End Turn ▸<span class="apcost">free</span></button>
   </div>
 </div>
 <script>
@@ -1699,7 +1699,7 @@ function explainState(key){
   sysQueue.push(key);
   showNextSys();
 }
-// Bureau Advisories: the game's one teacher — a lesson at the moment of need.
+// Bureau Advisories: the game's one teacher, a lesson at the moment of need.
 // No two advisories within 45 seconds: queued lessons wait their turn.
 let lastAdvisoryAt = 0;
 const ADVISORY_GAP = 45000;
@@ -2207,7 +2207,7 @@ const LEVELS = [
   ];
 let levelIdx = 0;
 let usingCustom = false;
-// The designer's working level — fractions of screen, same shape as LEVELS entries
+// The designer's working level, fractions of screen, same shape as LEVELS entries
 // the range: one operative, one target, one lesson
 const RANGE_LEVEL = {
   name: 'The Range', par: 99, brief: '',
@@ -2571,7 +2571,7 @@ function beginBoarding(){
   const isRecovery = !!(bR && bR.recoveryArmed);
   showEventModal(isRecovery ? 'RECOVERY TEAM' : 'BOARDING ACTION',
     isRecovery
-      ? 'A tether slams the hull and a cutter starts its work. Professional. Patient. They\u2019ve come for Varric\u2019s crate \u2014 and they know it\u2019s aboard. One turn: get into position.'
+      ? 'A tether slams the hull and a cutter starts its work. Professional. Patient. They\u2019ve come for Varric\u2019s crate, and they know it\u2019s aboard. One turn: get into position.'
       : 'A breaching charge bites into the hull. Sparks mark the cut. You have one turn: get into position.',
     [{label: 'CONTINUE', cb: () => {
       enterDeckCombat();
@@ -2590,7 +2590,7 @@ function resolveBoarding(victory){
     }else{
       bzSet({recoveryArmed: false, crateHolder: 'varric', crateAboard: false, resolved: 'recovered'});
       stakeSettle(CRATE_CRIME, 'freightring');
-      chronicle('combat', 'The recovery team took the deck \u2014 and the crate. Varric\u2019s property went home the hard way.');
+      chronicle('combat', 'The recovery team took the deck, and the crate. Varric\u2019s property went home the hard way.');
     }
   }else{
     chronicle('combat', victory
@@ -2627,7 +2627,7 @@ function undockToDeck(){
       const travels = (ship.cargoProps || []).some(cp => cp.bz);
       if(travels){
         bzSet({crateAboard: true, recoveryArmed: b4.recoveryArmed || (b4.witnessed && b4.varricKnows)});
-        if(b4.witnessed) chronicle('ship', 'Lifted off with Varric\u2019s crate in the hold \u2014 and witnesses on the ground.');
+        if(b4.witnessed) chronicle('ship', 'Lifted off with Varric\u2019s crate in the hold, and witnesses on the ground.');
       }else{
         bzSet({crateHolder: 'lost', crateAboard: false});
         chronicle('ship', 'Lifted off and left the crate sitting on the concourse. Somebody\u2019s lucky day.');
@@ -2682,6 +2682,7 @@ function enterPort(){
   state.portDock = ship.at;
   state.enemies.length = 0;
   ship.where = 'port';
+  state.faceT = 0;   // a new landing starts the familiar-face clock afresh
   situationPick();
   situationsTick();
   {
@@ -2729,7 +2730,7 @@ function enterPort(){
       kind: n2.kind || 'civ', brave: 6 + Math.floor(Math.random() * 11),
     });
   }
-  // the Bazaar's named cast, wherever the situation lives \u2014 and the seed decides where
+  // the Bazaar's named cast, wherever the situation lives, and the seed decides where
   state.props = [];
   const bzf = bz();
   state.anchors = portAnchors(lvl);
@@ -2835,10 +2836,14 @@ function enterPort(){
   refreshDropBtn();
   updateOrbitStatus();
   if(typeof camReset === 'function') camReset();
+  // the concourse is free-roam: the turn bars stay away until irons come out
+  if(!state.deckCombat && document.body && document.body.classList) document.body.classList.add('deck');
+  resize();
+  updateHud();
   {
     const b5 = bz();
     if(b5 && b5.heat && b5.at === ship.at){
-      if(bzLawless()) showBanner('WARRANT POSTED \u2014 NO LAW LEFT TO SERVE IT', '#e0a33e');
+      if(bzLawless()) showBanner('WARRANT POSTED, NO LAW LEFT TO SERVE IT', '#e0a33e');
       else showBanner('WARRANT ACTIVE AT THIS PORT', '#e0483e');
     }
   }
@@ -2942,20 +2947,20 @@ function portFightBreakOff(){
     chronicle('event', 'Dispatch read the officers\u2019 cam feeds before the bodies cooled. No witness was required.');
     for(const f9 of fell) rapAdd(f9.by, 'major', 'the killing of Constable ' + f9.cop);
   }
-  showBanner('GONE TO GROUND \u2014 THE LAW LOSES THE SCENT', '#b06ae0');
+  showBanner('GONE TO GROUND, THE LAW LOSES THE SCENT', '#b06ae0');
   chronicle('event', 'The crew went to ground mid-fight and the law lost the scent. The warrant did not go anywhere.');
   if(hunters.length){
     const bW = bz();
     const named = Object.keys((bW && bW.raps) || {})
       .filter(k => (bW.raps[k].major || bW.raps[k].minor)).join(', ');
     showEventModal('GONE TO GROUND',
-      'Three turns without a sighting, and the shooting stops \u2014 but nothing is forgiven. ' +
+      'Three turns without a sighting, and the shooting stops, but nothing is forgiven. ' +
       (hunters.length > 1 ? 'Officers ' : 'Officer ') + hunters.join(' and ') +
       ' holstered nothing: they are sweeping the concourse' +
       (named ? ' for ' + named : '') +
       ', stall by stall. Stay off their eyeline, settle it, or leave the port. The warrant keeps.' +
       (processed.length ? ' ' + processed.join(' and ') +
-        ' was processed where they lay: fined, stripped of marked goods, sheet cleared \u2014 and left for the crew to carry home.' : ''),
+        ' was processed where they lay: fined, stripped of marked goods, sheet cleared, and left for the crew to carry home.' : ''),
       [{label: 'UNDERSTOOD', cb: () => {}}]);
   }
   shipSave();
@@ -3102,7 +3107,7 @@ function deckDossierLegacy(c){
   openDossier(i);
   const card = document.getElementById('dossierCard');
   if(!card || !card.insertAdjacentHTML) return true;   // headless: the record stands without the vitals
-  const wn = (k) => (typeof WPN_NAMES !== 'undefined' && WPN_NAMES[k]) || (k ? k.toUpperCase() : '—');
+  const wn = (k) => (typeof WPN_NAMES !== 'undefined' && WPN_NAMES[k]) || (k ? k.toUpperCase() : '-');
   const inj = (c.injury && c.injury.label) ? c.injury.label.toUpperCase() : 'NONE';
   card.insertAdjacentHTML('beforeend',
     '<div class="dlive">' +
@@ -3121,7 +3126,7 @@ function deckDossierLegacy(c){
           '<div class="drecrow"><span>Sidearm</span><b>' + wn(c.loadout && c.loadout.sidearm) + '</b></div>' +
           '<div class="drecrow"><span>Armour</span><b>' + outfitOf(c.def).name.toUpperCase() +
             (protMax(c) > 0 ? ' \u00B7 ' + Math.round(c.armor || 0) + ' / ' + protMax(c) : '') + '</b></div>' +
-          '<div class="drecrow"><span>Gear</span><b>—</b></div>' +
+          '<div class="drecrow"><span>Gear</span><b>-</b></div>' +
         '</div>' +
       '</div>' +
     '</div>');
@@ -3138,12 +3143,12 @@ function openArmourLocker(c){
   }
   if(!ov.querySelector) return false;
   const pips = (set) => {
-    const word = (v, lowGood) => v === 1 ? '\u2014' :
+    const word = (v, lowGood) => v === 1 ? '-' :
       (v < 1 ? (lowGood ? 'QUIETER' : 'SLOWER') : (lowGood ? 'LOUDER' : 'FASTER'));
-    return 'WEIGHT ' + (set.moveMul === 1 ? '\u2014' : (set.moveMul < 1 ? 'LADEN' : 'FLEET')) +
+    return 'WEIGHT ' + (set.moveMul === 1 ? '-' : (set.moveMul < 1 ? 'LADEN' : 'FLEET')) +
       ' \u00B7 NOISE ' + word(set.noiseMul, true) +
-      ' \u00B7 PROFILE ' + (set.visMul === 1 ? '\u2014' : (set.visMul < 1 ? 'DIM' : 'GLARING')) +
-      ' \u00B7 BRACE ' + (set.braceMul === 1 ? '\u2014' : (set.braceMul < 1 ? 'STEADY' : 'LOOSE'));
+      ' \u00B7 PROFILE ' + (set.visMul === 1 ? '-' : (set.visMul < 1 ? 'DIM' : 'GLARING')) +
+      ' \u00B7 BRACE ' + (set.braceMul === 1 ? '-' : (set.braceMul < 1 ? 'STEADY' : 'LOOSE'));
   };
   const render = () => {
     const cur = outfitOf(c.def);
@@ -3309,7 +3314,7 @@ function unequipToPack(c, slotId){
   return true;
 }
 const ARCH_DOSSIERS = {
-  constable: 'Port law in a pressed uniform. Drilled for crowds, paid to stand still, and slower to draw than a mercenary \u2014 but the paper behind them never misses.',
+  constable: 'Port law in a pressed uniform. Drilled for crowds, paid to stand still, and slower to draw than a mercenary, but the paper behind them never misses.',
   soldier: 'Line infantry of whoever is paying this month. Drilled, steady, and incurious. They hold ground because nobody told them to think.',
   runner: 'Fast movers who close before the nerve does. Contract muscle of the cheap and eager sort. They die young and arrive early.',
   valkyrie: 'A spotter-caller. Her alert is a transmission, and transmissions take a moment. Silence her first or fight everyone she knows.',
@@ -3320,7 +3325,7 @@ const ARCH_DOSSIERS = {
 let sheetDrag = null;
 let sheetCtx = null;   // {c, render}: the ov-level listeners read the live context
 function csStatline(c, key){
-  if(!key) return '\u2014';
+  if(!key) return '-';
   if(ARMOUR_SETS[key]){
     const set = ARMOUR_SETS[key];
     return 'PROT ' + Math.round(c.armor || 0) + ' / ' + set.prot;
@@ -3328,7 +3333,7 @@ function csStatline(c, key){
   const w = WEAPONS[key] || {};
   if(w.melee) return 'DMG ' + w.dmg + ' \u00B7 RNG ' + Math.round(w.range || 0);
   return 'DMG ' + w.dmg + (w.burst > 1 ? '\u00D7' + w.burst : '') +
-    ' \u00B7 CLIP ' + (WPN_CLIP[key] || '\u2014') + ' \u00B7 PEN ' + (w.pen != null ? w.pen : 0);
+    ' \u00B7 CLIP ' + (WPN_CLIP[key] || '-') + ' \u00B7 PEN ' + (w.pen != null ? w.pen : 0);
 }
 const LOOT_ICONS = {
   credits: '<circle cx="15" cy="22" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="24" cy="17" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/>',
@@ -3434,13 +3439,13 @@ function openCharSheet(c, mode, corpse){
     }
     if(ARMOUR_SETS[key]){
       const set = ARMOUR_SETS[key];
-      const word = (v, lowGood) => v === 1 ? '\u2014' : (v < 1 ? (lowGood ? 'QUIETER' : 'LADEN') : (lowGood ? 'LOUDER' : 'FLEET'));
+      const word = (v, lowGood) => v === 1 ? '-' : (v < 1 ? (lowGood ? 'QUIETER' : 'LADEN') : (lowGood ? 'LOUDER' : 'FLEET'));
       panel.innerHTML = '<div class="csiName" style="color:var(--brass)">' + set.name.toUpperCase() + '</div>' +
         '<div class="csiLine">ARMOUR \u00B7 PROT ' + set.prot + '</div>' +
-        '<div class="csiRows"><span>WEIGHT</span><b>' + (set.moveMul === 1 ? '\u2014' : 'LADEN') + '</b>' +
+        '<div class="csiRows"><span>WEIGHT</span><b>' + (set.moveMul === 1 ? '-' : 'LADEN') + '</b>' +
         '<span>NOISE</span><b>' + word(set.noiseMul, true) + '</b>' +
-        '<span>PROFILE</span><b>' + (set.visMul === 1 ? '\u2014' : set.visMul < 1 ? 'DIM' : 'GLARING') + '</b>' +
-        '<span>BRACE</span><b>' + (set.braceMul < 1 ? 'STEADY' : '\u2014') + '</b></div>' +
+        '<span>PROFILE</span><b>' + (set.visMul === 1 ? '-' : set.visMul < 1 ? 'DIM' : 'GLARING') + '</b>' +
+        '<span>BRACE</span><b>' + (set.braceMul < 1 ? 'STEADY' : '-') + '</b></div>' +
         (set.special === 'aura' ? '<div class="csiSpec">AURA \u00B7 ENEMIES NEAR LOSE ' + set.auraStress + ' NERVE A TURN</div>' : '') +
         '<div class="csiDesc">' + set.desc + '</div>';
       return;
@@ -3449,7 +3454,7 @@ function openCharSheet(c, mode, corpse){
     const rows = [];
     if(w.melee){ rows.push(['DAMAGE', String(w.dmg)], ['RANGE', String(Math.round(w.range || 0))]); }
     else{ rows.push(['DAMAGE', w.dmg + (w.pellets > 1 ? ' \u00D7' + w.pellets : '') + (w.burst > 1 ? ' \u00D7' + w.burst : '')],
-                    ['CLIP', String(WPN_CLIP[key] || '\u2014')], ['PEN', String(w.pen != null ? w.pen : '\u2014')]); }
+                    ['CLIP', String(WPN_CLIP[key] || '-')], ['PEN', String(w.pen != null ? w.pen : '-')]); }
     rows.push(['NOISE', String(w.noise || 0)]);
     panel.innerHTML = '<div class="csiName" style="color:' + tileColor(key) + '">' + (WPN_NAMES[key] || key).toUpperCase() + '</div>' +
       '<div class="csiLine">' + (GROUP_LABELS[m.group] || '').toUpperCase() + ' \u00B7 ' + (WPN_CALLSIGNS[key] || '') +
@@ -3467,7 +3472,7 @@ function openCharSheet(c, mode, corpse){
     ];
     const statLines = foe
       ? [['ALERT', (c.alert || 'unaware').toUpperCase()], ['MORALE', (c.morale || 'steady').toUpperCase()],
-         ['NERVE LOST', String(Math.round(c.stress || 0))], ['BRAVERY', arch.bravery != null ? String(arch.bravery) : '\u2014']]
+         ['NERVE LOST', String(Math.round(c.stress || 0))], ['BRAVERY', arch.bravery != null ? String(arch.bravery) : '-']]
       : [['AIM', st0.aim], ['MOVE', st0.move], ['BRAVERY', st0.bravery],
          ['STRENGTH', st0.strength], ['LUCK', st0.luck], ['VISION', st0.vision], ['AGILITY', st0.agility]];
     const sheetHtml =
@@ -3483,20 +3488,20 @@ function openCharSheet(c, mode, corpse){
         '<div class="csVitals">' +
           '<div class="csVital"><span>HEALTH</span><b>' + c.hp + ' / ' + c.maxHp + '</b></div>' +
           '<div class="csVital csVitalPlate"><span>PLATE</span><b>' +
-            (protMax(c) > 0 ? Math.round(c.armor || 0) + ' / ' + protMax(c) : '\u2014') + '</b></div>' +
+            (protMax(c) > 0 ? Math.round(c.armor || 0) + ' / ' + protMax(c) : '-') + '</b></div>' +
         '</div>' +
         '<div id="csSlots">' + slots.map(sl =>
           '<div class="csSlot" data-slot="' + sl.id + '">' +
             '<div class="csSlotLab">' + sl.label + '</div>' +
             (sl.key ? '<div class="csTile" data-key="' + sl.key + '" style="color:' + tileColor(sl.key) + '">' +
-              tileSvg(sl.key) + '</div>' : '<div class="csTile csEmpty">\u2014</div>') +
+              tileSvg(sl.key) + '</div>' : '<div class="csTile csEmpty">-</div>') +
             '<div class="csSlotName"' + (sl.key ? ' style="color:' + tileColor(sl.key) + '"' : '') + '>' +
               (sl.key ? (WPN_NAMES[sl.key] || (ARMOUR_SETS[sl.key] || {}).name || sl.key) : 'Empty') + '</div>' +
             '<div class="csSlotStat">' + (sl.key ? csStatline(c, sl.key)
-              : (sl.id === 'primary' || sl.id === 'sidearm') ? 'UNARMED \u00B7 DMG = STRENGTH' : '\u2014') + '</div>' +
+              : (sl.id === 'primary' || sl.id === 'sidearm') ? 'UNARMED \u00B7 DMG = STRENGTH' : '-') + '</div>' +
           '</div>').join('') + '</div>' +
         '<div class="csStats">' + statLines.map(([k2, v]) =>
-          '<span>' + k2 + '</span><b>' + (v != null ? v : '\u2014') + '</b>').join('') + '</div>' +
+          '<span>' + k2 + '</span><b>' + (v != null ? v : '-') + '</b>').join('') + '</div>' +
         (!foe ?
           '<div class="csPackHead">PACK \u00B7 ' + ((d.pack || []).length) + ' / 4</div>' +
           '<div id="csPack">' + [0, 1, 2, 3].map(pi => {
@@ -3865,7 +3870,7 @@ function deckStation(st, who){
   }else if(st.id === 'medpod'){
     openMedPod(c);
   }else if(st.id === 'skills'){
-    addPopup(st.x, st.y - 26, 'SKILL TRAINING — NOTHING TO TEACH YET', '#e8e0cc');
+    addPopup(st.x, st.y - 26, 'SKILL TRAINING, NOTHING TO TEACH YET', '#e8e0cc');
   }
   return true;
 }
@@ -3950,7 +3955,7 @@ function deckDown(p){
   if(st){
     const c = pc();
     if(c && Math.hypot(c.x - st.x, c.y - st.y) > 85){
-      // too far: make it a destination — walk up, then use it on arrival
+      // too far: make it a destination, walk up, then use it on arrival
       const d = Math.hypot(c.x - st.x, c.y - st.y) || 1;
       const spread = (state.squad.indexOf(c) % 4) * 0.9 - 1.35;   // each hand takes a different side
       const ba = Math.atan2(c.y - st.y, c.x - st.x) + spread;
@@ -4133,8 +4138,8 @@ function layout(){
   }
 
   document.getElementById('title').textContent = usingCustom
-    ? `Legendary Space — Custom Contract: ${L.name}`
-    : `Legendary Space — Contract 00${levelIdx+1}: ${L.name}`;
+    ? `Legendary Space, Custom Contract: ${L.name}`
+    : `Legendary Space, Contract 00${levelIdx+1}: ${L.name}`;
 
   if(expCtx) expCtx.clearRect(0, 0, W, H);   // new contract: nothing explored yet
   advisoriesThisContract = 0;
@@ -4247,7 +4252,7 @@ function clearRallyMode(){
     document.getElementById('scanbtn').classList.remove('active');
   }
 }
-// (weapon bar is rendered per-hero — see syncWeaponButtons)
+// (weapon bar is rendered per-hero, see syncWeaponButtons)
 
 function busy(){
   if(briefOpen || sysOpen || askPending) return true;   // the world is paused for reading or deciding
@@ -4435,7 +4440,7 @@ function renderParty(){
 function renderCharStats(){
   const el = document.getElementById('charstats');
   const c = pc();
-  if(!c || !c.alive){ el.innerHTML = '<div class="cslabel" style="text-align:center">—</div>'; return; }
+  if(!c || !c.alive){ el.innerHTML = '<div class="cslabel" style="text-align:center">-</div>'; return; }
   const st = c.stats;
   const stateCol = c.morale === 'steady' ? '#6fd6ff' : c.morale === 'shaken' ? '#e0a33e' : '#e0483e';
   el.innerHTML =
@@ -4819,7 +4824,7 @@ function dismissBrief(){
       const loKey = [a.kind, b.kind].sort().join('+');
       const lo = (LEVEL_OPENERS[currentLevel().name] || {})[loKey];
       const ex = lo || pt.open[Math.floor(Math.random() * pt.open.length)];
-      // whoever's kind sorts first speaks first — the data is written that way
+      // whoever's kind sorts first speaks first, the data is written that way
       const first = a.kind <= b.kind ? a : b;
       const second = first === a ? b : a;
       queueBark(first, ex[0], 0.7);
@@ -5103,7 +5108,7 @@ function openWeaponGrid(def, slot, onDone){
   box.id = 'wgBox';
   const title = document.createElement('div');
   title.id = 'wgTitle';
-  title.textContent = def.name + ' — ' + SLOT_LABELS[slot];
+  title.textContent = def.name + ', ' + SLOT_LABELS[slot];
   const grid = document.createElement('div');
   grid.id = 'wgGrid';
   const info = document.createElement('div');
@@ -5134,7 +5139,7 @@ function openWeaponGrid(def, slot, onDone){
       rows.push(['PRICE', (WPN_PRICE[key] || 0) + ' CR'], ['', '']);
     }else{
       rows.push(['DAMAGE', w.dmg + (w.pellets > 1 ? ' ×' + w.pellets + ' PELLETS' : '')],
-                ['AMMO', WPN_AMMO[key] || '—']);
+                ['AMMO', WPN_AMMO[key] || '-']);
       rows.push(['ROUNDS', String(w.burst || 1)], ['CLIP', String(WPN_CLIP[key] || 8)]);
       rows.push(['CONE MIN', deg1(w.coneMin)], ['CONE MAX', deg1(w.coneMax)]);
       rows.push(['BREATHE', String(w.coneSpeed || 0)], ['BLOOM', deg1(w.bloom)]);
@@ -5463,7 +5468,7 @@ function titleShow(){
   ov.style.display = 'flex';
   ov.querySelector('#ttNew').addEventListener('click', () => {
     if(!saveExists()) return newGameStart();
-    showEventModal('NEW GAME', 'There is a run in the save on this machine: ' + where.toLowerCase() + '. Starting new writes over it — the world, the ledgers, the graves. There is only one save.',
+    showEventModal('NEW GAME', 'There is a run in the save on this machine: ' + where.toLowerCase() + '. Starting new writes over it, the world, the ledgers, the graves. There is only one save.',
       [{label: 'WRITE OVER IT', cb: newGameStart}, {label: 'KEEP IT'}]);
   });
   if(has) ov.querySelector('#ttContinue').addEventListener('click', continueGame);
@@ -5641,7 +5646,7 @@ if(document.addEventListener){
     });
     if(document.body && document.body.classList) document.body.classList.add('mapFull');
     initMap();
-    // home is a deck now, not a menu — unless the range has first claim on a cold player
+    // home is a deck now, not a menu, unless the range has first claim on a cold player
     setTimeout(() => { if(!state.range && !state.shipDeck) enterShipDeck(); }, 60);
   });
 }
@@ -5972,7 +5977,7 @@ function portGo(stage){
     document.getElementById(id).style.display = 'none';
   const title = document.getElementById('pvStageTitle');
   if(stage === 'contracts'){
-    title.textContent = 'CONTRACTS \u2014 ' + n.name.toUpperCase();
+    title.textContent = 'CONTRACTS, ' + n.name.toUpperCase();
     const pc = document.getElementById('pvContracts');
     pc.style.display = 'block';
     pc.innerHTML = '';
@@ -5985,7 +5990,7 @@ function portGo(stage){
         if(bN.heat)
           notes.push(['#e0483e', 'PORT ADVISORY', 'A warrant stands against your crew at this port. Constable Dren holds the paper. Remediation: 120 CR.']);
         if(!bN.resolved && bN.crateHolder !== 'varric' && !bN.varricKnows)
-          notes.push(['#d4a843', 'PRIVATE NOTICE \u00B7 VARRIC', '150 CR for the return of a sealed crate, lifted from the concourse. No questions asked \u2014 that is the civilised way.']);
+          notes.push(['#d4a843', 'PRIVATE NOTICE \u00B7 VARRIC', '150 CR for the return of a sealed crate, lifted from the concourse. No questions asked, that is the civilised way.']);
         if(!bN.resolved && bN.varricKnows && bN.crateHolder === 'crew')
           notes.push(['#b06ae0', 'WORD ON THE CONCOURSE', 'Varric knows who has his crate. Men who do recovery work have been asking after your hull.']);
         for(const [tint, head, body] of notes){
@@ -6036,12 +6041,12 @@ function portGo(stage){
       }
     }
   }else if(stage === 'shop'){
-    title.textContent = 'SHOP \u2014 ' + n.name.toUpperCase();
+    title.textContent = 'SHOP, ' + n.name.toUpperCase();
     const st = document.getElementById('pvStore');
     st.style.display = 'block';
     renderStore('pvStore', stockAt(n.id));
   }else if(stage === 'hire'){
-    title.textContent = 'HIRE OPERATOR \u2014 ' + n.name.toUpperCase();
+    title.textContent = 'HIRE OPERATOR, ' + n.name.toUpperCase();
     const rc = document.getElementById('pvRecruit');
     rc.style.display = 'block';
     renderRecruit('pvRecruit', n.id);
@@ -6076,7 +6081,7 @@ function showPlanet(){
     left.innerHTML = ''; right.innerHTML = '';
     const dock = document.createElement('button');
     dock.className = 'pvAreaBtn pvDepart';
-    dock.textContent = '\u2B07 DOCK \u2014 WALK THE PORT';
+    dock.textContent = '\u2B07 DOCK, WALK THE PORT';
     dock.addEventListener('click', () => {
       document.getElementById('roster').classList.add('hidden');
       enterPort();
@@ -6104,7 +6109,7 @@ const SEC_PER_DAY = 5;
 const FLIGHT_EVENTS = [
   {w: 4, boarding: true, run(){ beginBoarding(); }},
   {w: 3, run(){ state.shake = Math.max(state.shake || 0, 14);
-     showBanner('DEBRIS STRIKE — HULL SCORED', '#e0a33e');
+     showBanner('DEBRIS STRIKE, HULL SCORED', '#e0a33e');
      addPopup(W * 0.5, H * 0.08, 'CLANG', '#e0a33e'); }},
   {w: 2, run(){ showBanner('UNKNOWN CONTACT SHADOWING…', '#b06ae0');
      setTimeout(() => { if(state.flight) showBanner('…CONTACT BREAKS OFF', '#8fb08a'); }, 2600); }},
@@ -6333,15 +6338,15 @@ function renderStore(targetId, stock){
   const pane = document.getElementById(targetId || 'paneStore');
   if(!pane) return;
   const port = galaxyNode(ship.at);
-  pane.innerHTML = '<div class="storehead">QUARTERMASTER — ' +
+  pane.innerHTML = '<div class="storehead">QUARTERMASTER, ' +
     (targetId ? (port ? port.name.toUpperCase() + ' STOCK' : 'STOCK') : 'STOCK') + '</div>';
   {
     const b7 = bz();
     const here7 = b7 && b7.active && b7.at === ship.at;
     if(here7 && b7.heat) pane.innerHTML +=
-      '<div class="storerow"><span class="sd" style="color:#e0483e">WARRANT RATES \u2014 the port prices the risk of trading with marked crews. Buying costs a quarter more; selling pays less.</span></div>';
+      '<div class="storerow"><span class="sd" style="color:#e0483e">WARRANT RATES, the port prices the risk of trading with marked crews. Buying costs a quarter more; selling pays less.</span></div>';
     if(here7 && b7.varricRep >= 2) pane.innerHTML +=
-      '<div class="storerow"><span class="sd" style="color:#9fe08e">VARRIC\u2019S WORD \u2014 the Freight Ring vouches for this crew. A tenth off every purchase.</span></div>';
+      '<div class="storerow"><span class="sd" style="color:#9fe08e">VARRIC\u2019S WORD, the Freight Ring vouches for this crew. A tenth off every purchase.</span></div>';
   }
   {
     const t3 = packTotal();
@@ -6378,7 +6383,7 @@ function renderStore(targetId, stock){
   if(facRepOf('greymarket') >= 2){
     const gh = document.createElement('div');
     gh.className = 'storehead';
-    gh.textContent = 'UNDER THE COUNTER \u2014 FRIENDS OF THE HOUSE';
+    gh.textContent = 'UNDER THE COUNTER, FRIENDS OF THE HOUSE';
     pane.appendChild(gh);
     for(const key of ['sawnoff', 'revolver', 'hydra']){
       if((stock || []).includes(key)) continue;   // already on the open shelf
@@ -6399,7 +6404,7 @@ function renderStore(targetId, stock){
   }
   const armH = document.createElement('div');
   armH.className = 'storehead';
-  armH.textContent = 'PLATE & WEAVE — FITTED AT YOUR SHIP\'S LOCKER';
+  armH.textContent = 'PLATE & WEAVE, FITTED AT YOUR SHIP\'S LOCKER';
   pane.appendChild(armH);
   const armStock = armourStockAt(port ? port.id : ship.at);
   for(const id of armStock){
@@ -6431,7 +6436,7 @@ function renderStore(targetId, stock){
 
   const ah = document.createElement('div');
   ah.className = 'storehead';
-  ah.textContent = 'SHIP ARMOURY — SELL AT HALF';
+  ah.textContent = 'SHIP ARMOURY, SELL AT HALF';
   pane.appendChild(ah);
   if(!ship.armoury.length){
     const none = document.createElement('div');
@@ -6460,7 +6465,7 @@ function renderRecruit(targetId, homeFilter){
   renderRecruit._last = {t: targetId, h: homeFilter};
   const pane = document.getElementById(targetId || 'paneRecruit');
   if(!pane) return;
-  pane.innerHTML = '<div class="storehead">FOR HIRE — DOCKSIDE, BY REPUTATION</div>';
+  pane.innerHTML = '<div class="storehead">FOR HIRE, DOCKSIDE, BY REPUTATION</div>';
   if(bzRecruitLocked()){
     const lk = document.createElement('div');
     lk.className = 'storerow';
@@ -6667,14 +6672,14 @@ function buildRosterCard(def, i){
     dorm.className = 'rwpnchip';
     dorm.style.opacity = '0.45';
     dorm.style.cursor = 'default';
-    dorm.textContent = 'OUTFIT · ' + (def.outfit || 'Standard Skinsuit') + '   GEAR · ' + (def.gear || '—');
+    dorm.textContent = 'OUTFIT · ' + (def.outfit || 'Standard Skinsuit') + '   GEAR · ' + (def.gear || '-');
     dorm.title = 'Outfits arrive with the quartermaster refit; gear with a field use for it';
     load.appendChild(dorm);
 
     if(!def.dead){
       const dep = document.createElement('div');
       dep.className = 'depchip' + (selected ? '' : ' off');
-      dep.textContent = selected ? '◈ DEPLOYING' : 'RESERVE — TAP TO DEPLOY';
+      dep.textContent = selected ? '◈ DEPLOYING' : 'RESERVE · TAP TO DEPLOY';
       dep.addEventListener('click', (ev) => {
         ev.stopPropagation();
         if(!selected) toggleSelect(i);
@@ -6825,7 +6830,7 @@ function onDown(e){
      Date.now() - (state.noApAt || 0) > 1100){
     state.noApAt = Date.now();
     const c0 = pc();
-    addPopup(c0.x, c0.y - c0.r - 18, 'NO ACTIONS LEFT — END TURN', '#e0a33e');
+    addPopup(c0.x, c0.y - c0.r - 18, 'NO ACTIONS LEFT, END TURN', '#e0a33e');
   }
   if(tryRescueTap(p)){
     e.preventDefault();
@@ -6996,7 +7001,7 @@ canvas.addEventListener('touchstart', onDown, {passive:false});
 window.addEventListener('touchmove', onMove, {passive:false});
 window.addEventListener('touchend', onUp);
 
-// ---------- aiming cone (shooting only — movement is deterministic) ----------
+// ---------- aiming cone (shooting only, movement is deterministic) ----------
 // Aim stat steadies the hands (10 = weapon baseline); being shaken ruins them.
 function aimStatOf(c, w){
   // some weapons ask the arms, not the eyes: you hold the Cerberus still, or you don't
@@ -7015,7 +7020,7 @@ function coneAngle(){
   const w = wpn();
   const c = pc();
   const mn = Math.max(0.1*DEG, w.coneMin * aimSteadiness(c, w));
-  if(c.perfect) return mn;    // the moment: fully settled, breathless — steel included
+  if(c.perfect) return mn;    // the moment: fully settled, breathless, steel included
   // a blade at full draw breathes like a sprinter: the harder the leap, the wilder the line
   const stoke = w.melee ? (1 + (state.power || 0) * 2.5) : 1;
   return mn + (w.coneMax - mn) * (0.5 + 0.5*Math.cos(state.coneT * aimBreathSpeed(c, w) * stoke));
@@ -7142,7 +7147,7 @@ function bluntSlam(c, radius){
 function bladeDash(c, angle, power){
   const w = wpnFor(c);
   const reach = Math.max(60, w.range * Math.max(0.35, power));
-  // sample the line: hard cover is hard — it stops the leap like it stops a walk
+  // sample the line: hard cover is hard, it stops the leap like it stops a walk
   let ex = c.x, ey = c.y;
   const dx = Math.cos(angle), dy = Math.sin(angle);
   for(let d = 6; d <= reach; d += 6){
@@ -7302,7 +7307,7 @@ function fire(){
 
   // the clip is real: no rounds, no bang (weapons without a clip walk past the gate)
   if(isFinite(clipOf(c.weapon)) && c.mag && c.mag[c.slot] !== undefined && c.mag[c.slot] <= 0){
-    addPopup(c.x, c.y - c.r - 16, 'CLIP EMPTY — RELOAD (1 AP)', '#e0a33e');
+    addPopup(c.x, c.y - c.r - 16, 'CLIP EMPTY, RELOAD (1 AP)', '#e0a33e');
     clipEmptyAdvisory();
     s.aiming = false;
     document.body.classList.remove('aiming');
@@ -7584,7 +7589,7 @@ function commitMove(){
   if(!mp || !mp.valid || mp.dist < 6) return; // no path or a non-move: don't spend the action
   const c = pc();
   if(state.shipDeck && !state.deckCombat && c.friskT && performance.now() < c.friskT){
-    addPopup(c.x, c.y - c.r - 16, 'HOLD STILL \u2014 BEING SEARCHED', '#e0a33e');
+    addPopup(c.x, c.y - c.r - 16, 'HOLD STILL, BEING SEARCHED', '#e0a33e');
     return;
   }
   const walking = mp.dist <= maxMoveDist(c) * 0.5;   // a short reach is a quiet one
@@ -7752,7 +7757,7 @@ function segRectSpan(ax, ay, bx, by, r){
 }
 
 // vision LOS with corner peeking: a ray only passes a hugged wall if it
-// grazes the corner — both its entry and exit stay within the peek radius
+// grazes the corner, both its entry and exit stay within the peek radius
 function losHighPeek(viewer, tx, ty, peeks){
   for(const w of state.walls){
     if(!w.high) continue;
@@ -7856,7 +7861,7 @@ function inVisionOf(viewer, range, tx, ty){
   if(d < HEAR_RADIUS) return losHigh(viewer.x, viewer.y, tx, ty); // felt, not seen
   if(d > range) return false;
   // heroes keep their heads on a swivel: full-circle vision.
-  // enemies watch a forward cone — that's what you sneak around.
+  // enemies watch a forward cone, that's what you sneak around.
   if(!viewer.stats){
     const bearing = Math.atan2(ty-viewer.y, tx-viewer.x);
     if(Math.abs(angleDiff(bearing, viewer.facing)) > visionArcHalf(viewer)) return false;
@@ -7935,7 +7940,7 @@ function updateDetection(realDt){
     }
     if(fill > 0){
       e.det += fill * TUNE.detectMul * realDt * (spotted && spotted.def ? outfitOf(spotted.def).visMul : 1);
-      // halfway there: they turn to look — which makes it worse for you
+      // halfway there: they turn to look, which makes it worse for you
       if(e.det >= 50 && e.alert === 'unaware' && spotted){
         makeSuspicious(e, spotted.x, spotted.y);
         e.facing = Math.atan2(spotted.y-e.y, spotted.x-e.x);
@@ -7973,7 +7978,7 @@ function memWrite(e, c, x, y, fresh){
 }
 
 // live line of perception from this enemy to this character, honouring
-// cones, range, hearing, and hiding — the same rules detection uses
+// cones, range, hearing, and hiding, the same rules detection uses
 function canPerceive(e, c){
   if(!c.alive || e.ko || c.ko || c.downed) return false;   // the unconscious neither see nor matter
   const d = Math.hypot(c.x-e.x, c.y-e.y);
@@ -8043,7 +8048,7 @@ function memTarget(e){
 
 function alertEnemy(e, x, y, shout, c){
   // A Valkyrie's alert is not yet the network's: transmission happens on HER turn.
-  // Silence her before the enemy phase — by any means — and the others never hear.
+  // Silence her before the enemy phase, by any means, and the others never hear.
   if(e.type === 'valkyrie' && e.alert !== 'alerted' && e.alive && !e.ko && !e.signalSent && e.visible){
     addPopup(e.x, e.y - e.r - 24, 'CALLING IT IN', '#cfe1f2');
   }
@@ -8506,8 +8511,8 @@ function errandTick(cv, dt){
       const cop9 = (state.civs || []).find(c3 => c3.kind === 'constable' && c3.alive && !c3.ko && !c3.respond &&
         Math.hypot(c3.x - cv.x, c3.y - cv.y) < 340 && segClearHigh(c3.x, c3.y, cv.x, cv.y));
       if(cop9){ cop9.chase = cv; addPopup(cop9.x, cop9.y - cop9.r - 14, 'HOY!', '#b06ae0'); }
-      showEventModal('YOUR DELIVERY \u2014 ROBBED',
-        cv.name + ' \u2014 the ' + (cv.race || '').toLowerCase() + ' now bolting for the arches \u2014 just snatched your bought-and-paid-for ' +
+      showEventModal('YOUR DELIVERY, ROBBED',
+        cv.name + ', the ' + (cv.race || '').toLowerCase() + ' now bolting for the arches, just snatched your bought-and-paid-for ' +
         (WPN_NAMES[cv.stolen.key] || 'delivery') + ' off the porter\u2019s back. The law may care. You certainly do. What happens next is yours.',
         [{label: 'UNDERSTOOD', cb: () => {}}]);
       return true;
@@ -8712,6 +8717,10 @@ function errandTick(cv, dt){
         chronicle('event', 'A bystander reached the law with the story. The paper starts moving.');
       }
       if(cr && cr.who) rapAdd(cr.who, cr.grade, cr.what);
+      if(cr && cr.at && tgt.kind === 'constable' && !tgt.respond && !tgt.hunt && !tgt.chase && cv.kind !== 'keeper'){
+        tgt.scene = {x: cr.at.x, y: cr.at.y, what: cr.what};   // straight to where it happened
+        addPopup(tgt.x, tgt.y - (tgt.r || 9) - 14, 'SHOW ME WHERE', '#b06ae0');
+      }
       if(cv.kind === 'keeper' && cv.home){
         // a keeper doesn't file and forget: she leads the law back to her floor
         cv.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
@@ -8829,7 +8838,7 @@ function bzNpcCrimeAct(perp, mk){
       break;
     }
   }
-  // an operator close enough to see it is TOLD what they saw \u2014 and nothing more.
+  // an operator close enough to see it is TOLD what they saw, and nothing more.
   // the game sets the scene; the player's tools write the ending.
   const near = (state.squad || []).find(c2 => c2.alive &&
     Math.hypot(c2.x - perp.x, c2.y - perp.y) < 300 && segClearHigh(c2.x, c2.y, perp.x, perp.y));
@@ -8842,8 +8851,8 @@ function bzNpcCrimeAct(perp, mk){
     const he = dOp && dOp.sex === 'f' ? 'She' : 'He';
     chronicle('event', near.name + ' witnessed ' + perp.name + ' cut a dock-hand\u2019s pouch. The thief doesn\u2019t know it yet.');
     showEventModal('A THEFT, WITNESSED',
-      near.name + ' just watched ' + perp.name + ' \u2014 the ' + perp.race.toLowerCase() +
-      ' working the crowd \u2014 lift a dock-hand\u2019s hard-earned pay, clean as a whisper. ' +
+      near.name + ' just watched ' + perp.name + ', the ' + perp.race.toLowerCase() +
+      ' working the crowd, lift a dock-hand\u2019s hard-earned pay, clean as a whisper. ' +
       'The thief hasn\u2019t marked ' + near.name + ' watching: they\u2019re walking easy, trying to be nobody. ' +
       he + ' has eyes, hands, irons, and the law\u2019s address. What happens next is yours.',
       [{label: 'UNDERSTOOD', cb: () => {}}]);
@@ -8932,7 +8941,7 @@ function drawEnemyCones(){
   if(!TUNE.fog || !coneCtx) return;
   coneCtx.clearRect(0, 0, W, H);
   let any = false;
-  // calm steel, wary amber, hunting red — later passes win where they overlap
+  // calm steel, wary amber, hunting red, later passes win where they overlap
   const CONE_COLORS = {unaware: 'rgb(122,138,160)', suspicious: 'rgb(224,163,62)', alerted: 'rgb(224,72,62)'};
 
   // the hunters first, gate-free: a short red cone burning at the shoulder, gone by the tip
@@ -9097,9 +9106,9 @@ function drawFog(){
     expCtx.fill();
   }
   // rebuild fog in two hue-distinct passes:
-  //   pass 1 — memory veil: translucent teal over everything you're not
+  //   pass 1, memory veil: translucent teal over everything you're not
   //            currently watching (live sight punched out)
-  //   pass 2 — the void: near-opaque violet-black over the unexplored,
+  //   pass 2, the void: near-opaque violet-black over the unexplored,
   //            (explored + live punched out), laid on top of the veil
   const punchLive = () => {
     fogCtx.globalCompositeOperation = 'destination-out';
@@ -9310,7 +9319,7 @@ function hitEnemy(e, b){
     kill(e, b);
   }else{
     addStress(e, dmg*1.6 + (rear ? 6 : 0));
-    // being shot is very informative — about the shooter, if the shooter is a person
+    // being shot is very informative, about the shooter, if the shooter is a person
     alertEnemy(e, b.x - b.vx*0.1, b.y - b.vy*0.1, true,
       (b.owner && b.owner.stats) ? b.owner : null);
     spawnBurst(b.x, b.y, 8, '#e0483e', 200);
@@ -9400,7 +9409,7 @@ function charDown(c){
   c.pendingInjury = (Math.random() < INJURY_CHANCE)
     ? Object.keys(INJURIES)[Math.floor(Math.random() * Object.keys(INJURIES).length)]
     : null;
-  addPopup(c.x, c.y - c.r - 14, 'DOWN — 3 TURNS', '#e0483e');
+  addPopup(c.x, c.y - c.r - 14, 'DOWN, 3 TURNS', '#e0483e');
   showBanner(c.name.toUpperCase() + ' DOWNED!', '#e0483e', true);
   downedAdvisory(c);
   updateHud();
@@ -9417,7 +9426,7 @@ function charDie(c){
     chronicle('crew', c.name + ' fell' + (galaxyNode(ship.at) ? ' at ' + galaxyNode(ship.at).name : '') + '. The berth stands empty.');
   }
   addPopup(c.x, c.y - c.r - 14, 'GONE', '#e0483e');
-  showBanner(c.name.toUpperCase() + ' — GONE', '#e0483e');
+  showBanner(c.name.toUpperCase() + ', GONE', '#e0483e');
   // whoever watched them drop stops hunting that spot; the rest keep their ghosts
   for(const e of state.enemies){
     if(!e.alive || e.ko || !e.mem || !e.mem[ci]) continue;
@@ -9508,11 +9517,11 @@ const SHIP_SAVE_KEY = 'legendary_space_ship_v1';
 const PORT_DESCS = {
   spindle: "Spindle sits on the system\u2019s cold edge, a barren moon of pale rock crossed with veins of purple mineral that glow faintly in the dark. Below the surface run cave networks the size of nations, and the caves belong to the Arachne.\n\nSpindle Outpost is small and rugged: a landing area, an equipment depot, a medical station, modest bunks and a silk-trading shed. Expeditions go out from here and most of them come back. Preparation is the whole game this far out.",
   rook: "Rook is not ancient and not mysterious. The gate network was built by people who are still around to charge for it, and the Transit Terminal is where the charging happens: ships queue for passage, cargo is weighed and opened, travellers enter or leave the system under the eye of customs.\n\nEverything that moves between stars moves through here, which makes it the most watched place in the system and, for the right crew, the most profitable.",
-  gateway: "Gateway is one of the busiest commercial worlds in Known Space. Its proximity to the Rook gate made it the natural first stop for merchants, travellers, corporations, independent operators and people starting over. It wasn\u2019t built to be anyone\u2019s home. It became everyone\u2019s.\n\nCrossport is where they all land first: trading streets, warehouses, workshops, shops, bars, bunks, a constabulary post, and the concourse where operators gather to find work. It is not lawless. It is a functioning society with policing, property and competing jurisdictions \u2014 and plenty of room between them.",
-  sanarar: "Sanarar is an ancient, prosperous world settled by Elementals. Its cities rise vertically inside strictly kept boundaries, leaving the wilderness beyond them untouched by covenant older than the GCAT: leave the world somewhere to go.\n\nThe High Terraces serve the prestigious districts \u2014 high-value trade, luxury, political relationships, and the kind of crime that wears good clothes. Where Crossport is crowded and improvised, Sanarar is ordered, affluent, and conscious of everything it has to lose.",
-  raft: "The Great Raft is a city assembled from a fleet: independent vessels that lashed together during the Rush for protection and never unlashed. Commercial streets run through former cargo holds. Residential decks are converted passenger ships. The whole settlement shelters behind the Umbrella, a directional shield turned to the star.\n\nThe Anchorage is the main docking district \u2014 prospectors, cargo vessels, expedition crews and frontier traders making ready for the Inner Rush, or recovering from it. Interfering with the Umbrella is the one crime everyone here agrees on.",
-  ghostglass: "Radiation storms own this planet for most of its cycle. For nineteen days in every one, the storms ease and Ghostglass can be cut safely \u2014 and companies, prospectors and opportunists all know the date to the hour.\n\nWindow Camp is assembled for each window and abandoned at its close: bunks, storage, extraction rigs, a medical tent, a landing strip and whoever is selling what the miners need. As the window shortens, so do tempers.",
-  solace: "Solace began as a medical settlement and became a congregation. Its people expose themselves to the star\u2019s anomalous light on purpose, and the light appears to give something back: healing, long life, a sense of belonging. It also takes.\n\nSolace Landing looks like any welcoming town \u2014 streets, homes, businesses, a place of worship \u2014 until you notice how the residents finish one another\u2019s sentences. They will tell you it is a blessing. They will mean it.",
+  gateway: "Gateway is one of the busiest commercial worlds in Known Space. Its proximity to the Rook gate made it the natural first stop for merchants, travellers, corporations, independent operators and people starting over. It wasn\u2019t built to be anyone\u2019s home. It became everyone\u2019s.\n\nCrossport is where they all land first: trading streets, warehouses, workshops, shops, bars, bunks, a constabulary post, and the concourse where operators gather to find work. It is not lawless. It is a functioning society with policing, property and competing jurisdictions, and plenty of room between them.",
+  sanarar: "Sanarar is an ancient, prosperous world settled by Elementals. Its cities rise vertically inside strictly kept boundaries, leaving the wilderness beyond them untouched by covenant older than the GCAT: leave the world somewhere to go.\n\nThe High Terraces serve the prestigious districts, high-value trade, luxury, political relationships, and the kind of crime that wears good clothes. Where Crossport is crowded and improvised, Sanarar is ordered, affluent, and conscious of everything it has to lose.",
+  raft: "The Great Raft is a city assembled from a fleet: independent vessels that lashed together during the Rush for protection and never unlashed. Commercial streets run through former cargo holds. Residential decks are converted passenger ships. The whole settlement shelters behind the Umbrella, a directional shield turned to the star.\n\nThe Anchorage is the main docking district, prospectors, cargo vessels, expedition crews and frontier traders making ready for the Inner Rush, or recovering from it. Interfering with the Umbrella is the one crime everyone here agrees on.",
+  ghostglass: "Radiation storms own this planet for most of its cycle. For nineteen days in every one, the storms ease and Ghostglass can be cut safely, and companies, prospectors and opportunists all know the date to the hour.\n\nWindow Camp is assembled for each window and abandoned at its close: bunks, storage, extraction rigs, a medical tent, a landing strip and whoever is selling what the miners need. As the window shortens, so do tempers.",
+  solace: "Solace began as a medical settlement and became a congregation. Its people expose themselves to the star\u2019s anomalous light on purpose, and the light appears to give something back: healing, long life, a sense of belonging. It also takes.\n\nSolace Landing looks like any welcoming town, streets, homes, businesses, a place of worship, until you notice how the residents finish one another\u2019s sentences. They will tell you it is a blessing. They will mean it.",
 };
 const PORT_AREAS = {
   spindle:    ['contracts'],
@@ -9849,7 +9858,7 @@ function faceArrive(cv, tg){
     };
     bzSet({ff: Object.assign({}, b.ff, {state: 'met'})});
     const shownH = showEventModal(FACES.help.title,
-      cv.name + ' has been crying and has stopped, which is worse. \u201CYou look like people who finish things. My brother\u2019s silk crew is nine days overdue on Spindle and the posting lapsed yesterday. I have the paper. I can hold it open \u2014 I just can\u2019t go.\u201D',
+      cv.name + ' has been crying and has stopped, which is worse. \u201CYou look like people who finish things. My brother\u2019s silk crew is nine days overdue on Spindle and the posting lapsed yesterday. I have the paper. I can hold it open, I just can\u2019t go.\u201D',
       [{label: 'TAKE THE PAPER', cb: take}, {label: 'NOT OUR BUSINESS', cb: refuse}]);
     if(shownH === false) take();
     return;
@@ -9868,7 +9877,7 @@ function faceAssassinFight(cv, tg){
   state.portFight = true;
   if(!state.deckCombat) enterDeckCombat();
   showBanner('KNIFE OUT', '#e0483e');
-  chronicle('event', cv.name + ' drew on ' + tg.name + ' in the open. Whatever happens next, he started it \u2014 and the concourse saw who.');
+  chronicle('event', cv.name + ' drew on ' + tg.name + ' in the open. Whatever happens next, he started it, and the concourse saw who.');
 }
 function faceResolve(outcome, text){
   const b = bz();
@@ -9886,7 +9895,7 @@ function faceTick(){
   if(b.ff.face === 'assassin'){
     const e = state.ffEnemy;
     if(!e) return;
-    if(!e.alive) return void faceResolve('dead', b.ff.name + ' is dead on the concourse. He drew first, and the law will hear it that way from anyone who saw \u2014 which is not the same as hearing nothing.');
+    if(!e.alive) return void faceResolve('dead', b.ff.name + ' is dead on the concourse. He drew first, and the law will hear it that way from anyone who saw, which is not the same as hearing nothing.');
     if(e.ko) return void faceResolve('outcold', b.ff.name + ' is out cold on the floor with his knife beside him. The law will collect him, and will want to know why he came for you.');
     if(!state.enemies.includes(e)) return void faceResolve('fled', b.ff.name + ' lost you in the tide and ran. A paid knife that fails is a knife that comes back, or a client who sends another.');
     return;
@@ -10045,6 +10054,16 @@ function tickProps(dt){
       for(const cv of (state.civs || [])){
         if(cv.kind !== 'constable' || !cv.alive || cv.ko) continue;
         if(cv.pursue || cv.respond || cv.chase || cv.escort || cv.sweep || cv.hunt) continue;
+        if(cv.scene){
+          // the officer told of a crime walks to the spot, reads the floor, and calls the crew if there is a body
+          if(Math.hypot(cv.scene.x - cv.x, cv.scene.y - cv.y) > 40){ civTravel(cv, cv.scene.x, cv.scene.y, 95, dt); continue; }
+          const near = bodiesOnFloor().filter(bd => Math.hypot(bd.obj.x - cv.scene.x, bd.obj.y - cv.scene.y) < 160);
+          for(const bd of near) bd.obj.lawSeen = true;
+          chronicle('event', cv.name + ' reached the place a bystander described' + (near.length ? ' and found ' + (near[0].obj.name || 'a stranger') + ' dead on the floor. The recovery crew is called. The name on the complaint stays on the complaint.' : '. Nothing left on the floor but the story. The name on the complaint stays on the complaint.'));
+          if(near.length) cleanupCall();
+          cv.scene = null;
+          continue;
+        }
         if(cv.attend){
           // the officer wants a word with the one who was attacked: a walk, then the search gameplay
           const who = state.squad.find(c2 => c2.name === cv.attend && c2.alive);
@@ -10126,7 +10145,7 @@ function tickProps(dt){
                 showEventModal('A WORD FROM VARRIC',
                   'The vampire from the stall row drifts up to ' + tg.name + ' as if by accident and speaks without looking at anyone. ' +
                   '\u201CYou look like people who could use credits. A sealed package of mine walked off with a dock-hand who thinks I owe her wages. ' +
-                  'Bring it home \u2014 a hundred and fifty, no questions, the civilised way. She\u2019s somewhere on the freight side.\u201D ' +
+                  'Bring it home, a hundred and fifty, no questions, the civilised way. She\u2019s somewhere on the freight side.\u201D ' +
                   'He is already turning back toward his stall. Find him there if you want the work. Find her if you want the other side of it.',
                   [{label: 'UNDERSTOOD', cb: () => {}}]);
               }};
@@ -10134,7 +10153,7 @@ function tickProps(dt){
           }
         }
       }
-      // the sedated come round \u2014 and a keeper wakes with a name on her lips
+      // the sedated come round, and a keeper wakes with a name on her lips
       if(!state.deckCombat) for(const cv of (state.civs || [])){
         if(!cv.ko || !cv.alive || cv.collared) continue;
         if(!cv.koUntil) cv.koUntil = performance.now() + 35000 + Math.random() * 20000;
@@ -10160,7 +10179,7 @@ function tickProps(dt){
             sh9.stocktakeT = 0;
             sh9.counted = true;
             shipSave();
-            chronicle('event', 'Kestrel counted her shelves and came up short. No name to give the law \u2014 just a colder eye on everyone who browses.');
+            chronicle('event', 'Kestrel counted her shelves and came up short. No name to give the law, just a colder eye on everyone who browses.');
           }
         }
       }
@@ -10237,7 +10256,7 @@ function tickProps(dt){
             if(Math.abs(da9) > 1.05) continue;
           }
           if(!segClearHigh(cv.x, cv.y, c2.x, c2.y)) continue;
-          showBanner('FOUND \u2014 THE LAW DRAWS AGAIN', '#e0483e');
+          showBanner('FOUND, THE LAW DRAWS AGAIN', '#e0483e');
           chronicle('event', 'A hunting officer found ' + c2.name + ' on the concourse. No second reading of the charge.');
           startConstableFight();
           break;
@@ -10307,7 +10326,7 @@ function tickProps(dt){
               }
             }
             for(const o of state.civs) if(o.respond) o.respond = null;
-            showBanner('SPOTTED \u2014 THE DETAIL LEVELS IRONS', '#e0483e');
+            showBanner('SPOTTED, THE DETAIL LEVELS IRONS', '#e0483e');
             if(sOp) bzArrest(sCv, sOp.name);
             else startConstableFight();
           }else{
@@ -10459,7 +10478,7 @@ function tickProps(dt){
             cv.name = sl.name; cv.kind = 'star'; cv.tide = false;
             cv.errand = {kind: 'follow', path: [], leg: 0, waitT: 0};
             showEventModal('CARUSO VEIL',
-              'The man sways, catches your operator\u2019s shoulder, and grins with too many teeth. \u201CYou. YOU. I\u2019m playing The Pit tonight \u2014 or I was, before the bar started moving. Walk me there and my manager makes it worth the trouble.\u201D',
+              'The man sways, catches your operator\u2019s shoulder, and grins with too many teeth. \u201CYou. YOU. I\u2019m playing The Pit tonight, or I was, before the bar started moving. Walk me there and my manager makes it worth the trouble.\u201D',
               [{label: 'WALK HIM HOME', cb: () => {
                   chronicle('event', 'Picked a drunken vampire rock star out of the tide. Escort to The Pit: accepted.');
                 }},
@@ -10498,7 +10517,7 @@ function tickProps(dt){
             }
             bzSet(nf);
             if(r2 === 'law' && !bN.copHunt && !bN.confronted)
-              chronicle('event', 'Carried Varric\u2019s crate across the open concourse \u2014 and ' +
+              chronicle('event', 'Carried Varric\u2019s crate across the open concourse, and ' +
                 (cv.name ? cv.name + ' marked it personally' : 'the law marked it') + '.');
             else if(r2 === 'victim' && !bN.varricKnows)
               chronicle('event', 'Varric watched his own crate cross the concourse under the crew\u2019s arm. The Ring keeps its own books.');
@@ -10512,7 +10531,7 @@ function tickProps(dt){
              segClearHigh(vv2.x, vv2.y, carrier.x, carrier.y)){
             bzSet({varricKnows: true});
             addPopup(vv2.x, vv2.y - vv2.r - 12, 'VARRIC MARKS HIS CRATE', '#e0a33e');
-            chronicle('event', 'Varric clocked his own crate under the crew\u2019s arm. Bought fair \u2014 but his, and he knows it.');
+            chronicle('event', 'Varric clocked his own crate under the crew\u2019s arm. Bought fair, but his, and he knows it.');
           }
         }
       }
@@ -10820,7 +10839,7 @@ function shopSteal(i, cName){
   const seen = keeper && !keeper.ko &&
     Math.hypot(keeper.x - c.x, keeper.y - c.y) < 320 && segClearHigh(keeper.x, keeper.y, c.x, c.y);
   if(seen){
-    addPopup(keeper.x, keeper.y - keeper.r - 14, 'HOY \u2014 THIEF!', '#e0483e');
+    addPopup(keeper.x, keeper.y - keeper.r - 14, 'HOY, THIEF!', '#e0483e');
     facRepAdd('tradersguild', -1);
     witnessRun(keeper, {who: c.name, grade: 'minor', what: 'theft from Kestrel Outfitters'});
     chronicle('event', 'Kestrel watched ' + c.name + ' lift a ' + (WPN_NAMES[it.key] || it.key) + ' off her own shelf, and went for the law at a dead run.');
@@ -10944,7 +10963,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '17 Oct \u00B7 TITLE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '17 Oct \u00B7 TIDY';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -11279,11 +11298,11 @@ function crewContraband(){
     if(d.dead) continue;
     for(const it of (d.pack || [])) if(it.ownFac === 'constabulary')
       hits.push((it.kind === 'weapon' ? (WPN_NAMES[it.key] || it.key) : (it.label || 'effects')) +
-        ' \u2014 ' + (it.own || 'Constabulary issue'));
+        ', ' + (it.own || 'Constabulary issue'));
     for(const sl of ['primary', 'sidearm']){
       const pv = provOf(d, sl);
       if(pv && pv.ownFac === 'constabulary')
-        hits.push((WPN_NAMES[d.loadout[sl]] || 'a weapon') + ' \u2014 ' + (pv.own || 'Constabulary issue'));
+        hits.push((WPN_NAMES[d.loadout[sl]] || 'a weapon') + ', ' + (pv.own || 'Constabulary issue'));
     }
   }
   return hits;
@@ -11302,7 +11321,7 @@ function facRepCross(fac, before, after){
     {fac: 'freightring', at: 2, up: true, head: 'THE RING VOUCHES',
      text: 'The Crossport Freight Ring vouches for this crew. A tenth off every purchase at the port, effective immediately.'},
     {fac: 'tradersguild', at: -2, up: false, head: 'GUILD PAPER',
-     text: 'The Traders\u2019 Guild has posted paper on this crew. Guild shops will not trade with you until the debt is settled \u2014 and guild insurance pays hunters by the head.'},
+     text: 'The Traders\u2019 Guild has posted paper on this crew. Guild shops will not trade with you until the debt is settled, and guild insurance pays hunters by the head.'},
     {fac: 'greymarket', at: -2, up: false, head: 'A WORD IS COMING',
      text: 'The grey market has decided this crew owes it something. Watch the crowd at your next landing: not every shopper is shopping.'},
   ];
@@ -11341,7 +11360,7 @@ function rapAdd(name, grade, what){
   if(grade === 'major' && !state.respT &&
      !(state.civs || []).some(cv2 => cv2.respond)){
     state.respT = performance.now() + 40000;
-    showBanner('THE RING OFFICE KNOWS \u2014 CLEAR THE PORT', '#e0483e');
+    showBanner('THE RING OFFICE KNOWS, CLEAR THE PORT', '#e0483e');
   }
 }
 function rapClear(name, grade){
@@ -11408,7 +11427,7 @@ function bzSearch(cv, who){
   bzSet({searchedT: performance.now() + 30000});
   state.lastStop = {who, grade: 'minor'};
   return showEventModal('CONSTABLE ' + String((cv && cv.name) || '').toUpperCase(),
-    '\u201CSir. Stay where you are \u2014 we are going to search you. A complaint names ' + who + ', and this is the polite version.\u201D',
+    '\u201CSir. Stay where you are, we are going to search you. A complaint names ' + who + ', and this is the polite version.\u201D',
     [{label: 'COMPLY', cb: () => { bzFrisk(who); }},
      {label: 'RESIST', cb: () => {
         rapAdd(who, 'minor', 'resisting a lawful search');   // the paper is minor; what the FIGHT writes is not
@@ -11429,7 +11448,7 @@ function bzSearchResults(who){
   if(c) c.friskT = 0;
   if(got.badge.length){
     showBanner('CONSTABULARY ISSUE FOUND', '#e0483e');
-    chronicle('event', 'The search of ' + who + ' turned up Constabulary issue \u2014 a dead officer\u2019s iron in living hands. There is no fine for that.');
+    chronicle('event', 'The search of ' + who + ' turned up Constabulary issue, a dead officer\u2019s iron in living hands. There is no fine for that.');
     rapAdd(who, 'major', 'possession of a dead officer\u2019s arms');
     startConstableFight();
     return 'badge';
@@ -11468,7 +11487,7 @@ function bzArrest(cv, who){
   const r = rapsOf(who);
   const what = (r.what && r.what[r.what.length - 1]) || 'a capital complaint';
   return showEventModal('CONSTABLE ' + String((cv && cv.name) || '').toUpperCase(),
-    '\u201CGET DOWN ON THE GROUND. ' + String(who).toUpperCase() + ' \u2014 wanted for ' + what + '. Down. NOW.\u201D',
+    '\u201CGET DOWN ON THE GROUND. ' + String(who).toUpperCase() + ', wanted for ' + what + '. Down. NOW.\u201D',
     [{label: 'COMPLY \u00B7 FACE THE CHARGE', cb: () => { bzArrestComply(who); }},
      {label: 'RESIST', cb: () => {
         chronicle('event', who + ' chose the other way. On a capital charge there is only one other way.');
@@ -11507,6 +11526,7 @@ function bzCrimeWitness(x, y, crime, op){
     if(state.deckCombat && state.ironsOut) startConstableFight();   // and it draws where it stands
     return;
   }
+  crime.at = {x, y};   // the story carries the place: the officer who hears it goes there
   const seers = [];
   for(const cv of (state.civs || [])){
     if(!cv.alive || cv.ko || cv.kind === 'constable' || cv.name === 'June') continue;
@@ -11524,7 +11544,7 @@ function bzCrimeWitness(x, y, crime, op){
     witnessRun(w2, crime);
     state.respScene = {x, y};
     addPopup(w2.x, w2.y - w2.r - 14, '!', '#e0a33e');
-    chronicle('event', (w2.name || 'A bystander') + ' saw ' + crime.what + ' \u2014 and broke for the law. Stop them, or the name sticks.');
+    chronicle('event', (w2.name || 'A bystander') + ' saw ' + crime.what + ', and broke for the law. Stop them, or the name sticks.');
     break;   // one story runs on one pair of legs
   }
 }
@@ -11633,7 +11653,7 @@ function bzSellToHask(){
   stakeSettle(CRATE_CRIME, 'greymarket');
   bzSet({resolved: 'sold', heat: b.heat || (hot && b.lawAware)});
   chronicle('trade', hot
-    ? 'Sold the crate to Hask for ' + price + ' CR \u2014 hot goods rates. The port will remember.'
+    ? 'Sold the crate to Hask for ' + price + ' CR, hot goods rates. The port will remember.'
     : 'Sold the crate to Hask for ' + price + ' CR, clean as dockwater.');
   shipCreditsRefresh && shipCreditsRefresh();
   return true;
@@ -11863,8 +11883,8 @@ function portTalk(cv){
       return showEventModal(String(cv.name || 'STRANGER').toUpperCase(), '\u201CDo I know you? Didn\u2019t think so.\u201D', close);
     const cut = Math.ceil(cv.crook.pouch.value / 2);
     return showEventModal(String(cv.name).toUpperCase(),
-      'The thief\u2019s eyes flick to the exits, then settle. \u201CSharp eyes, friend. Half the pouch \u2014 ' + cut +
-      ' credits \u2014 says you never had them. Or try taking it, if you fancy your reach.\u201D',
+      'The thief\u2019s eyes flick to the exits, then settle. \u201CSharp eyes, friend. Half the pouch, ' + cut +
+      ' credits, says you never had them. Or try taking it, if you fancy your reach.\u201D',
       [{label: 'TAKE THE CUT \u00B7 +' + cut + ' CR', cb: () => {
           ship.credits += cut;
           cv.crook.pouch.value -= cut;
@@ -11893,7 +11913,7 @@ function portTalk(cv){
     if(shT && shT.counted){
       return showEventModal('KESTREL', '\u201CSomebody\u2019s been light-fingered on my floor. The guild knows, the law knows, and I count TWICE now. Browse with your hands where I can see them.\u201D', close);
     }
-    return showEventModal('KESTREL', '\u201CThe shelves are the stock \u2014 walk them, read the tags, pay me from wherever you stand. Guild prices, guild paper. And I know my own count to the bolt.\u201D', close);
+    return showEventModal('KESTREL', '\u201CThe shelves are the stock, walk them, read the tags, pay me from wherever you stand. Guild prices, guild paper. And I know my own count to the bolt.\u201D', close);
   }
   if(cv.kind === 'porter'){
     return showEventModal(String(cv.name || 'PORTER').toUpperCase(), '\u201CPaid to carry, not to talk.\u201D', close);
@@ -11937,19 +11957,19 @@ function portTalk(cv){
   if(cv.name === 'Varric'){
     const mood = bzVarricMood(b, holds);
     if(mood === 'settled'){
-      return showEventModal('VARRIC', '\u201CThe crate\u2019s home. We\u2019re square\u2019 \u2014 he taps the lid twice \u2014 \u2018and we never speak of it.\u201D', close);
+      return showEventModal('VARRIC', '\u201CThe crate\u2019s home. We\u2019re square\u2019, he taps the lid twice, \u2018and we never speak of it.\u201D', close);
     }
     if(mood === 'burned'){
       return showEventModal('VARRIC', '\u201CIt crossed Hask\u2019s counter an hour after it left my corner, and I know whose hands carried it there. The reward\u2019s withdrawn. The memory isn\u2019t.\u201D', close);
     }
     if(mood === 'cold'){
-      return showEventModal('VARRIC', '\u201CWord is my crate surfaced on a counter and vanished again. Somebody on this concourse is spending my money. The offer\u2019s dead \u2014 and I\u2019m done being civilised about it.\u201D', close);
+      return showEventModal('VARRIC', '\u201CWord is my crate surfaced on a counter and vanished again. Somebody on this concourse is spending my money. The offer\u2019s dead, and I\u2019m done being civilised about it.\u201D', close);
     }
     if(mood === 'recovered'){
-      return showEventModal('VARRIC', '\u201CMy property came home \u2014 by professionals, at professional rates. You might want to stay off my ledger a while.\u201D', close);
+      return showEventModal('VARRIC', '\u201CMy property came home, by professionals, at professional rates. You might want to stay off my ledger a while.\u201D', close);
     }
     if(mood === 'bought'){
-      return showEventModal('VARRIC', '\u201CThat\u2019s my crate under your arm. June sold it? Then June and I will settle the wages question ourselves. A hundred credits and it comes home \u2014 you clear twenty, and the Ring stays out of it.\u201D',
+      return showEventModal('VARRIC', '\u201CThat\u2019s my crate under your arm. June sold it? Then June and I will settle the wages question ourselves. A hundred credits and it comes home, you clear twenty, and the Ring stays out of it.\u201D',
         [{label: 'SELL IT BACK \u00B7 100 CR', cb: bzSellBackToVarric}].concat(close));
     }
     if(mood === 'knows-holds'){
@@ -11960,7 +11980,7 @@ function portTalk(cv){
       return showEventModal('VARRIC', '\u201CThat\u2019s\u2026 that\u2019s my crate. A hundred and fifty, as posted, and I won\u2019t ask where you found it.\u201D',
         [{label: 'COLLECT \u00B7 150 CR', cb: bzReturnToVarric}].concat(close));
     }
-    return showEventModal('VARRIC', '\u201CSomeone lifted a sealed crate of mine. A hundred and fifty credits to whoever brings it back. No questions asked \u2014 that\u2019s the civilised way.\u201D', close);
+    return showEventModal('VARRIC', '\u201CSomeone lifted a sealed crate of mine. A hundred and fifty credits to whoever brings it back. No questions asked, that\u2019s the civilised way.\u201D', close);
   }
   if(cv.name === 'Hask'){
     if(holds){
@@ -11969,7 +11989,7 @@ function portTalk(cv){
       return showEventModal('HASK', hot
         ? 'He looks at the crate, then at the concourse. \u201CWord travels. Hot goods move at hot prices: one-forty, and it was never here.\u201D'
         : (b.crateIntel
-          ? 'He weighs your look, then the crate. \u201CSomeone\u2019s been talking. Fine \u2014 two-sixty for the seal, and it was never here.\u201D'
+          ? 'He weighs your look, then the crate. \u201CSomeone\u2019s been talking. Fine, two-sixty for the seal, and it was never here.\u201D'
           : '\u201CA sealed crate, no provenance? Two-twenty, and it was never here.\u201D'),
         [{label: 'SELL \u00B7 ' + hp + ' CR', cb: bzSellToHask}].concat(close));
     }
@@ -11991,7 +12011,7 @@ function portTalk(cv){
          {label: 'NEVER MIND', cb: () => {}}]);
     }
     if(b.heat){
-      return showEventModal('CONSTABLE ' + cv.name.toUpperCase(), '\u201CThere\u2019s paper on your crew. Stolen goods, moved through my port. Pay the remediation \u2014 or we do this the other way.\u201D',
+      return showEventModal('CONSTABLE ' + cv.name.toUpperCase(), '\u201CThere\u2019s paper on your crew. Stolen goods, moved through my port. Pay the remediation, or we do this the other way.\u201D',
         [{label: 'PAY \u00B7 120 CR', cb: () => {
             ship.credits -= 120;
             bzSet({heat: false});
@@ -12041,12 +12061,12 @@ function bzPickup(c){
   }
   bzSet(nf);
   chronicle('event', 'Lifted Varric\u2019s crate off June\u2019s corner' + (
-    loud === 'law' ? ' \u2014 under the law\u2019s own eyes.' :
-    loud === 'tells' ? ' \u2014 and a bystander went for the law.' :
-    loud === 'victim' ? ' \u2014 and Varric himself watched it happen.' :
-    loud === 'disapproves' ? ' \u2014 and the wrong people marked it.' :
-    loud === 'approves' ? ' \u2014 and the only witness smiled.' :
-    loud === 'quiet' ? ' \u2014 seen, but the eyes that saw kept to themselves.' :
+    loud === 'law' ? ', under the law\u2019s own eyes.' :
+    loud === 'tells' ? ', and a bystander went for the law.' :
+    loud === 'victim' ? ', and Varric himself watched it happen.' :
+    loud === 'disapproves' ? ', and the wrong people marked it.' :
+    loud === 'approves' ? ', and the only witness smiled.' :
+    loud === 'quiet' ? ', seen, but the eyes that saw kept to themselves.' :
     '. Nobody looked twice.'));
   return true;
 }
@@ -12216,7 +12236,7 @@ const BARKS = {
     crit:    ['Through the plate.', 'Precisely enough.'],
     special: ['Coming through.', 'Horns first.', 'Make a hole.'],
     sedKO:   ['Sleep. You\'ll keep.', 'Easy now. Down you go.'],
-    allyDown:['NO. Eyes on me. Stay—', 'Medic. MEDIC.'],
+    allyDown:['NO. Eyes on me. Stay...', 'Medic. MEDIC.'],
     nerve:   ['No.', 'Not today.', 'Tried worse.'],
     underFire: ['They\'re wasting good ammunition.', 'Felt the wind of that one.', 'Rude.'],
     nearMiss:  ['Grazed him. He felt it.', 'Next one lands.'],
@@ -12229,19 +12249,19 @@ const BARKS = {
     sedKO:   ['Dream of better employers.'],
     allyDown:['Protocols. NOW. I have watched too many of these.'],
     shaken:  ['Older than this fear. Older than all of it.', 'Steady. You have outlived worse.'],
-    panic:   ['Not again. Not ANOTHER one—'],
+    panic:   ['Not again. Not ANOTHER one...'],
     underFire: ['Missed me by a century.', 'I have been shot at by BETTER.', 'The air disagrees with them.'],
     nearMiss:  ['A whisker. A WHISKER.', 'Range noted. Adjusting.'],
-    spotted:   ['Seen. How embarrassing — for them.', 'Eyes on me. Their mistake.'],
+    spotted:   ['Seen. How embarrassing, for them.', 'Eyes on me. Their mistake.'],
   },
   amarok: {
     kill:    ['SEE that? Tell me you saw that!', 'First blood\'s mine!', 'Fenrir sends regards.'],
     crit:    ['Right where I wanted it!', 'That one\'s going in my record!'],
     special: ['Hear me. ALL of you.', 'Sing with me.'],
     sedKO:   ['Nap time, big fella.'],
-    allyDown:['No no no — get UP, I\'ll cover you—'],
+    allyDown:['No no no, get UP, I\'ll cover you...'],
     shaken:  ['I\'m fine. I\'m FINE.', 'Not scared. Focused. Same thing.'],
-    panic:   ['— can\'t, can\'t, CAN\'T —'],
+    panic:   ['...can\'t, can\'t, CAN\'T...'],
     jealous: ['I softened him for you.', 'I was CLOSER.', 'Saving the best ones for me?'],
     underFire: ['HA! Missed!', 'Too slow! ALL of you, too slow!', 'That one parted my fur!'],
     nearMiss:  ['Clipped him! Did you see it?!', 'Next one\'s a keeper!'],
@@ -12252,12 +12272,12 @@ const BARKS = {
     crit:    ['Textbook.', 'Log that one.'],
     special: ['Procedure says breathe. Skipping that.', 'Overclocking.'],
     sedKO:   ['Subdued. Noting the time.'],
-    allyDown:['Officer down, I need— I need a second.'],
-    shaken:  ['Recalculating. Recalculating—', 'Deviation noted. Continuing.'],
-    panic:   ['Procedure. PROCEDURE. There\'s no procedure for this—'],
+    allyDown:['Officer down, I need, I need a second.'],
+    shaken:  ['Recalculating. Recalculating...', 'Deviation noted. Continuing.'],
+    panic:   ['Procedure. PROCEDURE. There\'s no procedure for this...'],
     underFire: ['Taking fire. Noted.', 'Incoming logged. Returning interest.', 'That round has my name misspelled.'],
     nearMiss:  ['Deflection error. Correcting.', 'Half a degree. HALF.'],
-    spotted:   ['Contact confirmed — they have me.', 'Cover blown. Improvising, per procedure.'],
+    spotted:   ['Contact confirmed, they have me.', 'Cover blown. Improvising, per procedure.'],
   },
 };
 
@@ -12304,8 +12324,8 @@ const PAIR_TALK = {
            ["Race you to first blood.", "I have two thousand firsts. Take it."],
            ["Teach me the long shot someday.", "Survive today. That is lesson one."],
            ["You hear that? I hear EVERYTHING.", "I heard it an hour ago. Walk."]],
-    win:  [["HA! Did you SEE—", "I see everything. It was adequate."]],
-    kill: {vampire: ['Show-off.', 'One shot. ONE. How do you—'], amarok: ['Loud. Effective, but loud.']},
+    win:  [["HA! Did you SEE...", "I see everything. It was adequate."]],
+    kill: {vampire: ['Show-off.', 'One shot. ONE. How do you...'], amarok: ['Loud. Effective, but loud.']},
     comfort: {amarok: 'Hey. Hey! The old man never misses. Hold my flank.', vampire: 'Kallik. Fear is patient. Be MORE patient.'},
   },
   'amarok+human': {
@@ -12324,7 +12344,7 @@ const PAIR_TALK = {
            ["Coffee after, if we\'re clean?", "I don\'t drink... coffee. One sugar."]],
     win:  [["Logged and closed.", "Add it to the pile."]],
     kill: {vampire: ['That\'s going in my technique file.'], human: ['Procedure would approve. I approve more.']},
-    comfort: {human: 'Ghant — statistically, we\'re fine.', vampire: 'Mara. The numbers are frightened too. Outlast them.'},
+    comfort: {human: 'Ghant, statistically, we\'re fine.', vampire: 'Mara. The numbers are frightened too. Outlast them.'},
   },
 };
 
@@ -12550,7 +12570,7 @@ function win(){
                 : sec.id === 'nociv'   ? civP === 0
                 : false;
       items.push(['CLAUSE ' + sec.id.toUpperCase() + ': ' + sec.label.toUpperCase() +
-        (met ? ' — FULFILLED' : ' — UNFULFILLED'),
+        (met ? ', FULFILLED' : ', UNFULFILLED'),
         met ? Math.round(fee * 0.5) : -Math.round(fee * 0.25)]);
     }
   }
@@ -12927,7 +12947,7 @@ function scorePosition(e, arch, cx, cy, target, wts){
   const hasLOS = canShootFrom(cx, cy, e.r, p.x, p.y) && d < effRange;
   const inCover = !canShootFrom(p.x, p.y, p.r, cx, cy);
 
-  // adjacency to a low wall is its own small bonus — a firing step
+  // adjacency to a low wall is its own small bonus, a firing step
   let lowAdj = 0;
   for(const w of state.walls){
     if(w.high) continue;
@@ -13050,12 +13070,12 @@ function enemyDecide(e){
       if(path && pathLen(path) > 14){
         return {path: truncatePath(path, budget), shots:0, investigate:true};
       }
-      // arrived: nothing here — scan and stay wary
+      // arrived: nothing here, scan and stay wary
       e.lastKnown = null;
     }
     return {path:null, shots:0, idle:true};
   }
-  // panicked: flee wildly, then fire at the nearest thing — friend or foe
+  // panicked: flee wildly, then fire at the nearest thing, friend or foe
   if(e.morale === 'panicked'){
     const budget = arch.moveRange * sedMoveMul(e);
     const g2 = buildMoveGraph(e);
@@ -13137,7 +13157,7 @@ function enemyDecide(e){
       return {path: null, shots: 2, suppress: true, melee: !!arch.melee, target: p};
     }
     if(!canHit){
-      // furniture in the lane, not their cover: don't waste the magazine — find an angle
+      // furniture in the lane, not their cover: don't waste the magazine, find an angle
       const firing = toldOnly ? null : cands.find(cd => cd.path &&
         canShootFrom(cd.x, cd.y, e.r, p.x, p.y) && Math.hypot(p.x-cd.x, p.y-cd.y) < effRange);
       if(firing) return {path: firing.path, shots: 1, melee: !!arch.melee, target: p};
@@ -13173,8 +13193,8 @@ function startEnemyTurn(){
   if(state.shipDeck && !state.deckCombat) return;
   if(state.deckCombat && !state.enemies.some(e2 => e2.alive && !e2.ko) &&
      !(state.boarding && !state.boarding.spawned)){
-    // irons out, nobody opposite: the port still takes its turn \u2014 thieves run,
-    // badges walk, witnesses carry their stories \u2014 and THEN the turn comes back
+    // irons out, nobody opposite: the port still takes its turn, thieves run,
+    // badges walk, witnesses carry their stories, and THEN the turn comes back
     state.phase = 'enemy';
     state.worldBeatT = performance.now() + 1200;
     return;
@@ -13233,7 +13253,7 @@ function startEnemyTurn(){
   const s = state;
   const alive = s.enemies.filter(e => e.alive && !e.ko);
   if(!alive.length || s.over) return;
-  // alarm fades slowly — going loud can't be quickly taken back
+  // alarm fades slowly, going loud can't be quickly taken back
   for(const e of alive){
     refreshMemory(e);
     let anyFresh = false;
@@ -13479,7 +13499,7 @@ function processEnemyTurn(realDt){
         et.stage = 'post'; et.timer = e.visible ? 0.3 : 0.05;
         return;
       }
-      // arrived — melee if in reach, else shoot if the line is there
+      // arrived, melee if in reach, else shoot if the line is there
       let p = et.plan.target;
       if(!p || !p.alive) p = et.plan.target = nearestChar(e.x, e.y);
       if(!p){ et.stage = 'post'; et.timer = 0.2; return; }
@@ -13497,7 +13517,7 @@ function processEnemyTurn(realDt){
         const nowSee = memTarget(e);
         if(!nowSee || nowSee.ghost){
           if(e.mem) delete e.mem[p.key];
-          // "Clear!" — the pod drops every stale sighting near this spot
+          // "Clear!", the pod drops every stale sighting near this spot
           for(const o of state.enemies){
             if(!o.alive || o === e || !o.mem) continue;
             if(Math.hypot(o.x-e.x, o.y-e.y) > 260) continue;
@@ -13513,7 +13533,7 @@ function processEnemyTurn(realDt){
       const witnessed = p.live || (p.ghost && !p.told && p.age <= 1 && (p.hoseN || 0) < 2);
       if(et.shotsLeft > 0 && dist < effRange && !(p.told && !p.live) &&
          (canShootFrom(e.x, e.y, e.r, p.x, p.y) || witnessed)){
-        // no clean line but they watched the duck? hose the cover — twice at
+        // no clean line but they watched the duck? hose the cover, twice at
         // most, and never through a pod-mate who's moved into the lane
         if(allyInLine(e, p.x, p.y)){ et.stage = 'post'; et.timer = 0.3; return; }
         if(!canShootFrom(e.x, e.y, e.r, p.x, p.y)){
@@ -13586,10 +13606,10 @@ function endEnemyTurn(){
       if(!seen9){
         s.scentT = (s.scentT || 0) + 1;
         if(s.scentT >= 3){ portFightBreakOff(); return; }
-        showBanner('OUT OF SIGHT \u00B7 ' + s.scentT + '/3 \u2014 THE LAW IS LOSING THE SCENT', '#b06ae0');
+        showBanner('OUT OF SIGHT \u00B7 ' + s.scentT + '/3, THE LAW IS LOSING THE SCENT', '#b06ae0');
       }else if(s.scentT){
         s.scentT = 0;
-        showBanner('SEEN \u2014 THE SCENT IS FRESH AGAIN', '#e0483e');
+        showBanner('SEEN, THE SCENT IS FRESH AGAIN', '#e0483e');
       }
     }
   }
@@ -13645,7 +13665,7 @@ function fleePoint(u, budget){
   return {x: u.x + Math.cos(a)*budget, y: u.y + Math.sin(a)*budget};
 }
 
-// the nearest thing they register as a threat — friend or foe
+// the nearest thing they register as a threat, friend or foe
 function nearestPerceivedThreat(u){
   let best = null, bd = Infinity;
   for(const o of [...state.squad, ...state.enemies]){
@@ -13687,7 +13707,7 @@ function wildFire(u){
 
 // ---------- ship hardpoint: the scanner ----------
 // The ship in orbit paints an area of the field: full sight there, as if a
-// squad member stood at the point. Passive — nothing on the ground notices.
+// squad member stood at the point. Passive, nothing on the ground notices.
 // Lasts through the coming enemy turn, then the picture fades.
 function placeScan(p){
   const s = state;
@@ -13742,7 +13762,7 @@ function tryRally(tap){
 
 // ---------- overwatch: the interrupt snap shot ----------
 // Bank an AP to watch a direction. When a hostile crosses the wedge during
-// their turn, time freezes and the player takes the shot by hand — a snap
+// their turn, time freezes and the player takes the shot by hand, a snap
 // shot, breathing faster than normal. The moment offered, the charge is spent.
 const WATCH_HALF = 40 * DEG;
 
@@ -14015,7 +14035,7 @@ function frame(now){
     if(s.burst.left <= 0) s.burst = null;
   }
 
-  // runs — squad members and any enemy currently executing a move
+  // runs, squad members and any enemy currently executing a move
   for(const c of s.squad){
     if(c.alive && c.run) followRun(c, dt, true);
   }
@@ -14096,7 +14116,7 @@ function frame(now){
           break;
         }
 
-        // high walls: solid — ricochet or die as before
+        // high walls: solid, ricochet or die as before
         const cx = w.x+w.w/2, cy = w.y+w.h/2;
         const px = (b.x-cx)/(w.w/2+b.r), py = (b.y-cy)/(w.h/2+b.r);
         if(Math.abs(px) > Math.abs(py)){
@@ -14564,7 +14584,7 @@ function draw(){
     ctx.globalAlpha = 1;
   }
 
-  // the Orrix's floor: plating, seams, wear — a ship underfoot, not a field
+  // the Orrix's floor: plating, seams, wear, a ship underfoot, not a field
   if(s.shipDeck && deckMask){
     ctx.save();
     ctx.beginPath();
@@ -14832,7 +14852,7 @@ function draw(){
     for(let i = s.noiseRings.length - 1; i >= 0; i--){
       const nr = s.noiseRings[i];
       nr.t += realDtDraw;
-      // three acts: race out, hold the ground, let go — footsteps do it all in a hurry
+      // three acts: race out, hold the ground, let go, footsteps do it all in a hurry
       const EXPAND = nr.step ? 0.3 : 0.8, HOLD = nr.step ? 0.35 : 2.4, FADE = nr.step ? 0.5 : 1.6;
       const dur = EXPAND + HOLD + FADE;
       if(nr.t >= dur){ s.noiseRings.splice(i, 1); continue; }
@@ -14929,7 +14949,7 @@ function draw(){
     }
   }
 
-  // snap shot: the frozen moment — and no doubt about whose it is
+  // snap shot: the frozen moment, and no doubt about whose it is
   if(s.ow){
     ctx.fillStyle = 'rgba(4,6,14,0.35)';
     ctx.fillRect(0, 0, W, H);
@@ -15337,7 +15357,7 @@ function draw(){
       ctx.fillStyle = 'rgba(212,168,67,.9)';
       ctx.fillText('CHARGE', cx2, cy2 - 12);
     }else if(!isMove && wpn().melee && isBluntKey(p.weapon)){
-      // the hammer's promise: the breathing circle — time the swell
+      // the hammer's promise: the breathing circle, time the swell
       const hw = wpn();
       const hr = bluntPulseR(p, hw);
       const swell = Math.max(0, Math.min(1, (hr - (p.r + 6)) / (hw.range - p.r - 6)));   // 0 at rest, 1 at full
@@ -15384,7 +15404,7 @@ function draw(){
       ctx.font = "700 8px 'Space Grotesk',sans-serif";
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(201,107,62,.85)';
-      ctx.fillText('DASH — ANYWHERE IN THE WEDGE', mid.x, mid.y - 10);
+      ctx.fillText('DASH, ANYWHERE IN THE WEDGE', mid.x, mid.y - 10);
     }else if(!isMove){
       // the loudness of this decision, drawn before it's made
       const nR = wpn().noise || NOISE_GUN;
@@ -15404,7 +15424,7 @@ function draw(){
     if(isMove){
       const mp = s.movePreview;
       if(mp.valid){
-        // reachable path — bends around obstacles
+        // reachable path, bends around obstacles
         ctx.strokeStyle = 'rgba(212,168,67,.9)';
         ctx.lineWidth = 2.5;
         ctx.setLineDash([9,7]);
@@ -15609,7 +15629,7 @@ function draw(){
     ctx.fillText('EXTRACTION', ex.x, ex.y - ex.r - 6);
   }
   if(s.pkg && !s.pkg.delivered && !s.pkgFound && s.pkgSites){
-    // intel overlay: candidate sites — amber rumours, grey struck-out clears
+    // intel overlay: candidate sites, amber rumours, grey struck-out clears
     const qp = 1 + Math.sin(performance.now()/400)*0.1;
     for(const site of s.pkgSites){
       if(site.cleared){
@@ -15699,7 +15719,7 @@ function draw(){
     }
   }
 
-  // squad — with running gait, distinct silhouettes, and a selection ring
+  // squad, with running gait, distinct silhouettes, and a selection ring
   for(const c of s.squad){
     if(!c.alive) continue;
     let pbY = 0, pLeanX = 0, pLeanY = 0;
@@ -15714,7 +15734,7 @@ function draw(){
       drawShield(pdx - c.r - 8, pdy - c.r - 4, 5.5, 'rgba(111,214,255,.7)');
     }
 
-    // exposed: the flash still hangs on you — everyone can see it
+    // exposed: the flash still hangs on you, everyone can see it
     if(c.alive && c.exposed){
       const espin = performance.now()/500;
       const epulse = 0.6 + Math.sin(performance.now()/180)*0.35;
@@ -15759,7 +15779,7 @@ function draw(){
       ctx.fillText(String(c.downTimer), pdx, pdy - c.r - 14);
       ctx.font = "700 8px 'Space Grotesk',sans-serif";
       ctx.fillStyle = 'rgba(232,224,204,.9)';
-      ctx.fillText(c.name.toUpperCase() + ' — DOWN, REACH THEM', pdx, pdy + c.r + 16);
+      ctx.fillText(c.name.toUpperCase() + ', DOWN, REACH THEM', pdx, pdy + c.r + 16);
       ctx.shadowBlur = 0;
       continue;   // a downed body wears none of the standing layers below
     }
@@ -15921,9 +15941,9 @@ function draw(){
     const hero = s.squad[0];
     const LINES = {
       aim:   ['CLICK YOUR OPERATIVE AND PULL BACK', ''],
-      cone:  ['THE CONE IS THEIR BREATHING — IT TIGHTENS AS THEY STEADY.', 'THE FURTHER YOU PULL, THE HARDER YOUR SHOTS HIT. RELEASE TO FIRE DOWN THE CONE.'],
-      again: ['AGAIN — RELEASE AT THE TIGHTEST BREATH.', ''],
-      move:  ['NOW MOVE — CLICK THE GROUND AND DRAG A PATH.', 'THE PATH BENDS AROUND COVER. RELEASE TO COMMIT.'],
+      cone:  ['THE CONE IS THEIR BREATHING · IT TIGHTENS AS THEY STEADY.', 'THE FURTHER YOU PULL, THE HARDER YOUR SHOTS HIT. RELEASE TO FIRE DOWN THE CONE.'],
+      again: ['AGAIN, RELEASE AT THE TIGHTEST BREATH.', ''],
+      move:  ['NOW MOVE, CLICK THE GROUND AND DRAG A PATH.', 'THE PATH BENDS AROUND COVER. RELEASE TO COMMIT.'],
       play:  ['PRACTICE MOVING AND SHOOTING AND MOP UP THESE TARGETS.', 'WHEN YOU\'RE READY, MOVE BRAM TO THE EXTRACTION ZONE.'],
       complete: ['TUTORIAL COMPLETE', 'REPORT TO THE BRIEFING ROOM'],
     };
@@ -16469,7 +16489,7 @@ function embedShipInPort(def, node){
     x: st.x * sx + ox, y: st.y * sy + oy, id: st.id, aboard: true,
   })).concat((def.stations || []).map(st => ({...st})));
   return {
-    name: (node && node.name ? (node.port ? node.port + ', ' + node.name : node.name) : def.name || 'Port') + ' \u2014 Docked',
+    name: (node && node.name ? (node.port ? node.port + ', ' + node.name : node.name) : def.name || 'Port') + ', Docked',
     par: 0, brief: '',
     player: {x: SHIP_LEVEL.player.x * sx + ox, y: SHIP_LEVEL.player.y * sy + oy},
     world: {w: PW, h: PH},
@@ -16533,7 +16553,7 @@ function buildMercyPort(node){
     {x: 0.355, y: 0.5, id: 'undock'},
   ]);
   return {
-    name: (node && node.name ? node.name : 'Port') + ' \u2014 Docked', par: 0, brief: '',
+    name: (node && node.name ? node.name : 'Port') + ', Docked', par: 0, brief: '',
     player: {x: SHIP_LEVEL.player.x * sx + ox, y: SHIP_LEVEL.player.y * sy + oy},
     world: {w: PW, h: PH},
     ship: true, noFog: true,
