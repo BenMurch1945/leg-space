@@ -2663,15 +2663,24 @@ function showPlanetStage(stage){
   portGo(stage);
   return true;
 }
-function enterPort(){
+function enterPort(distId, opts){
+  opts = opts || {};
   const alive = SQUAD_DEFS.map((d, i) => d.dead ? -1 : i).filter(i => i >= 0);
   if(!alive.length) return false;
   const node = galaxyNode(ship.at);
+  // which district: asked for, remembered, or the port's home; a port with no districts is its own single floor
+  const dmap = districtsOf(ship.at);
+  let dist = distId || ship.district || (dmap ? PORT_HOME[ship.at] : null);
+  if(dmap && !dmap[dist]) dist = PORT_HOME[ship.at] || Object.keys(dmap)[0];
+  const ddef = dmap ? dmap[dist] : null;
+  ship.district = dmap ? dist : null;
+  const fromDist = opts.from || null;
   // remember where each hand stood aboard, as fractions of the old deck
   const held = {};
   if(state.shipDeck && !state.portDock)
     for(const c of state.squad) held[c.name] = {x: c.x / W, y: c.y / H};
-  const lvl = PORT_LEVELS[ship.at] ? embedShipInPort(PORT_LEVELS[ship.at], node) : buildMercyPort(node);
+  const lvl = ddef ? (ddef.ship ? embedShipInPort(PORT_LEVELS[ship.at] || ddef.plan, node) : buildDistrict(ddef.plan, node, ddef.name))
+    : (PORT_LEVELS[ship.at] ? embedShipInPort(PORT_LEVELS[ship.at], node) : buildMercyPort(node));
   deckPrev = {usingCustom, customLevel, rosterSelection: rosterSelection.slice()};
   usingCustom = true; customLevel = lvl;
   rosterSelection = alive;
@@ -2688,7 +2697,9 @@ function enterPort(){
   {
     const sd = (ship.world && ship.world.seed) || 0;
     const nm = node ? (node.port ? node.port + ', ' + node.name : node.name) : ship.at;
-    chronicle('event', 'Docked at ' + nm + '. Port roll ' + sd.toString(36).toUpperCase() + '. Build ' + BUILD + '.');
+    if(fromDist && ddef) chronicle('event', 'Through the arch into ' + ddef.name + '.');
+    else if(ddef && !ddef.ship) chronicle('event', 'On the floor of ' + ddef.name + ', ' + nm + '. Port roll ' + sd.toString(36).toUpperCase() + '. Build ' + BUILD + '.');
+    else chronicle('event', 'Docked at ' + nm + '. Port roll ' + sd.toString(36).toUpperCase() + '. Build ' + BUILD + '.');
   }
   if(typeof dismissBrief === 'function') dismissBrief();
   if(typeof dismissSys === 'function') dismissSys();
@@ -2700,7 +2711,19 @@ function enterPort(){
   const sxE = SHIP_LEVEL.world.w / lvl.world.w, syE = SHIP_LEVEL.world.h / lvl.world.h;
   const oxE = lvl.player.x - SHIP_LEVEL.player.x * sxE, oyE = lvl.player.y - SHIP_LEVEL.player.y * syE;
   const lounge = LOUNGE_POSTS.map(p => ({x: (p.x * sxE + oxE) * W, y: (p.y * syE + oyE) * H}));
-  state.squad.forEach((c, i) => {
+  // an arrival by arch: the door that leads back to where they came from, or the plan's own start
+  const backDoor = fromDist ? (lvl.doors || []).find(d => d.to === fromDist) : null;
+  const arriveAt = backDoor ? {x: backDoor.x * W, y: backDoor.y * H} : (lvl.ship ? null : anchor);
+  if(arriveAt){
+    const inx = (W / 2 - arriveAt.x), iny = (H / 2 - arriveAt.y), inl = Math.hypot(inx, iny) || 1;
+    state.squad.forEach((c, i) => {
+      c.x = arriveAt.x + inx / inl * (96 + i * 26) + (i % 2 ? 22 : -22) * (iny / inl);
+      c.y = arriveAt.y + iny / inl * (96 + i * 26) - (i % 2 ? 22 : -22) * (inx / inl);
+      unstickFromWalls(c);
+      c.ap = 9; c.facing = Math.atan2(iny, inx);
+    });
+  }
+  if(!arriveAt) state.squad.forEach((c, i) => {
     const h = held[c.name];
     if(h){   // the landing moves the ship, not the people in it
       c.x = (h.x * sxE + oxE) * W; c.y = (h.y * syE + oyE) * H;
@@ -2737,7 +2760,8 @@ function enterPort(){
   const placed = (bzf && bzf.active && bzf.at === ship.at) ? castPlacements() : {};
   state.placed = placed;
   if(bzf && bzf.active && bzf.at === ship.at){
-    for(const p of BAZAAR_CAST){
+    for(const p of portCast()){
+      if((p.district || 'lanes') !== (ship.district || 'lanes')) continue;   // a face belongs to one floor
       if((bzf.deadCast || []).includes(p.name)) continue;
       const cx = placed[p.name] ? placed[p.name].x : p.x * W;
       const cy = placed[p.name] ? placed[p.name].y : p.y * H;
@@ -2749,12 +2773,12 @@ function enterPort(){
         fac: p.fac || null, brave: p.brave || 10,
       });
     }
-    if(bzf.crateHolder === 'june' && situationLive('crate')){
+    if(bzf.crateHolder === 'june' && situationLive('crate') && (ship.district || 'lanes') === 'lanes'){
       const cp = placed.crate || {x: 0.262 * W, y: 0.812 * H};
       state.props.push({kind: 'crate', bz: true, x: cp.x, y: cp.y, holder: null});
     }
     // the successor: four days after the beat emptied, the ring office fills it
-    if(bzf.successorDay && ship.day >= bzf.successorDay &&
+    if(bzf.successorDay && ship.day >= bzf.successorDay && (ship.district || 'lanes') === 'lanes' &&
        !(bzf.deadCast || []).includes(BZ_SUCCESSOR.name)){
       const sp = BZ_SUCCESSOR;
       state.civs.push({
@@ -2780,7 +2804,8 @@ function enterPort(){
   // the port's own life: arches people arrive through, places worth standing at
   state.shipZone = lvl.shipZone ? {x0: lvl.shipZone.x0 * W, y0: lvl.shipZone.y0 * H,
     x1: lvl.shipZone.x1 * W, y1: lvl.shipZone.y1 * H} : null;
-  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H}));
+  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null,
+    armed: !(fromDist && d.to === fromDist)}));
   state.shelves = (lvl.shelves || []).map(p9 => ({x: p9.x * W, y: p9.y * H}));
   state.anchors = portAnchors(lvl);
   state.spots = (lvl.spots || []).map((s2, i) => ({
@@ -2818,8 +2843,15 @@ function enterPort(){
       }
     }
   }
+  // a district you left is still there: bodies, props, broken cover, and whoever had no reason to leave
+  if(ship.district && state.districts && state.districts[ship.district]){
+    districtWake(state.districts[ship.district]);
+    delete state.districts[ship.district];
+  }
+  // what came through the arch in your hands comes through with you
+  for(const p of (opts.carry || [])) state.props.push(p);
   // the hold's cargo rides the landing: ship fractions through the hull transform
-  {
+  if(lvl.ship){
     const sxE2 = SHIP_LEVEL.world.w / lvl.world.w, syE2 = SHIP_LEVEL.world.h / lvl.world.h;
     const oxE2 = lvl.player.x - SHIP_LEVEL.player.x * sxE2;
     const oyE2 = lvl.player.y - SHIP_LEVEL.player.y * syE2;
@@ -5495,7 +5527,8 @@ function newGameStart(){
   opPick.idx = [0, 1];
   opApply();
   ship.where = 'port';
-  enterPort();
+  ship.district = PORT_HOME[ship.at] || null;   // a new run starts on the Cross; the Orrix waits in the Lanes
+  enterPort(ship.district);
   opPickShow();
   return true;
 }
@@ -5560,16 +5593,16 @@ function opPickGo(){
   const ov = document.getElementById('opPick');
   if(ov && ov.style) ov.style.display = 'none';
   const changed = !opPick.applied || opPick.applied[0] !== opPick.idx[0] || opPick.applied[1] !== opPick.idx[1];
-  if(changed){ opApply(); enterPort(); }   // the floor is rebuilt around the two who actually walked out
+  if(changed){ opApply(); enterPort(ship.district); }   // the floor is rebuilt around the two who actually walked out
   simResume();
   const nm = SQUAD_DEFS.map(d => d.name);
-  chronicle('event', nm.join(' and ') + ' walked down the Orrix’s ramp onto the Crossport concourse with standard issue and five hundred credits between them. Everything that happens next is theirs.');
+  chronicle('event', nm.join(' and ') + ' stepped onto the Cross with standard issue and five hundred credits between them. The Orrix is parked in Market Lanes, through the north arch. Everything that happens next is theirs.');
   return true;
 }
 // continue: a saved run resumes where it stood, on the concourse or aboard
 function continueGame(){
   titleHide();
-  if(ship.where === 'port' && PORT_LEVELS[ship.at] && livingRoster().length){ enterPort(); return 'port'; }
+  if(ship.where === 'port' && (districtsOf(ship.at) || PORT_LEVELS[ship.at]) && livingRoster().length){ enterPort(ship.district); return 'port'; }
   const r = document.getElementById('roster'); if(r && r.classList) r.classList.remove('hidden');
   renderRoster();
   return 'ship';
@@ -9735,6 +9768,103 @@ function bazaarSeed(){
     resolved: null,
   };
 }
+// ---- districts: a port is several floors, and the one you are not on keeps going ----
+// park what cannot walk through an arch: the floor's people, bodies, props and broken cover, stamped with the clock
+function districtPark(){
+  state.districts = state.districts || {};
+  const id = ship.district; if(!id) return null;
+  const carry = (state.props || []).filter(p => p.holder && state.squad.some(c => c.name === p.holder));
+  // who follows the crew through an arch: a fan at their shoulder, an officer who wants a word, a hunter on their scent
+  const followers = (state.civs || []).filter(cv => cv.alive && !cv.ko && !cv.gone &&
+    ((cv.kind === 'fan' && !cv.spooked) || (cv.kind === 'constable' && (cv.attend || cv.hunt))));
+  const stay = (state.civs || []).filter(cv => !followers.includes(cv));
+  state.districts[id] = {t: performance.now(), civs: stay, props: (state.props || []).filter(p => !carry.includes(p)),
+    enemies: (state.enemies || []).filter(e => !e.alive), walls: state.walls, day: ship.day || 0};
+  return {carry, followers};
+}
+// a parked floor catches up on the time it was alone: the tide moved on, the slinkers left, the crew finished bagging
+function districtWake(snap){
+  const el = (performance.now() - snap.t) / 1000;
+  let civs = snap.civs.filter(cv => !cv.gone);
+  civs = civs.filter(cv => !cv.tide);                           // the tide is new people every minute anyway
+  civs = civs.filter(cv => {
+    if(cv.crook && cv.errand && cv.errand.kind === 'slink'){ cv.errand.loiterT = (cv.errand.loiterT || 0) - el; return cv.errand.loiterT > 0; }
+    if(cv.crook) return false;                                  // a stalk with nobody to stalk is given up
+    if(cv.kind === 'face' || cv.kind === 'fan') return false;   // a face that did not follow has drifted off
+    return true;
+  });
+  let enemies = snap.enemies, props = snap.props;
+  const cleaners = civs.filter(cv => cv.kind === 'cleaner');
+  if(cleaners.length){
+    const bodies = civs.filter(cv => !cv.alive).length + enemies.length;
+    if(el > bodies * 3 + 15){                                   // the job is done and they have gone
+      civs = civs.filter(cv => cv.alive || inShipZone(cv.x, cv.y)).filter(cv => cv.kind !== 'cleaner');
+      enemies = enemies.filter(e => inShipZone(e.x, e.y));
+      chronicle('event', 'The recovery crew finished on that floor while you were elsewhere. It is clear now.');
+    }
+  }
+  for(const cv of civs){ cv._nav = null; cv._lc = null; }
+  state.civs = civs.concat((state.civs || []).filter(cv => cv.tide));   // the fresh tide this build just seeded
+  state.enemies = enemies.concat((state.enemies || []).filter(e => e.alive));
+  state.props = props;
+  if(snap.walls && snap.walls.length === state.walls.length) state.walls = snap.walls;   // the same plan: keep its damage
+  cnavDirty();
+}
+// walk the crew through an arch into another district of the same port
+function districtGo(to){
+  const ddef = districtDef(ship.at, to);
+  if(!ddef || state.deckCombat) return false;
+  const from = ship.district;
+  const parked = districtPark() || {carry: [], followers: []};
+  const names = state.squad.filter(c => c.alive).map(c => c.name).join(', ');
+  chronicle('event', names + ' went through the arch to ' + ddef.name + '.');
+  // bodies are rebuilt by the floor; what the walk cost them is not
+  const vitals = {};
+  for(const c of state.squad) vitals[c.name] = {hp: c.hp, stress: c.stress, morale: c.morale, armor: c.armor, mag: c.mag,
+    slot: c.slot, weapon: c.weapon, downed: c.downed, downTimer: c.downTimer, ko: c.ko, sed: c.sed, cuffed: c.cuffed, friskT: c.friskT};
+  enterPort(to, {from, carry: parked.carry});
+  for(const c of state.squad){ const v = vitals[c.name]; if(v) Object.assign(c, v); }
+  const back = (state.doors || []).find(d => d.to === from) || state.doors[0] || {x: W / 2, y: H / 2};
+  state.arrivals = state.arrivals || [];
+  parked.followers.forEach((cv, i) => {
+    cv._nav = null; cv._lc = null; cv.x = back.x; cv.y = back.y; cv.home = {x: back.x, y: back.y};
+    state.arrivals.push({cv, at: performance.now() + 2500 + i * 900});
+  });
+  ship.where = 'port'; shipSave();
+  return true;
+}
+// the arch tick: the whole crew at one arch goes through it; one of them at it is told to fetch the others
+function districtDoorTick(){
+  if(!state.portDock || state.deckCombat || !ship.district) return;
+  const crew = state.squad.filter(c => c.alive && !c.downed && !c.ko);
+  if(!crew.length) return;
+  for(const dr of (state.doors || [])){
+    if(!dr.label) continue;
+    const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < 70);
+    if(!near.length){ dr.armed = true; continue; }
+    if(dr.armed === false) continue;   // the arch you just came through waits until you have stepped clear
+    const now = performance.now();
+    if(!dr.to){
+      if(!dr._saidT || now > dr._saidT){ dr._saidT = now + 6000; showBanner(dr.label + ' \u00B7 CLOSED FOR WORKS', '#e0a33e'); }
+      continue;
+    }
+    if(near.length === crew.length){ districtGo(dr.to); return; }
+    if(!dr._saidT || now > dr._saidT){ dr._saidT = now + 4000; showBanner('TO ' + dr.label + ' \u00B7 THE CREW GOES THROUGH TOGETHER', '#6fd6ff'); }
+  }
+  // whoever followed you through comes out of the arch a few strides behind
+  if(state.arrivals && state.arrivals.length){
+    const now = performance.now();
+    const due = state.arrivals.filter(a => now >= a.at);
+    if(due.length){
+      state.arrivals = state.arrivals.filter(a => now < a.at);
+      for(const a of due){
+        state.civs.push(a.cv);
+        addPopup(a.cv.x, a.cv.y - a.cv.r - 14, (a.cv.name || 'SOMEONE').toUpperCase() + ' \u00B7 THROUGH THE ARCH', '#e0a33e');
+        chronicle('event', (a.cv.name || 'Someone') + ' came through the arch behind you.');
+      }
+    }
+  }
+}
 // ---- a familiar face: who breaks from the crowd, and what they want ----
 const FACE_NAMES = [
   {name: 'Oskar Venn',  race: 'HUMAN',    sex: 'MALE'},
@@ -10119,6 +10249,7 @@ function tickProps(dt){
         }
       }
       situationsTick();   // the port's own clocks, running while you stand on it
+      districtDoorTick();  // the arches: through them together, and whoever followed you arrives
       // a familiar face: a few seconds on the open floor, and somebody knows you
       if(situationLive('familiarface') && !state.deckCombat && !state.portFight){
         const bF = bz();
@@ -10964,7 +11095,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '17 Oct \u00B7 TIDY';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '17 Oct \u00B7 CROSS';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -10999,7 +11130,7 @@ function situationsTick(){
 function lawStrength(){
   const b = bz();
   const dead = (b && b.deadCast) || [];
-  let n = BAZAAR_CAST.filter(p => p.kind === 'constable' && !dead.includes(p.name)).length;
+  let n = portCast().filter(p => p.kind === 'constable' && !dead.includes(p.name)).length;
   if(b && b.successorDay && (ship.day || 0) >= b.successorDay && !dead.includes(BZ_SUCCESSOR.name)) n++;
   return n;
 }
@@ -11202,8 +11333,21 @@ const BZ_RESERVES = [
    race: 'VAMPIRE', sex: 'FEMALE', faction: 'PORT CONSTABULARY', wpn: 'carbine',
    bio: 'Sees the concourse the way you see a chessboard. Rarely blinks.'},
 ];
+// who stands in the Cross: two badges on the plaza beat and the Beacon's keeper
+const CROSS_CAST = [
+  {name: 'Marek', kind: 'constable', x: 0.46, y: 0.47, homeR: 240, fac: 'constabulary', brave: 14, district: 'cross',
+   race: 'HUMAN', sex: 'MALE', faction: 'PORT CONSTABULARY',
+   bio: 'Plaza beat, eleven years. Knows every stallholder by their first complaint and most travellers by their second.'},
+  {name: 'Sulla', kind: 'constable', x: 0.54, y: 0.53, homeR: 240, fac: 'constabulary', brave: 16, district: 'cross',
+   race: 'MINOTAUR', sex: 'FEMALE', faction: 'PORT CONSTABULARY',
+   bio: 'Transferred in from Garn and has not yet decided whether Crossport is beneath her or merely louder. Does not run; has never needed to.'},
+  {name: 'Fenn', kind: 'barkeep', x: 0.36, y: 0.16, homeR: 40, brave: 9, district: 'cross',
+   race: 'AMAROK', sex: 'MALE', faction: 'THE BEACON',
+   bio: 'Keeps the Beacon. Pours for everyone, remembers everyone, repeats nothing without being paid to.'},
+];
+function portCast(){ return BAZAAR_CAST.concat(CROSS_CAST); }
 function bzCastOf(name){
-  return BAZAAR_CAST.concat([BZ_SUCCESSOR]).concat(BZ_RESERVES).find(p => p.name === name) || null;
+  return portCast().concat([BZ_SUCCESSOR]).concat(BZ_RESERVES).find(p => p.name === name) || null;
 }
 // heat is weather: a warrant changes every price in the port, not just the law's mood
 function priceMulAt(){
@@ -11262,7 +11406,7 @@ function bzLawless(){
   const b = bz();
   if(!b || !b.active) return false;
   const dead = b.deadCast || [];
-  if(!BAZAAR_CAST.filter(p => p.kind === 'constable').every(p => dead.includes(p.name))) return false;
+  if(!portCast().filter(p => p.kind === 'constable').every(p => dead.includes(p.name))) return false;
   if(b.successorDay && ship.day >= b.successorDay && !dead.includes(BZ_SUCCESSOR.name)) return false;
   return true;
 }
@@ -12148,7 +12292,7 @@ function shipSave(){
       world: ship.world || null,
       cargoProps: (ship.cargoProps || []).slice(),
       roster, career: CAREER, missionsWon: missionsWon,
-      where: ship.where || null,
+      where: ship.where || null, district: ship.district || null,
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -12167,7 +12311,7 @@ function shipLoad(){
     ship.world = (d.world && (d.world.ports || d.world.bazaar)) ? d.world : null;
     worldEnsure();
     ship.cargoProps = Array.isArray(d.cargoProps) ? d.cargoProps : [];
-    ship.where = d.where || null;
+    ship.where = d.where || null; ship.district = d.district || null;
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -12185,6 +12329,8 @@ function doShipReset(){
   }
   ship.credits = 500; ship.slotsMax = 8;
   ship.at = 'gateway'; ship.day = 0;
+  ship.district = shipDistrictOf('gateway');   // the dev reset boards you where the Orrix stands
+  state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
   ship.world = worldSeed();
@@ -15058,6 +15204,13 @@ function draw(){
       ctx.beginPath(); ctx.arc(dr.x, dr.y, 15, Math.PI, 0); ctx.stroke();
       ctx.strokeStyle = 'rgba(111,214,255,.18)';
       ctx.beginPath(); ctx.moveTo(dr.x - 15, dr.y); ctx.lineTo(dr.x + 15, dr.y); ctx.stroke();
+      if(dr.label){
+        ctx.fillStyle = dr.to ? 'rgba(111,214,255,.75)' : 'rgba(232,224,204,.35)';
+        ctx.font = "700 11px 'Space Grotesk',sans-serif";
+        ctx.textAlign = 'center';
+        const below = dr.y < H * 0.5;
+        ctx.fillText((dr.to ? 'TO ' : '') + dr.label, dr.x, dr.y + (below ? 30 : -22));
+      }
     }
   }
   // the crowd: soft grey figures, bobbing, oblivious until they aren't
@@ -16430,7 +16583,8 @@ const CROSSPORT_PORT = {
     {x: 0.845, y: 0.83, id: 'cantina'},
     {x: 0.355, y: 0.5, id: 'undock'},
   ],
-  doors: [{x: 0.50, y: 0.075}, {x: 0.072, y: 0.50}, {x: 0.928, y: 0.50}],
+  doors: [{x: 0.50, y: 0.075, to: null, label: 'NORTH ARCH'}, {x: 0.072, y: 0.50, to: null, label: 'WEST ARCH'},
+          {x: 0.928, y: 0.50, to: null, label: 'EAST ARCH'}, {x: 0.50, y: 0.912, to: 'cross', label: 'THE CROSS'}],
   spots: [
     {x: 0.534, y: 0.158, kind: 'shop',    label: 'SILKWEIGHT GOODS'},
     {x: 0.614, y: 0.158, kind: 'food',    label: 'HOT NOODLE'},
@@ -16471,6 +16625,156 @@ const CROSSPORT_PORT = {
   ],
 };
 PORT_LEVELS.gateway = CROSSPORT_PORT;
+
+// ---- The Cross: the heart of Crossport, and the district every other one hangs off ----
+// Transcribed from Ben's floorplan (17 Oct). Names and what happens in each building are provisional.
+const CROSS_PORT = {
+  name: 'The Cross', world: {w: 5600, h: 3520}, crowd: 40,
+  player: {x: 0.50, y: 0.57},
+  walls: [
+    // the pressure frame: sealed; the six ways out are arches set just inside it
+    {x: 0.040, y: 0.040, w: 0.920, h: 0.010, high: true},
+    {x: 0.040, y: 0.950, w: 0.920, h: 0.010, high: true},
+    {x: 0.040, y: 0.040, w: 0.006, h: 0.920, high: true},
+    {x: 0.954, y: 0.040, w: 0.006, h: 0.920, high: true},
+    // The Beacon: bar and social, door to the plaza
+    {x: 0.290, y: 0.0900, w: 0.140, h: 0.0095, high: true},
+    {x: 0.290, y: 0.2405, w: 0.055, h: 0.0095, high: true},
+    {x: 0.385, y: 0.2405, w: 0.045, h: 0.0095, high: true},
+    {x: 0.290, y: 0.0900, w: 0.006, h: 0.1600, high: true},
+    {x: 0.424, y: 0.0900, w: 0.006, h: 0.1600, high: true},
+    // Crossport Exchange: trade and currency
+    {x: 0.570, y: 0.0800, w: 0.150, h: 0.0095, high: true},
+    {x: 0.570, y: 0.2605, w: 0.060, h: 0.0095, high: true},
+    {x: 0.670, y: 0.2605, w: 0.050, h: 0.0095, high: true},
+    {x: 0.570, y: 0.0800, w: 0.006, h: 0.1900, high: true},
+    {x: 0.714, y: 0.0800, w: 0.006, h: 0.1900, high: true},
+    // Guild Representatives
+    {x: 0.130, y: 0.4700, w: 0.170, h: 0.0095, high: true},
+    {x: 0.130, y: 0.6305, w: 0.170, h: 0.0095, high: true},
+    {x: 0.130, y: 0.4700, w: 0.006, h: 0.1700, high: true},
+    {x: 0.294, y: 0.4700, w: 0.006, h: 0.0600, high: true},
+    {x: 0.294, y: 0.5800, w: 0.006, h: 0.0600, high: true},
+    // The Job Board: contracts and information
+    {x: 0.260, y: 0.7300, w: 0.050, h: 0.0095, high: true},
+    {x: 0.350, y: 0.7300, w: 0.050, h: 0.0095, high: true},
+    {x: 0.260, y: 0.8905, w: 0.140, h: 0.0095, high: true},
+    {x: 0.260, y: 0.7300, w: 0.006, h: 0.1700, high: true},
+    {x: 0.394, y: 0.7300, w: 0.006, h: 0.1700, high: true},
+    // The Supply Post: general goods
+    {x: 0.540, y: 0.6600, w: 0.050, h: 0.0095, high: true},
+    {x: 0.630, y: 0.6600, w: 0.050, h: 0.0095, high: true},
+    {x: 0.540, y: 0.8505, w: 0.140, h: 0.0095, high: true},
+    {x: 0.540, y: 0.6600, w: 0.006, h: 0.2000, high: true},
+    {x: 0.674, y: 0.6600, w: 0.006, h: 0.2000, high: true},
+    // Ship Services: repairs and gear
+    {x: 0.840, y: 0.5200, w: 0.100, h: 0.0095, high: true},
+    {x: 0.840, y: 0.6905, w: 0.100, h: 0.0095, high: true},
+    {x: 0.840, y: 0.5200, w: 0.006, h: 0.0600, high: true},
+    {x: 0.840, y: 0.6300, w: 0.006, h: 0.0700, high: true},
+    {x: 0.934, y: 0.5200, w: 0.006, h: 0.1800, high: true},
+    // the fountain at the Cross
+    {x: 0.487, y: 0.4830, w: 0.026, h: 0.0380, high: true},
+    // planters round the plaza: low cover, eight of them
+    {x: 0.591, y: 0.5579, w: 0.030, h: 0.0220},
+    {x: 0.529, y: 0.6553, w: 0.030, h: 0.0220},
+    {x: 0.441, y: 0.6553, w: 0.030, h: 0.0220},
+    {x: 0.379, y: 0.5579, w: 0.030, h: 0.0220},
+    {x: 0.379, y: 0.4201, w: 0.030, h: 0.0220},
+    {x: 0.441, y: 0.3227, w: 0.030, h: 0.0220},
+    {x: 0.529, y: 0.3227, w: 0.030, h: 0.0220},
+    {x: 0.591, y: 0.4201, w: 0.030, h: 0.0220},
+    // the north-west stalls
+    {x: 0.170, y: 0.2800, w: 0.040, h: 0.0250},
+    {x: 0.230, y: 0.3100, w: 0.035, h: 0.0220},
+    {x: 0.190, y: 0.3500, w: 0.030, h: 0.0200},
+    // the food stalls
+    {x: 0.680, y: 0.4500, w: 0.045, h: 0.0300},
+    {x: 0.740, y: 0.4600, w: 0.040, h: 0.0300},
+    {x: 0.710, y: 0.5200, w: 0.045, h: 0.0300},
+    {x: 0.760, y: 0.5500, w: 0.040, h: 0.0280},
+    {x: 0.690, y: 0.5800, w: 0.035, h: 0.0250},
+    // odd kiosks
+    {x: 0.600, y: 0.6000, w: 0.030, h: 0.0250},
+    {x: 0.440, y: 0.7000, w: 0.030, h: 0.0200},
+    {x: 0.780, y: 0.8200, w: 0.035, h: 0.0240},
+    {x: 0.140, y: 0.7800, w: 0.030, h: 0.0220},
+  ],
+  stations: [{x: 0.33, y: 0.80, id: 'board'}],
+  doors: [
+    {x: 0.50, y: 0.066, to: 'lanes', label: 'MARKET LANES'},
+    {x: 0.50, y: 0.934, to: null, label: 'TRANSIT CONCOURSE'},
+    {x: 0.058, y: 0.40, to: null, label: 'RESIDENTIAL WARRENS'},
+    {x: 0.058, y: 0.69, to: null, label: 'CIVIC QUARTER'},
+    {x: 0.942, y: 0.45, to: null, label: 'SHIPYARD'},
+    {x: 0.942, y: 0.755, to: null, label: 'FREIGHT QUARTER'},
+  ],
+  spots: [
+    {x: 0.36, y: 0.17, kind: 'bar', label: 'THE BEACON'},
+    {x: 0.645, y: 0.17, kind: 'shop', label: 'CROSSPORT EXCHANGE'},
+    {x: 0.21, y: 0.555, kind: 'society', label: 'GUILD REPRESENTATIVES'},
+    {x: 0.33, y: 0.815, kind: 'society', label: 'THE JOB BOARD'},
+    {x: 0.61, y: 0.76, kind: 'shop', label: 'THE SUPPLY POST'},
+    {x: 0.89, y: 0.61, kind: 'shop', label: 'SHIP SERVICES'},
+    {x: 0.72, y: 0.49, kind: 'food', label: 'FOOD STALLS'},
+    {x: 0.745, y: 0.585, kind: 'food', label: ''},
+    {x: 0.44, y: 0.50, kind: 'bench', label: 'THE CROSS'},
+    {x: 0.56, y: 0.50, kind: 'bench', label: ''},
+    {x: 0.50, y: 0.41, kind: 'bench', label: ''},
+    {x: 0.50, y: 0.60, kind: 'bench', label: ''},
+    {x: 0.21, y: 0.33, kind: 'shop', label: 'STALLS'},
+  ],
+  npcs: [],
+  shelves: [],
+  anchors: [
+    {x: 0.36, y: 0.17, tags: ['counter', 'bar']},
+    {x: 0.21, y: 0.33, tags: ['stall', 'market']},
+    {x: 0.72, y: 0.49, tags: ['stall', 'food']},
+    {x: 0.10, y: 0.86, tags: ['corner', 'quiet']},
+    {x: 0.90, y: 0.30, tags: ['corner', 'quiet']},
+    {x: 0.50, y: 0.10, tags: ['arch', 'north']},
+    {x: 0.50, y: 0.90, tags: ['arch', 'south']},
+    {x: 0.10, y: 0.40, tags: ['arch', 'west']},
+    {x: 0.90, y: 0.45, tags: ['arch', 'east']},
+  ],
+};
+// a port is a set of districts joined by arches; the ship stands in exactly one of them
+const DISTRICTS = {
+  gateway: {
+    cross: {plan: CROSS_PORT, name: 'The Cross', ship: false},
+    lanes: {plan: CROSSPORT_PORT, name: 'Market Lanes', ship: true},
+  },
+};
+const PORT_HOME = {gateway: 'cross'};          // where a new run first stands
+function districtsOf(portId){ return DISTRICTS[portId] || null; }
+function districtDef(portId, id){ const d = districtsOf(portId); return (d && d[id]) || null; }
+function shipDistrictOf(portId){
+  const d = districtsOf(portId); if(!d) return null;
+  for(const k of Object.keys(d)) if(d[k].ship) return k;
+  return null;
+}
+// a drawn district without the hull: the plan's own walls, doors, spots and stations
+function buildDistrict(def, node, dname){
+  const PW = (def.world && def.world.w) || 5600, PH = (def.world && def.world.h) || 3520;
+  return {
+    name: (node && node.name ? (node.port ? node.port + ', ' + node.name : node.name) : def.name || 'Port') + (dname ? ', ' + dname : ''),
+    par: 0, brief: '',
+    player: def.player ? {...def.player} : {x: 0.5, y: 0.5},
+    world: {w: PW, h: PH},
+    ship: false, noFog: def.noFog !== false,
+    walls: (def.walls || []).map(w => ({...w})),
+    enemies: [], civilians: 0,
+    npcs: (def.npcs || []).map(n2 => ({...n2})),
+    patrols: (def.patrols || []).map(r => r.map(pt => ({...pt}))),
+    stations: (def.stations || []).map(st => ({...st})), airlocks: [], pad: null,
+    shipZone: null,
+    doors: (def.doors || []).map(d => ({...d})),
+    spots: (def.spots || []).map(s2 => ({...s2})),
+    shelves: (def.shelves || []).map(p9 => ({...p9})),
+    anchors: (def.anchors || []).map(a9 => ({...a9, tags: (a9.tags || []).slice()})),
+    crowd: def.crowd || 0,
+  };
+}
 // park the hull inside any drawn port: pad decides where, hatches carve themselves
 function embedShipInPort(def, node){
   const PW = (def.world && def.world.w) || 5600, PH = (def.world && def.world.h) || 3520;
