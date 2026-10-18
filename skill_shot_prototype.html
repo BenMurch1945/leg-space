@@ -645,7 +645,7 @@
     padding:26px 32px;max-width:470px;text-align:center;box-shadow:0 0 60px rgba(0,0,0,.7);}
   #eventTitle{font-family:'Cinzel',serif;font-size:21px;font-weight:800;color:#e0483e;
     letter-spacing:.2em;margin-bottom:12px;}
-  #eventBody{font-size:13px;color:rgba(232,224,204,.8);line-height:1.6;margin-bottom:18px;}
+  #eventBody{font-size:13px;color:rgba(232,224,204,.8);line-height:1.6;margin-bottom:18px;white-space:pre-line;text-align:left;}
   #eventBtns{display:flex;gap:12px;justify-content:center;}
   #eventBtns button{font:700 11.5px 'Space Grotesk',sans-serif;letter-spacing:.18em;
     color:var(--bone);background:rgba(212,168,67,.14);border:1.5px solid rgba(212,168,67,.6);
@@ -3377,6 +3377,7 @@ function csStatline(c, key){
     ' \u00B7 CLIP ' + (WPN_CLIP[key] || '-') + ' \u00B7 PEN ' + (w.pen != null ? w.pen : 0);
 }
 const LOOT_ICONS = {
+  datacube: '<path d="M20 6 L33 13 L33 27 L20 34 L7 27 L7 13 Z M7 13 L20 20 L33 13 M20 20 L20 34" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>',
   credits: '<circle cx="15" cy="22" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="24" cy="17" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/>',
   trinket: '<path d="M20 6 L31 16 L20 34 L9 16 Z M9 16 h22" fill="none" stroke="currentColor" stroke-width="2.5"/>',
   gear: '<rect x="10" y="12" width="20" height="18" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M15 12 v-4 h10 v4" fill="none" stroke="currentColor" stroke-width="2.5"/>',
@@ -3390,6 +3391,7 @@ function lootTileColor(it){
   if(it.kind === 'weapon') return tileColor(it.key);
   if(it.kind === 'credits') return 'var(--brass)';
   if(it.kind === 'mission') return '#b06ae0';
+  if(it.kind === 'datacube') return '#6fd6ff';
   return SLOT_TINTS.gear;
 }
 function lootLabelOf(it){
@@ -3651,6 +3653,11 @@ function openCharSheet(c, mode, corpse){
       paintPortrait(pv, foe ? 'human' : c.kind, foe ? (arch.color || '#e0483e') : c.color,
         c.alive ? 1 - c.hp / (c.maxHp || 1) : 1, foe ? '◉' : (d.icon || d.name[0]));
     const tipForItem = (it) => {
+      if(it.kind === 'datacube'){
+        const cb = CUBES[it.cube] || {title: 'Data cube'};
+        return '<b style="color:#6fd6ff">' + cb.title.toUpperCase() + '</b><span>CLICK TO OPEN</span>' +
+          (it.own ? '<span style="color:#e0a33e">CARRIED BY ' + it.own.toUpperCase() + '</span>' : '');
+      }
       const kindLine = it.kind === 'weapon' ? ((GROUP_LABELS[(WPN_META[it.key] || {}).group] || 'WEAPON') +
           (canUseTile(d, it.key) ? '' : ' \u00B7 NOT RATED'))
         : it.kind === 'credits' ? 'CURRENCY \u00B7 CLICK TO STASH'
@@ -3781,6 +3788,7 @@ function openCharSheet(c, mode, corpse){
         for(const t2 of ov.querySelectorAll('.csTile.csSel')) t2.classList.remove('csSel');
         tile.classList.add('csSel');
         if(ov.querySelector('#csInfoBox')) info(it);
+        if(it.kind === 'datacube'){ const tip = document.getElementById('csTip'); if(tip) tip.style.display = 'none'; cubeOpen(it); }
       });
       tile.addEventListener('pointerdown', (e) => {
         if(foe) return;
@@ -9933,13 +9941,59 @@ function districtDoorTick(){
   }
 }
 // ---- a familiar face: who breaks from the crowd, and what they want ----
-const FACE_NAMES = [
-  {name: 'Oskar Venn',  race: 'HUMAN',    sex: 'MALE'},
-  {name: 'Ilse Marrow', race: 'VAMPIRE',  sex: 'FEMALE'},
-  {name: 'Tam Quill',   race: 'AMAROK',   sex: 'MALE'},
-  {name: 'Greta Holm',  race: 'MINOTAUR', sex: 'FEMALE'},
-  {name: 'Pell Saric',  race: 'YOKAI',    sex: 'FEMALE'},
+// the familiar faces are people with sheets: the same shape as an operator, so one of them can be fielded as a foe
+// (naming rule, Ben 18 Oct: a mix of single names and first-and-second names)
+const FACE_CAST = [
+  {name: 'Oskar Venn', kind: 'human', cls: 'soldier', sex: 'm', color: '#7f9fc4', race: 'HUMAN',
+   loadout: {primary: null, sidearm: 'stdknife'},
+   stats: {health: 18, move: 190, strength: 10, aim: 11, bravery: 15, luck: 10, vision: 400, agility: 9, armor: 0, fearless: 0},
+   bio: 'Freight-line guard turned freelancer. Owes money in two ports and friendship in a third.'},
+  {name: 'Ilse Marrow', kind: 'vampire', cls: 'mancer', sex: 'f', color: '#b0526d', race: 'VAMPIRE',
+   loadout: {primary: null, sidearm: 'stdknife'},
+   stats: {health: 14, move: 205, strength: 6, aim: 13, bravery: 16, luck: 12, vision: 470, agility: 12, armor: 0, fearless: 0},
+   bio: 'Reads people the way she reads machines, and prices both.'},
+  {name: 'Tam Quill', kind: 'amarok', cls: 'runner', sex: 'm', color: '#c48a52', race: 'AMAROK',
+   loadout: {primary: null, sidearm: 'stdknife'},
+   stats: {health: 17, move: 270, strength: 13, aim: 8, bravery: 13, luck: 9, vision: 440, agility: 17, armor: 0, fearless: 0, stealth: 0.6},
+   bio: 'Quick, cheap and known on Tallow Street for finishing what he is paid to start. Carries one blade and no second thoughts.'},
+  {name: 'Greta Holm', kind: 'minotaur', cls: 'breaker', sex: 'f', color: '#b8894a', race: 'MINOTAUR',
+   loadout: {primary: null, sidearm: 'stdknife'},
+   stats: {health: 27, move: 125, strength: 18, aim: 7, bravery: 21, luck: 6, vision: 370, agility: 5, armor: 0, fearless: 1},
+   bio: 'Dock crane operator with hands that remember a harder trade.'},
+  {name: 'Saric', kind: 'human', cls: 'runner', sex: 'f', color: '#8fb08a', race: 'HUMAN',
+   loadout: {primary: null, sidearm: 'stdknife'},
+   stats: {health: 15, move: 240, strength: 8, aim: 10, bravery: 14, luck: 14, vision: 410, agility: 15, armor: 0, fearless: 0, stealth: 0.6},
+   bio: 'Goes by one name and several addresses.'},
 ];
+const FACE_NAMES = FACE_CAST;   // the old handle, kept for anything that still reaches for it
+// a person fielded as a foe: an archetype built from their sheet, registered once, so every enemy system reads it
+function namedArchetype(def){
+  const key = 'named_' + def.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  if(ARCHETYPES[key]) return key;
+  const base = ARCHETYPES[def.cls === 'runner' ? 'runner' : 'soldier'];
+  const st = def.stats || {};
+  const side = def.loadout && def.loadout.sidearm, prim = def.loadout && def.loadout.primary;
+  const carried = prim || side;
+  const wpn = carried ? WEAPONS[carried] : null;
+  const a = Object.assign({}, base, {
+    label: def.name, hp: st.health || base.hp, bravery: st.bravery || base.bravery, fearless: st.fearless || 0,
+    vision: st.vision || base.vision, moveRange: st.move || base.moveRange, color: def.color || base.color, bodyR: 10,
+    weights: Object.assign({}, base.weights), named: def,
+  });
+  if(wpn && wpn.melee){
+    // a blade and nothing else: closes and cuts, never sprays
+    a.melee = wpn.dmg; a.burst = 0; a.pellets = 0; a.dmg = 0; a.idealRange = 30;
+    a.weights.close = 3.0; a.weights.range = 0.2; a.weights.flank = 2.0;
+  }
+  ARCHETYPES[key] = a;
+  return key;
+}
+function makeNamedFoe(def, x, y){
+  const e = makeBoarder(namedArchetype(def), x, y);
+  e.name = def.name; e.named = def; e.race = def.race;
+  e.wpnKey = (def.loadout && (def.loadout.primary || def.loadout.sidearm)) || 'stdknife';
+  return e;
+}
 // who the fan thinks they've seen: a famous face of the operator's own kind
 const FACE_FAMOUS = {
   vampire: 'Caruso Veil',
@@ -9982,8 +10036,8 @@ function faceTrigger(forceKey, forceCv){
     }
   }
   if(!cv) return null;
-  const who = FACE_NAMES[Math.floor(rng() * FACE_NAMES.length)];
-  cv.name = who.name; cv.race = who.race; cv.sex = who.sex;
+  const who = FACE_CAST[Math.floor(rng() * FACE_CAST.length)];
+  cv.name = who.name; cv.race = who.race; cv.sex = who.sex; cv.named = who;
   cv.tide = false; cv.kind = 'face'; cv.face = key; cv.crook = null;
   cv.brave = key === 'fan' ? 20 : (cv.brave || 10);
   bzSet({ff: {n: b.visit.n, face: key, name: cv.name, state: 'coming', outcome: null}});
@@ -10066,18 +10120,27 @@ function faceArrive(cv, tg){
 }
 function faceAssassinFight(cv, tg){
   if(!(state.civs || []).includes(cv)) return;
-  const e2 = makeBoarder('runner', cv.x, cv.y);
-  e2.name = cv.name; e2.wpnKey = 'stdknife';
+  const def = cv.named || FACE_CAST.find(f => f.name === cv.name) || FACE_CAST[2];
+  const e2 = makeNamedFoe(def, cv.x, cv.y);
   e2.wasCiv = true; e2.defence = true;   // he drew first: whoever puts him down was defending themselves
   e2.alert = 'alerted';
   e2.lastKnown = {x: tg.x, y: tg.y};
+  e2.target = tg.name;
+  // what he carries: the blade, the order that sent him, and his fee
+  e2.loot = [
+    {kind: 'weapon', key: e2.wpnKey, own: def.name},
+    cubeItem('whyme_order', def.name, tg.name),
+    {kind: 'credits', value: 40 + Math.floor(rngFor('fee|' + def.name)() * 40)},
+  ];
   state.enemies.push(e2);
   state.civs = state.civs.filter(c3 => c3 !== cv);
   state.ffEnemy = e2;
   state.portFight = true;
   if(!state.deckCombat) enterDeckCombat();
-  showBanner('KNIFE OUT', '#e0483e');
-  chronicle('event', cv.name + ' drew on ' + tg.name + ' in the open. Whatever happens next, he started it, and the concourse saw who.');
+  // the drop: the knife was already at arm's length when the popup closed. He moves first.
+  startEnemyTurn();
+  showBanner('KNIFE OUT \u00B7 HE HAS THE DROP', '#e0483e');
+  chronicle('event', def.name + ' drew on ' + tg.name + ' in the open and struck before anyone could answer. Whatever happens next, he started it, and the concourse saw who.');
 }
 function faceResolve(outcome, text){
   const b = bz();
@@ -10758,7 +10821,93 @@ function tickProps(dt){
   if(state.props) state.props = state.props.filter(p => !p.spent);
 }
 // the backpack: four grid slots of pockets; only gear, mission items and trinkets fit
-const PACKABLE = {trinket: true, gear: true, mission: true, weapon: true};
+const PACKABLE = {trinket: true, gear: true, mission: true, weapon: true, datacube: true};
+// ---- data cubes: a letter in this universe. Title on the tile, who carried it underneath, the text when opened ----
+const CUBES = {
+  whyme_order: {
+    title: 'Terms, Tallow Street',
+    mission: 'whyme',
+    text: (to, carrier) => 'Two new faces came off the Cross today with standard issue and no friends. One of them answers to ' + to + '.\n\n' +
+      'Make an example. Bring me their tags and the street will know it is still mine. Payment on the usual terms at the shuttered unit on Tallow Street, off Transit Row. Come after dark. Do not come empty-handed.\n\n' +
+      'D.M.',
+  },
+};
+function cubeItem(id, carrier, to){
+  const cb = CUBES[id];
+  return {kind: 'datacube', cube: id, label: 'Data cube \u00B7 ' + cb.title, own: carrier, to: to || null};
+}
+function cubeText(it){
+  const cb = CUBES[it.cube]; if(!cb) return '';
+  return typeof cb.text === 'function' ? cb.text(it.to || 'you', it.own || 'nobody') : cb.text;
+}
+// open: the letter, and if it names a place, the place becomes a waypoint and a mission
+function cubeOpen(it){
+  const cb = CUBES[it.cube]; if(!cb) return false;
+  const m = cb.mission && MISSIONS[cb.mission];
+  const fresh = !!(m && !(ship.missions && ship.missions[cb.mission]));
+  const body = cubeText(it) + (fresh ? '\n\nWAYPOINT ADDED' : '');
+  const shown = showEventModal(cb.title.toUpperCase(), body, [{label: 'CLOSE', cb: () => { if(fresh) missionStart(cb.mission); }}]);
+  if(shown === false && fresh) missionStart(cb.mission);   // headless: the letter is read the moment it is opened
+  return true;
+}
+// ---- missions: the longer stories. Planted by situations, opened by things in hand, advanced by contracts ----
+const MISSIONS = {
+  whyme: {name: 'Why Me', waypoint: {port: 'gateway', district: 'cross', x: 0.76, y: 0.90, label: 'TALLOW STREET'}},
+};
+function missionStart(id){
+  const m = MISSIONS[id]; if(!m) return false;
+  ship.missions = ship.missions || {};
+  if(ship.missions[id]) return false;
+  ship.missions[id] = {state: 'open', day: ship.day || 0, waypoint: m.waypoint ? Object.assign({}, m.waypoint) : null};
+  showBanner('MISSION STARTED \u00B7 ' + m.name.toUpperCase(), '#d4a843', true);
+  chronicle('event', 'Mission started: ' + m.name + '.' + (m.waypoint ? ' A waypoint is set for ' + m.waypoint.label + '.' : ''));
+  shipSave();
+  return true;
+}
+function missionEnd(id, how){
+  const ms = ship.missions && ship.missions[id]; if(!ms || ms.state !== 'open') return false;
+  ms.state = how || 'done'; ms.waypoint = null;
+  showBanner('MISSION COMPLETE \u00B7 ' + MISSIONS[id].name.toUpperCase(), '#9fe08e', true);
+  chronicle('event', 'Mission complete: ' + MISSIONS[id].name + '.');
+  shipSave();
+  return true;
+}
+function missionsOpen(){ const o = ship.missions || {}; return Object.keys(o).filter(k => o[k].state === 'open'); }
+// the waypoint on the floor you stand on, or the arch that leads to its floor
+function waypointHere(){
+  const out = [];
+  for(const id of missionsOpen()){
+    const wp = ship.missions[id].waypoint; if(!wp || wp.port !== ship.at || !state.portDock) continue;
+    if(!wp.district || wp.district === ship.district) out.push({id, x: wp.x * W, y: wp.y * H, label: wp.label, here: true});
+    else{
+      const dr = (state.doors || []).find(d => d.to === wp.district);
+      if(dr) out.push({id, x: dr.x, y: dr.y, label: wp.label + ' \u00B7 THROUGH THE ARCH', here: false});
+    }
+  }
+  return out;
+}
+function drawWaypoints(){
+  if(!state.portDock) return;
+  const t = performance.now() / 1000;
+  for(const wp of waypointHere()){
+    const pulse = 0.55 + 0.35 * Math.sin(t * 2.4);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(212,168,67,' + pulse.toFixed(2) + ')';
+    ctx.fillStyle = 'rgba(212,168,67,.18)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wp.x, wp.y - 16); ctx.lineTo(wp.x + 12, wp.y); ctx.lineTo(wp.x, wp.y + 16); ctx.lineTo(wp.x - 12, wp.y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.setLineDash([5, 7]);
+    ctx.beginPath(); ctx.arc(wp.x, wp.y, 34 + 4 * Math.sin(t * 2.4), 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(212,168,67,.9)';
+    ctx.font = "700 11px 'Space Grotesk',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('WAYPOINT \u00B7 ' + MISSIONS[wp.id].name.toUpperCase() + ' \u00B7 ' + wp.label, wp.x, wp.y - 26);
+    ctx.restore();
+  }
+}
 const ARCH_SIDEARM = {soldier: 'stdautogun', runner: 'stdknife', valkyrie: 'pistol', breaker: 'stdblade'};
 const TRINKET_NAMES = ['Dented sigil ring', 'Vial of raw silk', 'Bureau scrip, unsigned',
   'Pocket icon, worn smooth', 'Cracked optic lens', 'Foil of stim tabs'];
@@ -11204,7 +11353,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '17 Oct \u00B7 GEAR';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '18 Oct \u00B7 WHYME';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -12402,6 +12551,7 @@ function shipSave(){
       cargoProps: (ship.cargoProps || []).slice(),
       roster, career: CAREER, missionsWon: missionsWon,
       where: ship.where || null, district: ship.district || null,
+      missions: ship.missions || {},
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -12421,6 +12571,7 @@ function shipLoad(){
     worldEnsure();
     ship.cargoProps = Array.isArray(d.cargoProps) ? d.cargoProps : [];
     ship.where = d.where || null; ship.district = d.district || null;
+    ship.missions = (d.missions && typeof d.missions === 'object') ? d.missions : {};
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -12439,6 +12590,7 @@ function doShipReset(){
   ship.credits = 500; ship.slotsMax = 8;
   ship.at = 'gateway'; ship.day = 0;
   ship.district = shipDistrictOf('gateway');   // the dev reset boards you where the Orrix stands
+  ship.missions = {};
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
@@ -15515,6 +15667,7 @@ function draw(){
 
   // the fog itself, then ghosts of enemies at their last seen positions
   drawFog();
+  drawWaypoints();
 
   // an armed mode announces itself: a wash over the world and quiet instructions
   const MODE_BANNERS = {
