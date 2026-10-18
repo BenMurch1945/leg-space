@@ -2768,6 +2768,21 @@ function enterPort(distId, opts){
   state.anchors = portAnchors(lvl);
   const placed = (bzf && bzf.active && bzf.at === ship.at) ? castPlacements() : {};
   state.placed = placed;
+  if(bzf && bzf.active && bzf.at === ship.at && (ship.district || 'lanes') === 'cross'){
+    // Tallow Street: the door is a wall until the facts say otherwise; the lookout stands outside while there is a door to watch
+    const dn = denFacts();
+    if(dn && dn.open && !dn.done){ state.walls = state.walls.filter(w => w.den !== 'whyme'); cnavDirty(); }
+    if(dn && !dn.done && !(bzf.deadCast || []).includes('Roak')){
+      const lk = DEN_CAST.lookout;
+      state.civs.push({
+        x: 0.735 * W, y: 0.845 * H, r: 9, alive: true, ko: false, panic: 0, tx: 0.735 * W, ty: 0.845 * H,
+        pace: 22, bob: Math.random() * 6, hood: true, kind: 'lookout', name: lk.name, named: lk,
+        home: {x: 0.735 * W, y: 0.845 * H}, homeR: 30, brave: lk.stats.bravery, race: lk.race, sex: 'MALE',
+        faction: 'THE TALLOW STREET CREW', bio: lk.bio, arch: namedArchetype(lk), wpnKey: 'pistol',
+        lootExtra: [{kind: 'gear', label: 'Door key \u00B7 Tallow Street', keyFor: 'whyme'}],
+      });
+    }
+  }
   if(bzf && bzf.active && bzf.at === ship.at){
     for(const p of portCast()){
       if((p.district || 'lanes') !== (ship.district || 'lanes')) continue;   // a face belongs to one floor
@@ -2813,7 +2828,7 @@ function enterPort(distId, opts){
   // the port's own life: arches people arrive through, places worth standing at
   state.shipZone = lvl.shipZone ? {x0: lvl.shipZone.x0 * W, y0: lvl.shipZone.y0 * H,
     x1: lvl.shipZone.x1 * W, y1: lvl.shipZone.y1 * H} : null;
-  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null,
+  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null, den: d.den || null,
     armed: !(fromDist && d.to === fromDist)}));
   state.shelves = (lvl.shelves || []).map(p9 => ({x: p9.x * W, y: p9.y * H}));
   state.anchors = portAnchors(lvl);
@@ -2828,7 +2843,8 @@ function enterPort(distId, opts){
   if(state.crowdTarget && state.doors.length){
     // the tide is already in: seed the crowd mid-errand across the floor
     for(let i = 0; i < Math.min(state.crowdTarget, 60); i++){
-      const cv = crowdSpawn(state.doors[i % state.doors.length]);
+      const arches0 = state.doors.filter(d => !d.den);
+      const cv = crowdSpawn(arches0[i % arches0.length]);
       for(let tr = 0; tr < 10; tr++){
         const rx = W * (0.08 + Math.random() * 0.84), ry = H * (0.08 + Math.random() * 0.84);
         if(openGround(rx, ry, 12)){ cv.x = rx; cv.y = ry; cv.tx = rx; cv.ty = ry; break; }
@@ -4089,6 +4105,7 @@ function layout(){
     w: Math.max(14, w.w*W),
     h: Math.max(14, w.h*H),
     high: !!w.high,
+    den: w.den || undefined,   // a door that is a wall until it is opened
   }));
   for(const w of s.walls) buildChunks(w);
   // the cache: one true site chosen from the candidates; the rest are rumours
@@ -5827,7 +5844,7 @@ function mapPick(ev){
 }
 function contractsAt(nodeId){
   const out = [];
-  for(let i = 0; i < LEVELS.length; i++) if(LEVELS[i].at === nodeId) out.push(i);
+  for(let i = 0; i < LEVELS.length; i++) if(LEVELS[i].at === nodeId && !LEVELS[i].hidden) out.push(i);
   return out;
 }
 function mapSidePanel(){
@@ -7269,6 +7286,8 @@ function civStruck(cv, dmg, team, owner, sed, src){
       eT.name = cv.name || 'the cutpurse';
       eT.wpnKey = cv.wpnKey || 'stdknife';
       eT.wasCiv = true;
+      if(cv.named) eT.named = cv.named;
+      if(cv.lootExtra) eT.loot = lootOf(eT).concat(cv.lootExtra);
       if(cv.stolen) eT.stolen = cv.stolen;
       eT.alert = 'alerted';
       eT.lastKnown = {x: owner ? owner.x : cv.x, y: owner ? owner.y : cv.y};
@@ -8492,8 +8511,9 @@ function errandNew(cv){
   const spots = state.spots || [], doors = state.doors || [];
   const roll = Math.random();
   // a quarter of the crowd is only passing through
-  if(cv.tide && doors.length && roll < 0.25){
-    const dr = doors[Math.floor(Math.random() * doors.length)];
+  const arches = doors.filter(d => !d.den);
+  if(cv.tide && arches.length && roll < 0.25){
+    const dr = arches[Math.floor(Math.random() * arches.length)];
     return {kind: 'cross', path: [{x: dr.x, y: dr.y}], leg: 0, waitT: 0};
   }
   // another quarter stops to talk: knots form, hold, and break
@@ -8645,6 +8665,12 @@ function errandTick(cv, dt){
       if(d3 < nd){ nd = d3; near = c3; }
     }
     if(near && nd > 52) civTravel(cv, near.x, near.y, civSpd(cv) * 1.15, dt);
+    return true;
+  }
+  // the lookout running inside: the door opens for him and he is gone
+  if(er.kind === 'inside'){
+    if(Math.hypot(er.at.x - cv.x, er.at.y - cv.y) < 24){ denOpen('alarm'); cv.gone = true; return true; }
+    civTravel(cv, er.at.x, er.at.y, civSpd({gait: 1.6}), dt);
     return true;
   }
   // the recovery crew: body to body, then out by the arch
@@ -8874,7 +8900,7 @@ function crowdTick(dt){
   state.civs = state.civs.filter(cv => !cv.gone);
   const n = state.civs.filter(cv => cv.tide && cv.alive).length;
   const cap = Math.min(state.crowdTarget, 60);
-  if(n < cap) crowdSpawn(state.doors[Math.floor(Math.random() * state.doors.length)]);
+  { const arches1 = state.doors.filter(d => !d.den); if(n < cap && arches1.length) crowdSpawn(arches1[Math.floor(Math.random() * arches1.length)]); }
 }
 // ---- the tide's own sins: the world commits crimes without you ----
 function crimeStage(perp, mark){
@@ -9835,6 +9861,7 @@ function bazaarSeed(){
     facRep: {},                               // standing with each faction, by what their people saw
     visit: null,                              // the picker's last roll: {n, day, seed, picks}
     ff: null, ffPaper: null,                  // this visit's familiar face; a stranger's posting paper
+    den: {open: false, how: null, done: false},   // the shuttered unit on Tallow Street
     resolved: null,
   };
 }
@@ -9918,6 +9945,15 @@ function districtDoorTick(){
     const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < 70);
     if(!near.length){ dr.armed = true; continue; }
     if(dr.armed === false) continue;   // the arch you just came through waits until you have stepped clear
+    if(dr.den){
+      const dn = denFacts(); const now2 = performance.now();
+      if(!dn || dn.done){ if(!dr._saidT || now2 > dr._saidT){ dr._saidT = now2 + 6000; showBanner(dr.label + ' \u00B7 SHUT FOR GOOD', '#e0a33e'); } continue; }
+      if(!dn.open && denKeyHeld()){ denOpen('key'); continue; }
+      if(!dn.open){ if(!dr._saidT || now2 > dr._saidT){ dr._saidT = now2 + 5000; showBanner(dr.label + ' \u00B7 SHUT. A LOOKOUT, A KEY, OR A HARD ENOUGH KNOCK', '#e0a33e'); } continue; }
+      if(near.length === crew.length){ denEnter(); return; }
+      if(!dr._saidT || now2 > dr._saidT){ dr._saidT = now2 + 4000; showBanner('INTO ' + dr.label + ' \u00B7 THE CREW GOES IN TOGETHER', '#6fd6ff'); }
+      continue;
+    }
     const now = performance.now();
     if(!dr.to){
       if(!dr._saidT || now > dr._saidT){ dr._saidT = now + 6000; showBanner(dr.label + ' \u00B7 CLOSED FOR WORKS', '#e0a33e'); }
@@ -9939,6 +9975,151 @@ function districtDoorTick(){
       }
     }
   }
+}
+// ---- Tallow Street: the shuttered unit, the lookout outside it, and the crew inside ----
+// den facts live with the port: {open, how, done}. The door is a wall until it is opened; done means shut for good.
+function denFacts(){ const b = bz(); if(b && !b.den) b.den = {open: false, how: null, done: false}; return b ? b.den : null; }
+const DEN_CAST = {
+  lookout: {name: 'Roak', kind: 'amarok', cls: 'soldier', sex: 'm', color: '#a0623a', race: 'AMAROK',
+    loadout: {primary: null, sidearm: 'pistol'},
+    stats: {health: 16, move: 230, strength: 13, aim: 9, bravery: 12, luck: 7, vision: 420, agility: 13, armor: 0, fearless: 0},
+    bio: 'Stands outside a door on Tallow Street and tells people to get lost. Paid in drink and the sense of being somebody.'},
+  boss: {name: 'Dace Mortlake', kind: 'human', cls: 'soldier', sex: 'm', color: '#e0483e', race: 'HUMAN',
+    loadout: {primary: null, sidearm: 'sawnoff'},
+    stats: {health: 26, move: 170, strength: 12, aim: 12, bravery: 20, luck: 8, vision: 380, agility: 8, armor: 0, fearless: 0},
+    bio: 'Runs the Tallow Street crew out of a back room and believes the Cross is his because nobody has yet told him otherwise.'},
+};
+const DEN_PRICE = 150;
+function denDoorWalls(){ return (state.walls || []).filter(w => w.den === 'whyme'); }
+function denOpen(how){
+  const dn = denFacts(); if(!dn || dn.done) return false;
+  if(!dn.open){ dn.open = true; dn.how = how; bzSet({den: dn}); }
+  if(denDoorWalls().length){ state.walls = state.walls.filter(w => w.den !== 'whyme'); cnavDirty(); }
+  const line = {alarm: 'The lookout went through the door on Tallow Street at a run and left it open behind him. Whoever is inside knows you are coming.',
+    bought: 'Roak took the money, looked at nothing in particular, and the door on Tallow Street stood open.',
+    key: 'The key from the lookout turned in the door on Tallow Street.',
+    smashed: 'The door on Tallow Street came off its runners. Subtle it was not.'}[how] || 'The door on Tallow Street is open.';
+  chronicle('event', line);
+  addPopup(0.76 * W, 0.85 * H, 'THE DOOR IS OPEN', '#9fe08e');
+  return true;
+}
+function denBuy(c){
+  const dn = denFacts(); if(!dn || dn.open || dn.done) return false;
+  if(ship.credits < DEN_PRICE) return false;
+  ship.credits -= DEN_PRICE; shipCreditsRefresh(); shipSave();
+  const lk = (state.civs || []).find(cv => cv.kind === 'lookout' && cv.alive);
+  if(lk) lk.bought = true;
+  return denOpen('bought');
+}
+function denLookoutDraw(cv, c){
+  if(!(state.civs || []).includes(cv)) return false;
+  const e = makeNamedFoe(DEN_CAST.lookout, cv.x, cv.y);
+  e.wasCiv = true; e.alert = 'alerted'; e.lastKnown = {x: c.x, y: c.y};
+  e.loot = [{kind: 'weapon', key: 'pistol', own: 'Roak'}, {kind: 'gear', label: 'Door key \u00B7 Tallow Street', keyFor: 'whyme'}, {kind: 'credits', value: 12 + Math.floor(Math.random() * 20)}];
+  state.enemies.push(e);
+  state.civs = state.civs.filter(c3 => c3 !== cv);
+  state.portFight = true;
+  if(!state.deckCombat) enterDeckCombat();
+  startEnemyTurn();   // iron in your face: he fires before you answer
+  showBanner('ROAK DRAWS', '#e0483e');
+  chronicle('event', 'Roak told ' + c.name + ' to get lost twice, then pulled a pistol in the open. The street saw who drew.');
+  return true;
+}
+function denKeyHeld(){
+  return (state.squad || []).some(c => c.alive && (c.def.pack || []).some(it => it && it.keyFor === 'whyme'));
+}
+// the lookout's eyes: the target of the order walking up Tallow Street sends him inside with the news
+function denLookoutTick(cv){
+  const dn = denFacts(); if(!dn || dn.open || dn.done || cv.alarm || cv.bought) return;
+  const ms = ship.missions && ship.missions.whyme;
+  if(!ms || ms.state !== 'open' || !ms.target) return;
+  const tg = (state.squad || []).find(c => c.alive && c.name === ms.target);
+  if(!tg || Math.hypot(tg.x - cv.x, tg.y - cv.y) > 260 || !segClearHigh(cv.x, cv.y, tg.x, tg.y)) return;
+  cv.alarm = true; cv.tide = false;
+  addPopup(cv.x, cv.y - cv.r - 14, '!!', '#e0483e');
+  chronicle('event', 'The lookout on Tallow Street took one look at ' + tg.name + ', shouted something through the door, and ran for it.');
+  const dr = (state.doors || []).find(d => d.den === 'whyme');
+  cv.errand = {kind: 'inside', path: [], leg: 0, waitT: 0, at: dr ? {x: dr.x, y: dr.y + 30} : {x: cv.x, y: cv.y}};
+}
+// the way in: an unlisted contract, the interior of the unit
+const DEN_LEVEL = {
+  name: 'Tallow Street Unit', fee: 0, par: 0, at: 'gateway', crew: 4, hidden: true,
+  client: 'Nobody', faction: 'THE TALLOW STREET CREW',
+  location: 'The Cross \u00B7 Tallow Street', time: 'Now',
+  brief: 'A front room, a corridor, and a back office with the man who sent the knife.<br><br>Whoever is in here already knows the door opened. Clear it.',
+  objective: 'Clear the unit \u00B7 the man in the back room is the point',
+  player: {x: 0.5, y: 0.92},
+  walls: [
+    // the shell
+    {x: 0.14, y: 0.08, w: 0.72, h: 0.012, high: true},
+    {x: 0.14, y: 0.08, w: 0.010, h: 0.84, high: true},
+    {x: 0.85, y: 0.08, w: 0.010, h: 0.84, high: true},
+    {x: 0.14, y: 0.91, w: 0.31, h: 0.012, high: true},
+    {x: 0.55, y: 0.91, w: 0.31, h: 0.012, high: true},
+    // the front room ends at a partition with a gap on the left
+    {x: 0.30, y: 0.62, w: 0.56, h: 0.012, high: true},
+    {x: 0.14, y: 0.62, w: 0.09, h: 0.012, high: true},
+    // a side store off the corridor
+    {x: 0.14, y: 0.40, w: 0.24, h: 0.012, high: true},
+    {x: 0.37, y: 0.40, w: 0.010, h: 0.14, high: true},
+    // the back office: the partition with a door on the right
+    {x: 0.44, y: 0.30, w: 0.010, h: 0.33, high: true},
+    {x: 0.44, y: 0.30, w: 0.26, h: 0.012, high: true},
+    {x: 0.78, y: 0.30, w: 0.08, h: 0.012, high: true},
+    // cover
+    {x: 0.32, y: 0.78, w: 0.07, h: 0.025},
+    {x: 0.60, y: 0.74, w: 0.06, h: 0.025},
+    {x: 0.26, y: 0.50, w: 0.05, h: 0.025},
+    {x: 0.56, y: 0.48, w: 0.07, h: 0.025},
+    {x: 0.70, y: 0.42, w: 0.05, h: 0.025},
+    {x: 0.52, y: 0.18, w: 0.06, h: 0.025},
+    {x: 0.74, y: 0.16, w: 0.05, h: 0.025},
+  ],
+  enemies: [
+    {x: 0.36, y: 0.70, type: 'runner'},
+    {x: 0.68, y: 0.68, type: 'soldier'},
+    {x: 0.24, y: 0.46, type: 'runner'},
+    {x: 0.62, y: 0.45, type: 'soldier'},
+    {x: 0.78, y: 0.40, type: 'breaker'},
+    {x: 0.62, y: 0.16, type: 'named_dace_mortlake'},
+  ],
+  civilians: 0,
+};
+function denIdx(){ let i = LEVELS.indexOf(DEN_LEVEL); if(i < 0){ LEVELS.push(DEN_LEVEL); i = LEVELS.length - 1; } return i; }
+function denEnter(){
+  const dn = denFacts(); if(!dn || !dn.open || dn.done || !state.portDock) return false;
+  namedArchetype(DEN_CAST.boss);
+  const i = denIdx();
+  portReturn = state.portDock || null;
+  portReturnPos = {};
+  for(const c of state.squad) portReturnPos[c.name] = {x: c.x / W, y: c.y / H};
+  const alive = SQUAD_DEFS.map((d, k) => d.dead ? -1 : k).filter(k => k >= 0);
+  leaveShipDeck();
+  rosterSelection = alive.slice(0, 4);
+  levelIdx = i; usingCustom = false;
+  rosterDeployed = true;
+  const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden');
+  restart();
+  state._denRun = true;
+  // the man in the back room carries the ledger, and the ledger carries the next stop
+  const boss = state.enemies.find(e => e.type === 'named_dace_mortlake');
+  if(boss){ boss.name = DEN_CAST.boss.name; boss.named = DEN_CAST.boss; boss.wpnKey = 'sawnoff'; }
+  if(boss) boss.loot = [{kind: 'weapon', key: 'sawnoff', own: 'Dace Mortlake'}, cubeItem('whyme_ledger', 'Dace Mortlake', null), {kind: 'credits', value: 120 + Math.floor(Math.random() * 80)}];
+  const whyme = ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open';
+  if(!whyme) missionStart('cleanup');
+  chronicle('event', 'Through the door on Tallow Street. ' + (whyme ? 'The man who sent the knife is in here somewhere.' : 'Nobody invited you. Nobody is going to.'));
+  return true;
+}
+// back on the street: the door is shut for good, and whichever mission brought you in is closed
+function denReturn(){
+  if(!state._denRun) return false;
+  state._denRun = null;
+  const dn = denFacts();
+  if(dn){ dn.done = true; dn.open = false; bzSet({den: dn}); }
+  if(ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open') missionEnd('whyme');
+  else if(ship.missions && ship.missions.cleanup && ship.missions.cleanup.state === 'open') missionEnd('cleanup');
+  chronicle('event', 'Out onto Tallow Street. The door shut behind the crew and will not open again; whatever the unit was, it is finished.');
+  return true;
 }
 // ---- a familiar face: who breaks from the crowd, and what they want ----
 // the familiar faces are people with sheets: the same shape as an operator, so one of them can be fielded as a foe
@@ -10383,6 +10564,8 @@ function tickProps(dt){
       }
       situationsTick();   // the port's own clocks, running while you stand on it
       districtDoorTick();  // the arches: through them together, and whoever followed you arrives
+      for(const cvL of (state.civs || [])) if(cvL.kind === 'lookout' && cvL.alive && !cvL.ko) denLookoutTick(cvL);
+      { const dw = denDoorWalls(); if(dw.length && dw.every(w => wallAliveFrac(w) < 0.3)) denOpen('smashed'); }
       // a familiar face: a few seconds on the open floor, and somebody knows you
       if(situationLive('familiarface') && !state.deckCombat && !state.portFight){
         const bF = bz();
@@ -10831,6 +11014,14 @@ const CUBES = {
       'Make an example. Bring me their tags and the street will know it is still mine. Payment on the usual terms at the shuttered unit on Tallow Street, off Transit Row. Come after dark. Do not come empty-handed.\n\n' +
       'D.M.',
   },
+  whyme_ledger: {
+    title: 'Ledger, Tallow Street',
+    mission: null,
+    text: () => 'Outgoings, this quarter.\n\nTithe to the Freight Ring office, Market Lanes: paid, late. Varric says the rate goes up if we keep the Cross noisy.\n' +
+      'Knives: Quill, 80 on completion. Not completed.\n' +
+      'The berth at the Graveyard: Varko wants the Orrix moved or the fee doubled. Tell him the fee is his problem.\n\n' +
+      'Next stop, if anyone reads this after me: the Ring office knows who pays whom on this street. Varric knows more than he charges for.',
+  },
 };
 function cubeItem(id, carrier, to){
   const cb = CUBES[id];
@@ -10846,19 +11037,20 @@ function cubeOpen(it){
   const m = cb.mission && MISSIONS[cb.mission];
   const fresh = !!(m && !(ship.missions && ship.missions[cb.mission]));
   const body = cubeText(it) + (fresh ? '\n\nWAYPOINT ADDED' : '');
-  const shown = showEventModal(cb.title.toUpperCase(), body, [{label: 'CLOSE', cb: () => { if(fresh) missionStart(cb.mission); }}]);
-  if(shown === false && fresh) missionStart(cb.mission);   // headless: the letter is read the moment it is opened
+  const shown = showEventModal(cb.title.toUpperCase(), body, [{label: 'CLOSE', cb: () => { if(fresh) missionStart(cb.mission, {target: it.to || null}); }}]);
+  if(shown === false && fresh) missionStart(cb.mission, {target: it.to || null});   // headless: the letter is read the moment it is opened
   return true;
 }
 // ---- missions: the longer stories. Planted by situations, opened by things in hand, advanced by contracts ----
 const MISSIONS = {
-  whyme: {name: 'Why Me', waypoint: {port: 'gateway', district: 'cross', x: 0.76, y: 0.90, label: 'TALLOW STREET'}},
+  whyme: {name: 'Why Me', waypoint: {port: 'gateway', district: 'cross', x: 0.76, y: 0.855, label: 'TALLOW STREET'}},
+  cleanup: {name: 'Cleanup on Tallow Street', waypoint: null},
 };
-function missionStart(id){
+function missionStart(id, extra){
   const m = MISSIONS[id]; if(!m) return false;
   ship.missions = ship.missions || {};
   if(ship.missions[id]) return false;
-  ship.missions[id] = {state: 'open', day: ship.day || 0, waypoint: m.waypoint ? Object.assign({}, m.waypoint) : null};
+  ship.missions[id] = Object.assign({state: 'open', day: ship.day || 0, waypoint: m.waypoint ? Object.assign({}, m.waypoint) : null}, extra || {});
   showBanner('MISSION STARTED \u00B7 ' + m.name.toUpperCase(), '#d4a843', true);
   chronicle('event', 'Mission started: ' + m.name + '.' + (m.waypoint ? ' A waypoint is set for ' + m.waypoint.label + '.' : ''));
   shipSave();
@@ -11353,7 +11545,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '18 Oct \u00B7 WHYME';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '18 Oct \u00B7 TALLOW';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -11783,6 +11975,7 @@ function contrabandOfOp(name){
   if(!d) return out;
   for(const it of (d.pack || [])){
     if(!it.own && !it.ownFac) continue;
+    if(it.kind === 'datacube' || it.kind === 'mission') continue;   // a letter is not stolen goods; the law reads it and hands it back
     (it.ownFac === 'constabulary' ? out.badge : out.stolen).push(it);
   }
   for(const sl of ['primary', 'sidearm']){
@@ -12118,6 +12311,7 @@ function npcAttitude(cv){
   }
   if(cv.kind === 'porter') return {word: 'HIRED', tint: '#6fd6ff'};
   if(cv.kind === 'face') return {word: 'KNOWS YOU', tint: '#e0a33e'};
+  if(cv.kind === 'lookout') return {word: cv.bought ? 'PAID' : cv.warned ? 'LAST WARNING' : 'ON THE DOOR', tint: cv.warned ? '#e0483e' : '#e0a33e'};
   if(cv.kind === 'friend') return {word: 'OLD FRIEND', tint: '#9fe08e'};
   if(cv.kind === 'fan') return {word: cv.spooked ? 'SPOOKED' : 'STARSTRUCK', tint: '#e0a33e'};
   if(cv.kind === 'cleaner') return {word: 'RECOVERY \u00B7 ' + (cv.bag || 0) + ' BAGGED', tint: '#b06ae0'};
@@ -12320,6 +12514,18 @@ function portTalk(cv){
   }
   if(cv.kind === 'porter'){
     return showEventModal(String(cv.name || 'PORTER').toUpperCase(), '\u201CPaid to carry, not to talk.\u201D', close);
+  }
+  if(cv.kind === 'lookout'){
+    const dn = denFacts();
+    const c0 = pc();
+    if(dn && dn.open && !dn.done) return showEventModal('ROAK', '\u201CGo on in, then. Not my problem any more.\u201D', close);
+    if(dn && dn.done) return showEventModal('ROAK', '\u201CNothing in there now. Nothing out here either. Move along.\u201D', close);
+    if(cv.warned && c0) return denLookoutDraw(cv, c0);
+    cv.warned = true;
+    const btns = [];
+    if(ship.credits >= DEN_PRICE) btns.push({label: 'PAY HIM \u00B7 ' + DEN_PRICE + ' CR', cb: () => { if(c0) denBuy(c0); }});
+    return showEventModal('ROAK', '\u201CGet lost. This door\u2019s private, the street\u2019s private, and you\u2019re standing on it.\u201D He says it looking at your pockets, not your face.',
+      btns.concat(close));
   }
   if(cv.kind === 'cleaner'){
     return showEventModal(String(cv.name).toUpperCase(), '\u201CMind the stretcher. If you knew them, there\u2019s a form at the ring office. If you didn\u2019t, there\u2019s nothing.\u201D', close);
@@ -14827,6 +15033,7 @@ function restart(){
 function afterActionReturn(){
   enterShipDeck();                           // home is the deck in orbit over the dock
   if(portReturn && portReturn === ship.at){
+    denReturn();                             // a door on Tallow Street shuts behind you, before the street is rebuilt
     enterPort();                             // …or the pad you launched from
     if(portReturnPos){                       // everyone back where they stood: mid-word, mid-errand
       const onDeck3 = (x, y) => deckMask && deckMask.int.some(r2 =>
@@ -15466,7 +15673,8 @@ function draw(){
       ctx.strokeStyle = 'rgba(111,214,255,.18)';
       ctx.beginPath(); ctx.moveTo(dr.x - 15, dr.y); ctx.lineTo(dr.x + 15, dr.y); ctx.stroke();
       if(dr.label){
-        ctx.fillStyle = dr.to ? 'rgba(111,214,255,.75)' : 'rgba(232,224,204,.35)';
+        const dnD = dr.den ? denFacts() : null;
+        ctx.fillStyle = dr.den ? (dnD && dnD.open && !dnD.done ? 'rgba(159,224,142,.8)' : 'rgba(224,72,62,.55)') : (dr.to ? 'rgba(111,214,255,.75)' : 'rgba(232,224,204,.35)');
         ctx.font = "700 11px 'Space Grotesk',sans-serif";
         ctx.textAlign = 'center';
         const below = dr.y < H * 0.5;
@@ -16965,6 +17173,13 @@ const CROSS_PORT = {
     {x: 0.710, y: 0.5200, w: 0.045, h: 0.0300},
     {x: 0.760, y: 0.5500, w: 0.040, h: 0.0280},
     {x: 0.690, y: 0.5800, w: 0.035, h: 0.0250},
+    // the shuttered unit on Tallow Street: sealed, a door in its north face that is a wall until it is not
+    {x: 0.720, y: 0.8700, w: 0.030, h: 0.0095, high: true},
+    {x: 0.770, y: 0.8700, w: 0.030, h: 0.0095, high: true},
+    {x: 0.750, y: 0.8700, w: 0.020, h: 0.0095, den: 'whyme'},
+    {x: 0.720, y: 0.9400, w: 0.080, h: 0.0095, high: true},
+    {x: 0.720, y: 0.8700, w: 0.006, h: 0.0795, high: true},
+    {x: 0.794, y: 0.8700, w: 0.006, h: 0.0795, high: true},
     // odd kiosks
     {x: 0.600, y: 0.6000, w: 0.030, h: 0.0250},
     {x: 0.440, y: 0.7000, w: 0.030, h: 0.0200},
@@ -16979,6 +17194,7 @@ const CROSS_PORT = {
     {x: 0.058, y: 0.69, to: null, label: 'CIVIC QUARTER'},
     {x: 0.942, y: 0.45, to: null, label: 'SHIPYARD'},
     {x: 0.942, y: 0.755, to: null, label: 'FREIGHT QUARTER'},
+    {x: 0.760, y: 0.855, to: null, den: 'whyme', label: 'TALLOW STREET UNIT'},
   ],
   spots: [
     {x: 0.36, y: 0.17, kind: 'bar', label: 'THE BEACON'},

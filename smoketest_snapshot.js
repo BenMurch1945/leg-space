@@ -60,7 +60,7 @@ const hooked = script.replace('})();',
   'addStress, updateMorale, moraleThresholds, tryRally, decayStress, grazeCheck, updateDetection, updateVisibility, ' +
   'noiseAt, targetHuggingBlocker, enemyDecide, enemyFireAt, allyInLine, raycast, activateAbility, ramEnemy, aimSteadiness, aimBreathSpeed, losHigh, losHighPeek, shooterExemptions, charConcealed, inVisionOf, TUNE, ARCHETYPES, ' +
   'commitWatch, checkOverwatch, inWatchWedge, watchRange, hiddenBehindLow, renameSquad, SQUAD_DEFS, placeScan, ' +
-  'muzzleFlash, enemyDecide, chunksOf, wallAliveFrac, damageChunk, canShootFrom, impactDamage, isFearless, conePolyAt, alertEnemy, memWrite, memTarget, refreshMemory, canPerceive, allyInLine, WEAPONS, pushNoiseRing, sedCap, sedState, addSed, checkWin, renderObjectives, LEVELS, busy, dismissBrief, explainState, STATE_EXPLAINED, hugsCoverAt, showMoveHint, sedMoveMul, maxMoveDist, heroStateLines, stressPop, grazeStressOf, pinStressOf, flushStressPops, setSysPause, dismissSys, WPN_DESC, RACE_INFO, CLASS_INFO, STAT_TIPS, STATE_TIPS, cycleLoadout, SQUAD_DEFS, WPN_SLOTS, wpnFor, commitWatch, RACE_LORE, rosterSelection, toggleSelect, CHAR_BIOS, SERVICE_RECORDS, bark, BARKS, PAIR_TALK, pairTalk, queueBark, careerOf, fmtRecVal, win, showBrief, LEVELS, currentLevel, startRange, exitRange, checkWin, setToggleMode, RANGE_LEVEL, defLocked, contractsAvailable, renderRoster, renderContractPicker, setMissionsWon, cycleContract, setAdvisoryClock, showNextSys, ARCHETYPES, panicCivs, enemyDecide, fail, LEVEL_OPENERS, kill, layout, hitEnemy, unstickFromWalls, addStress, buildMoveGraph, maybeAdviseWatch, setContractsPlayed, W, H, canPerceive, refreshMemory, inVisionOf, enemyVisionRange, hiddenBehindLow, startEnemyTurn, enemyMelee, loadIntoEditor, customLevel: () => customLevel, rosterSel: () => rosterSelection, ship, hireRecruit, buyWeapon, sellWeapon, buySlot, RECRUIT_POOL, recruitAvailable, livingRoster, weaponAllowed, standUp, charDown, charDie, applyInjuries, INJURIES, WPN_PRICE, SLOT_PRICE, shipSave, shipLoad, shipShowPane, endEnemyTurn, squadWipe, setTeamView, buildRosterCard, WPN_META, GROUP_LABELS, CLASS_WEAPON_ACCESS, classAllows, slotLegal, SLOT_LABELS, SLOT_GROUPS, equipWeapon, gridCandidates, openWeaponGrid, closeWeaponGrid, reloadWeapon, clipOf, WPN_CLIP, WPN_AMMO, GROUP_ICONS, bluntSlam, bluntPulseR, isBluntKey, WPN_CALLSIGNS, doShipReset, GALAXY, galaxyNode, daysBetween, travelTo, contractsAt, LEVELS, postingOpen, postingClosesIn, postingReopensIn, boardState, stockAt, RUMOURS, RECRUIT_POOL, deployContract, showPlanet, PORT_DESCS, PORT_AREAS, AREA_LABELS, portGo, SHIP_LEVEL, SHIP_STATIONS, enterShipDeck, leaveShipDeck, deckStation, deckDown, computeMovePreview, commitMove, beginFlight, flightTick, SEC_PER_DAY, deckSeparate, deckMaskGet, beginBoarding, enterDeckCombat, resolveBoarding, exitDeckCombat, startEnemyTurn, endEnemyTurn, checkWin, cam, camClamp, camReset, toLocal, dims: () => ({W, H}), followRun, win, openMedPod, maxMoveDist, ARMOUR_SETS, ISSUE_STOCK, gridCandidates, canUseTile, slotForKey, equipFromBag, tileColor, SLOT_TINTS, openCharSheet, unequipToBag, WEAPONS, nearestHighWallPoint, STATION_LABELS, enterPort, undockToDeck, startPortFight, buildMercyPort, afterActionReturn, LEVELS, deployContract, embedShipInPort, PORT_LEVELS, chronicle, shipLoad, bz, bzSet, worldEnsure, bzCrate, bzPickup, carriedThing, carryAttach, dropCarried, throwCarried, tickProps, syncCargo, lootOf, lootStash, lootTake, lootEquip, lootLeave, lootSpent, packTotal, sellSalvage, carryCardHtml, syncWeaponButtons, bzBuyFromJune, bzReturnToVarric, bzVarricMood, bzConfront, startConstableFight, npcAttitude, enemyFireAt, bzSellToHask, bzGiveBackToJune, portTalk, hireRecruit, buyWeapon, RECRUIT_POOL, checkWin, carveDoorF, checkWin, outfitOf, protMax, applyDamage, openArmourLocker, priceMulAt, buyPrice, sellHeatMul, bzRecruitLocked, bzHaskPrice, bzLawless, BZ_SUCCESSOR, bzCastOf, FACTIONS, facRepOf, facRepAdd, crimeSeen, witnessNerve, CRATE_CRIME, bzSellBackToVarric, stakeSettle, resolveBoarding, beginBoarding, freeRoam, deckDown, draw, ironsToggle, squadMoveToggle, copCamFlush, CROSSPORT_PORT, errandNew, errandTick, crowdTick, crowdSpawn, witnessRun, openGround, inShipZone, civSpd, civStep, BZ_RESERVES, lootOf: lootOf, respRouteBuild, outOfShipZone, nearestRouteIdx, armKey, armFind, provOf, provSet, crewContraband, rapsOf, rapAdd, rapClear, rapsAnyMajor, contrabandOfOp, bzConfiscate, bzSearch, bzFrisk, bzSearchResults, bzSearchAccept, bzArrest, bzArrestComply, bzCrimeWitness, worldSeed, portFacts, orgOf, crimeStage, bzNpcCrimeAct, crimeStepIn, crimeTip, facRepCross, renderStore, renderRecruit, simPauseStart, simResume, tickProps, civTravel, civLineClear, civPathTo, portFightBreakOff, npcAttitude: npcAttitude, canPerceive, memTarget, packEquip, unequipToPack, shopOf, shelfItem, shopBuy, shopSend, shopSteal, shopSeed, eqCardOpen, shelfCompareLines, shopKeeperCiv, castPlacements, placeAt, placeBeside, rngFor, SITUATIONS, situationsTick, situationPick, situationLive, situationOpen, lawStrength, civStruck, squadUnstack, bladeDash, FACES, FACE_NAMES, faceTrigger, faceArrive, faceResolve, faceTick, faceAssassinFight, cleanupCall, bodiesOnFloor, BZ_CLEANUP, makeBoarder, sitDealAll, cnavBuild, cnavDirty, cnavFreeNear, civLineClearR, civBlocked, CNAV, OPERATOR_PRESETS, newGameStart, opPick, opPickCycle, opPickGo, opApply, continueGame, titleShow, saveExists, CROSS_PORT, DISTRICTS, PORT_HOME, CROSS_CAST, districtGo, districtPark, districtWake, districtDoorTick, districtDef, portCast, packGive, packDrop, nearOperators, cacheAt, camFocusCrew, FACE_CAST, namedArchetype, makeNamedFoe, CUBES, cubeItem, cubeOpen, MISSIONS, missionStart, missionEnd, missionsOpen, waypointHere, portAnchors, segClearHigh}; })();');
+  'muzzleFlash, enemyDecide, chunksOf, wallAliveFrac, damageChunk, canShootFrom, impactDamage, isFearless, conePolyAt, alertEnemy, memWrite, memTarget, refreshMemory, canPerceive, allyInLine, WEAPONS, pushNoiseRing, sedCap, sedState, addSed, checkWin, renderObjectives, LEVELS, busy, dismissBrief, explainState, STATE_EXPLAINED, hugsCoverAt, showMoveHint, sedMoveMul, maxMoveDist, heroStateLines, stressPop, grazeStressOf, pinStressOf, flushStressPops, setSysPause, dismissSys, WPN_DESC, RACE_INFO, CLASS_INFO, STAT_TIPS, STATE_TIPS, cycleLoadout, SQUAD_DEFS, WPN_SLOTS, wpnFor, commitWatch, RACE_LORE, rosterSelection, toggleSelect, CHAR_BIOS, SERVICE_RECORDS, bark, BARKS, PAIR_TALK, pairTalk, queueBark, careerOf, fmtRecVal, win, showBrief, LEVELS, currentLevel, startRange, exitRange, checkWin, setToggleMode, RANGE_LEVEL, defLocked, contractsAvailable, renderRoster, renderContractPicker, setMissionsWon, cycleContract, setAdvisoryClock, showNextSys, ARCHETYPES, panicCivs, enemyDecide, fail, LEVEL_OPENERS, kill, layout, hitEnemy, unstickFromWalls, addStress, buildMoveGraph, maybeAdviseWatch, setContractsPlayed, W, H, canPerceive, refreshMemory, inVisionOf, enemyVisionRange, hiddenBehindLow, startEnemyTurn, enemyMelee, loadIntoEditor, customLevel: () => customLevel, rosterSel: () => rosterSelection, ship, hireRecruit, buyWeapon, sellWeapon, buySlot, RECRUIT_POOL, recruitAvailable, livingRoster, weaponAllowed, standUp, charDown, charDie, applyInjuries, INJURIES, WPN_PRICE, SLOT_PRICE, shipSave, shipLoad, shipShowPane, endEnemyTurn, squadWipe, setTeamView, buildRosterCard, WPN_META, GROUP_LABELS, CLASS_WEAPON_ACCESS, classAllows, slotLegal, SLOT_LABELS, SLOT_GROUPS, equipWeapon, gridCandidates, openWeaponGrid, closeWeaponGrid, reloadWeapon, clipOf, WPN_CLIP, WPN_AMMO, GROUP_ICONS, bluntSlam, bluntPulseR, isBluntKey, WPN_CALLSIGNS, doShipReset, GALAXY, galaxyNode, daysBetween, travelTo, contractsAt, LEVELS, postingOpen, postingClosesIn, postingReopensIn, boardState, stockAt, RUMOURS, RECRUIT_POOL, deployContract, showPlanet, PORT_DESCS, PORT_AREAS, AREA_LABELS, portGo, SHIP_LEVEL, SHIP_STATIONS, enterShipDeck, leaveShipDeck, deckStation, deckDown, computeMovePreview, commitMove, beginFlight, flightTick, SEC_PER_DAY, deckSeparate, deckMaskGet, beginBoarding, enterDeckCombat, resolveBoarding, exitDeckCombat, startEnemyTurn, endEnemyTurn, checkWin, cam, camClamp, camReset, toLocal, dims: () => ({W, H}), followRun, win, openMedPod, maxMoveDist, ARMOUR_SETS, ISSUE_STOCK, gridCandidates, canUseTile, slotForKey, equipFromBag, tileColor, SLOT_TINTS, openCharSheet, unequipToBag, WEAPONS, nearestHighWallPoint, STATION_LABELS, enterPort, undockToDeck, startPortFight, buildMercyPort, afterActionReturn, LEVELS, deployContract, embedShipInPort, PORT_LEVELS, chronicle, shipLoad, bz, bzSet, worldEnsure, bzCrate, bzPickup, carriedThing, carryAttach, dropCarried, throwCarried, tickProps, syncCargo, lootOf, lootStash, lootTake, lootEquip, lootLeave, lootSpent, packTotal, sellSalvage, carryCardHtml, syncWeaponButtons, bzBuyFromJune, bzReturnToVarric, bzVarricMood, bzConfront, startConstableFight, npcAttitude, enemyFireAt, bzSellToHask, bzGiveBackToJune, portTalk, hireRecruit, buyWeapon, RECRUIT_POOL, checkWin, carveDoorF, checkWin, outfitOf, protMax, applyDamage, openArmourLocker, priceMulAt, buyPrice, sellHeatMul, bzRecruitLocked, bzHaskPrice, bzLawless, BZ_SUCCESSOR, bzCastOf, FACTIONS, facRepOf, facRepAdd, crimeSeen, witnessNerve, CRATE_CRIME, bzSellBackToVarric, stakeSettle, resolveBoarding, beginBoarding, freeRoam, deckDown, draw, ironsToggle, squadMoveToggle, copCamFlush, CROSSPORT_PORT, errandNew, errandTick, crowdTick, crowdSpawn, witnessRun, openGround, inShipZone, civSpd, civStep, BZ_RESERVES, lootOf: lootOf, respRouteBuild, outOfShipZone, nearestRouteIdx, armKey, armFind, provOf, provSet, crewContraband, rapsOf, rapAdd, rapClear, rapsAnyMajor, contrabandOfOp, bzConfiscate, bzSearch, bzFrisk, bzSearchResults, bzSearchAccept, bzArrest, bzArrestComply, bzCrimeWitness, worldSeed, portFacts, orgOf, crimeStage, bzNpcCrimeAct, crimeStepIn, crimeTip, facRepCross, renderStore, renderRecruit, simPauseStart, simResume, tickProps, civTravel, civLineClear, civPathTo, portFightBreakOff, npcAttitude: npcAttitude, canPerceive, memTarget, packEquip, unequipToPack, shopOf, shelfItem, shopBuy, shopSend, shopSteal, shopSeed, eqCardOpen, shelfCompareLines, shopKeeperCiv, castPlacements, placeAt, placeBeside, rngFor, SITUATIONS, situationsTick, situationPick, situationLive, situationOpen, lawStrength, civStruck, squadUnstack, bladeDash, FACES, FACE_NAMES, faceTrigger, faceArrive, faceResolve, faceTick, faceAssassinFight, cleanupCall, bodiesOnFloor, BZ_CLEANUP, makeBoarder, sitDealAll, cnavBuild, cnavDirty, cnavFreeNear, civLineClearR, civBlocked, CNAV, OPERATOR_PRESETS, newGameStart, opPick, opPickCycle, opPickGo, opApply, continueGame, titleShow, saveExists, CROSS_PORT, DISTRICTS, PORT_HOME, CROSS_CAST, districtGo, districtPark, districtWake, districtDoorTick, districtDef, portCast, packGive, packDrop, nearOperators, cacheAt, camFocusCrew, FACE_CAST, namedArchetype, makeNamedFoe, CUBES, cubeItem, cubeOpen, MISSIONS, missionStart, missionEnd, missionsOpen, waypointHere, denFacts, denOpen, denBuy, denLookoutDraw, denEnter, denReturn, denKeyHeld, denDoorWalls, DEN_CAST, DEN_LEVEL, denIdx, afterActionReturn, contractsAt, contrabandOfOp, portAnchors, segClearHigh}; })();');
 eval(hooked);
 const G = global.window.__G;
 G.restart(); G.dismissBrief();   // step off the boot-time firing range before testing
@@ -5246,7 +5246,7 @@ const dt1 = (() => {
   const cast = G.state.civs.some(cv => cv.name === 'Marek') && G.state.civs.some(cv => cv.name === 'Fenn') &&
     !G.state.civs.some(cv => cv.name === 'June') && !G.state.civs.some(cv => cv.name === 'Kestrel') && !G.bzCrate();
   const door = (G.state.doors || []).find(d => d.to === 'lanes');
-  const doors = !!door && G.state.doors.filter(d => d.label).length === 6;
+  const doors = !!door && G.state.doors.filter(d => d.label && !d.den).length === 6;
   const standing = G.state.squad.every(c => !G.civBlocked(c, c.x, c.y, c.r) && c.x > 0 && c.y > 0 && c.x < G.dims().W && c.y < G.dims().H);
   const law = G.lawStrength() >= 4;   // Dren, Brev, Marek, Sulla
   const logged = G.ship.chronicle.some(en => en.text.indexOf('On the floor of The Cross') >= 0);
@@ -5467,3 +5467,104 @@ const wm2 = (() => {
   return {ok: shaped && single && double && once, shaped, single, double, once};
 })();
 console.log('WM2 the faces are people:', wm2.ok ? 'PASS' : 'FAIL', `(shaped ${wm2.shaped}, names mixed ${wm2.single && wm2.double}, once ${wm2.once})`);
+
+
+// ---- DN: Tallow Street ----
+function dnSetup(){
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT;
+  G.newGameStart(); G.sitDealAll(true);
+  for(const cv of G.state.civs){ if(cv.kind !== 'lookout'){ cv.x = G.dims().W * 0.95; cv.y = G.dims().H * 0.05; cv.errand = {kind: 'visit', path: [], leg: 0, waitT: 0}; } }
+  for(const cv of G.state.civs) if(cv.kind === 'constable') cv.beat = {at: null, wt: 999};
+  return {crew: G.state.squad, door: G.state.doors.find(d => d.den === 'whyme'), roak: G.state.civs.find(cv => cv.kind === 'lookout')};
+}
+// DN1 the unit is shut, the lookout is on it, money opens it, the crew goes in, clears it, and comes out to a shut door and a closed mission
+const dn1 = (() => {
+  const {crew, door, roak} = dnSetup();
+  const shut = !!door && !!roak && roak.name === 'Roak' && G.denDoorWalls().length === 1 && !G.denFacts().open && !G.contractsAt('gateway').includes(G.denIdx());
+  for(const c of crew){ c.x = door.x; c.y = door.y - 20; }
+  pump(2, 16);
+  const stays = G.ship.district === 'cross' && !G.state._denRun;   // shut: nobody goes in
+  G.ship.credits = 100;
+  const poor = !G.denBuy(crew[0]);
+  G.ship.credits = 500;
+  const bought = G.denBuy(crew[0]) && G.denFacts().open && G.denFacts().how === 'bought' && G.ship.credits === 350 && G.denDoorWalls().length === 0 && roak.bought;
+  for(const c of crew){ c.x = door.x + 300; c.y = door.y - 200; }
+  pump(2, 16);   // re-arm
+  for(const c of crew){ c.x = door.x; c.y = door.y - 20; }
+  pump(2, 16);
+  const inside = !!G.state._denRun && !G.state.portDock && G.currentLevel().name === 'Tallow Street Unit';
+  const boss = G.state.enemies.find(e => e.type === 'named_dace_mortlake');
+  const bossOk = !!boss && boss.name === 'Dace Mortlake' && boss.loot.some(it => it.kind === 'datacube' && it.cube === 'whyme_ledger');
+  const cleanup = G.missionsOpen().includes('cleanup') && !G.missionsOpen().includes('whyme');
+  // clear it
+  for(const e of G.state.enemies) if(e.alive) G.kill(e, {team: 'player', owner: G.state.squad[0], dmg: 99});
+  G.checkWin();
+  G.afterActionReturn();
+  const out = G.state.portDock === 'gateway' && G.ship.district === 'cross' && !G.state._denRun;
+  const done = G.denFacts().done && !G.denFacts().open && G.denDoorWalls().length === 1;
+  const closed = !G.missionsOpen().includes('cleanup') && G.ship.missions.cleanup.state === 'done' &&
+    G.ship.chronicle.some(en => en.text.indexOf('Mission complete: Cleanup on Tallow Street') >= 0);
+  const noRoak = !G.state.civs.some(cv => cv.kind === 'lookout');
+  G.undockToDeck(); G.doShipReset();
+  return {ok: shut && stays && poor && bought && inside && bossOk && cleanup && out && done && closed && noRoak, shut, stays, poor, bought, inside, bossOk, cleanup, out, done, closed, noRoak};
+})();
+console.log('DN1 money opens the door, the crew clears the unit, the door shuts for good:', dn1.ok ? 'PASS' : 'FAIL',
+  `(shut ${dn1.shut}, stays ${dn1.stays}, poor ${dn1.poor}, bought ${dn1.bought}, inside ${dn1.inside}, boss ${dn1.bossOk}, cleanup ${dn1.cleanup}, out ${dn1.out}, done ${dn1.done}, closed ${dn1.closed}, noRoak ${dn1.noRoak})`);
+
+// DN2 with the order in hand the lookout recognises the target and bolts inside; the mission closes as Why Me
+const dn2 = (() => {
+  const {crew, door, roak} = dnSetup();
+  const hero = crew[0];
+  hero.def.pack = [G.cubeItem('whyme_order', 'Tam Quill', hero.name)];
+  G.cubeOpen(hero.def.pack[0]);
+  const targeted = G.ship.missions.whyme && G.ship.missions.whyme.target === hero.name;
+  hero.x = roak.x - 150; hero.y = roak.y; crew[1].x = hero.x - 40; crew[1].y = hero.y;
+  pump(3, 16);
+  const alarm = roak.alarm && roak.errand && roak.errand.kind === 'inside';
+  roak.x = roak.errand.at.x; roak.y = roak.errand.at.y;
+  pump(3, 16);
+  const opened = G.denFacts().open && G.denFacts().how === 'alarm' && roak.gone && G.denDoorWalls().length === 0;
+  for(const c of crew){ c.x = door.x; c.y = door.y - 20; }
+  pump(2, 16);
+  const inside = !!G.state._denRun && !G.missionsOpen().includes('cleanup') && G.missionsOpen().includes('whyme');
+  for(const e of G.state.enemies) if(e.alive) G.kill(e, {team: 'player', owner: G.state.squad[0], dmg: 99});
+  G.checkWin(); G.afterActionReturn();
+  const closed = G.ship.missions.whyme.state === 'done' && !G.missionsOpen().length;
+  G.undockToDeck(); G.doShipReset();
+  return {ok: targeted && alarm && opened && inside && closed, targeted, alarm, opened, inside, closed};
+})();
+console.log('DN2 the lookout knows your face and runs; Why Me closes inside:', dn2.ok ? 'PASS' : 'FAIL',
+  `(targeted ${dn2.targeted}, alarm ${dn2.alarm}, opened ${dn2.opened}, inside ${dn2.inside}, closed ${dn2.closed})`);
+
+// DN3 the other ways in: his key off his body, or the door knocked down; and the law leaves a letter in your pocket
+const dn3 = (() => {
+  const {crew, door, roak} = dnSetup();
+  const hero = crew[0];
+  G.ironsToggle();
+  const drew = G.denLookoutDraw(roak, hero) && G.state.deckCombat && G.state.enemies.some(e => e.name === 'Roak');
+  const e = G.state.enemies.find(en => en.name === 'Roak');
+  G.kill(e, {team: 'player', owner: hero, dmg: 99});
+  G.checkWin(); G.state.deckCombat = false; G.state.portFight = false; G.ironsToggle && (G.state.ironsOut = false);
+  hero.def.pack = [];
+  const ki = e.loot.findIndex(it => it.keyFor === 'whyme');
+  const keyed = ki >= 0 && G.lootTake(hero, e, ki) && G.denKeyHeld();
+  for(const c of G.state.squad){ c.x = door.x; c.y = door.y - 20; }
+  pump(2, 16);
+  const unlocked = G.denFacts().open && G.denFacts().how === 'key';
+  // a fresh run: knock it down instead
+  G.undockToDeck(); G.doShipReset();
+  const s2 = dnSetup();
+  const dw = G.denDoorWalls()[0];
+  for(const ch of G.chunksOf(dw)) G.damageChunk(ch, 999, ch.x, ch.y, true);
+  pump(2, 16);
+  const smashed = G.denFacts().open && G.denFacts().how === 'smashed' && G.denDoorWalls().length === 0;
+  // the search leaves the letter
+  s2.crew[0].def.pack = [G.cubeItem('whyme_order', 'Tam Quill', s2.crew[0].name), {kind: 'weapon', key: 'stdknife', own: 'Tam Quill'}];
+  const cb = G.contrabandOfOp(s2.crew[0].name);
+  const letterKept = cb.stolen.length === 1 && cb.stolen[0].kind === 'weapon';
+  s2.crew[0].def.pack = [];
+  G.undockToDeck(); G.doShipReset();
+  return {ok: drew && keyed && unlocked && smashed && letterKept, drew, keyed, unlocked, smashed, letterKept};
+})();
+console.log('DN3 a key, a hard knock, and a letter the law hands back:', dn3.ok ? 'PASS' : 'FAIL',
+  `(drew ${dn3.drew}, keyed ${dn3.keyed}, unlocked ${dn3.unlocked}, smashed ${dn3.smashed}, letterKept ${dn3.letterKept})`);
