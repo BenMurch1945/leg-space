@@ -639,6 +639,7 @@
   .opKit span{display:block;color:rgba(232,224,204,.45);font-weight:500;}
   #opGo{margin-top:24px;font:700 14px 'Space Grotesk',sans-serif;letter-spacing:.34em;color:var(--void);background:#d4a843;border:none;padding:14px 64px;cursor:pointer;}
   #opGo:hover{background:#e8c060;}
+  .bissuer{font:800 10px 'Space Grotesk',sans-serif;letter-spacing:.32em;color:rgba(212,168,67,.7);margin-bottom:6px;}
   #eventModal{position:fixed;inset:0;background:rgba(7,9,15,.78);z-index:85;
     display:flex;align-items:center;justify-content:center;}
   #eventBox{background:rgba(14,18,32,.98);border:1.5px solid rgba(224,72,62,.6);
@@ -3580,7 +3581,7 @@ function openCharSheet(c, mode, corpse){
     let sideHtml;
     if(mode === 'loot' && corpse){
       const items = lootOf(corpse);
-      const archL = corpse.cache ? 'dropped gear' : ((ARCHETYPES[corpse.type] || {}).label || 'the fallen');
+      const archL = corpse.chest ? (corpse.name || 'strongbox') : corpse.cache ? 'dropped gear' : ((ARCHETYPES[corpse.type] || {}).label || 'the fallen');
       const cellsL = Math.max(8, Math.ceil(items.length / 4) * 4);
       let lg = '';
       for(let i2 = 0; i2 < cellsL; i2++){
@@ -3592,7 +3593,7 @@ function openCharSheet(c, mode, corpse){
           : '') + '</div>';
       }
       sideHtml = '<div id="csSide" class="csWin">' +
-        '<div class="csWinHead">' + (corpse.cache ? 'ON THE FLOOR \u00B7 DROPPED GEAR' : 'THE FALLEN \u00B7 ' + archL.toUpperCase()) + '</div>' +
+        '<div class="csWinHead">' + (corpse.chest ? (corpse.name || 'STRONGBOX').toUpperCase() : corpse.cache ? 'ON THE FLOOR \u00B7 DROPPED GEAR' : 'THE FALLEN \u00B7 ' + archL.toUpperCase()) + '</div>' +
         '<div id="csLoot" class="csBagGrid">' + lg + '</div>' +
         '<div id="csInfoBox"></div>' +
       '</div>';
@@ -4108,6 +4109,9 @@ function layout(){
     den: w.den || undefined,   // a door that is a wall until it is opened
   }));
   for(const w of s.walls) buildChunks(w);
+  // strongboxes the level puts down: floor loot with a lid
+  s._chests = (L.chests || []).map(ch => ({cache: true, chest: true, alive: false, looted: false, everSeen: true, visible: true,
+    x: ch.x * W, y: ch.y * H, r: 11, type: 'cache', name: ch.name || 'Strongbox', loot: (ch.loot || []).map(it => Object.assign({}, it)), bob: 0}));
   // the cache: one true site chosen from the candidates; the rest are rumours
   const pkgCands = Array.isArray(L.package) ? L.package : (L.package ? [L.package] : null);
   if(pkgCands && pkgCands.length){
@@ -4210,6 +4214,8 @@ function layout(){
     const ex = e.x*W, ey = e.y*H;
     return {
       x: ex, y: ey, r: arch.bodyR, type,
+      name: arch.named ? arch.named.name : undefined, named: arch.named || undefined,
+      wpnKey: arch.named && arch.named.loadout ? (arch.named.loadout.primary || arch.named.loadout.sidearm || undefined) : undefined,
       hp, maxHp: hp, hitFlash: 0, alive: true,
       facing: L.alerted ? Math.atan2(py0 - ey, px0 - ex) : Math.random()*Math.PI*2,
       stress: 0, morale: 'steady',
@@ -4219,6 +4225,7 @@ function layout(){
       bob: Math.random()*6, run: null, moving: false
     };
   });
+  if(s._chests && s._chests.length){ for(const ch of s._chests) s.enemies.push(ch); s._chests = null; }   // the strongboxes go down after the people
 
   // the range issues its own iron: survives boot-time resize re-racks
   if(usingCustom && customLevel === RANGE_LEVEL && s.squad[0]){
@@ -4974,12 +4981,30 @@ function askConfirm(title, text, onYes){
 }
 
 // recovered: showBrief
+// who issued the paper: the GCAT's forms, a vendor's terms, or nobody's at all
+const ISSUERS = {
+  gcat:         {head: 'GCAT CHARTER CONTRACT', aar: 'GCAT FIELD ASSESSMENT', assess: 'GCAT Assessment', settle: 'SETTLEMENT OF ACCOUNT \u00B7 VALHALLA CORPORATION, REMITTANCE DIVISION',
+                 flawless: 'Flawless. The GCAT pays triple for work this clean.', solid: 'Solid work. The client is satisfied.', standard: 'Contract fee: standard rate.', invoice: true, title: 'Contract Complete'},
+  none:         {head: 'NO CONTRACT \u00B7 THIS IS JUST HAPPENING', aar: 'WHAT HAPPENED', assess: 'The tally', settle: 'NO EMPLOYER \u00B7 NO INVOICE \u00B7 WHAT YOU CARRIED OUT IS THE PAY',
+                 flawless: 'Clean. Nobody will ever know how clean, because nobody was paying.', solid: 'Done. Nobody is counting but you.', standard: 'Over. The street will have an opinion.', invoice: false, title: 'It Is Over'},
+  freightring:  {head: 'CROSSPORT FREIGHT RING \u00B7 PRIVATE WORK', aar: 'FREIGHT RING SETTLEMENT', assess: 'The Ring\u2019s count', settle: 'SETTLEMENT \u00B7 FREIGHT RING OFFICE, OFF THE LEDGER',
+                 flawless: 'Varric will hear it was clean, and pay like it was.', solid: 'Done to the Ring\u2019s satisfaction.', standard: 'Paid at the agreed rate. No more.', invoice: true, title: 'Work Done'},
+  greymarket:   {head: 'GREY MARKET \u00B7 OFF THE BOOKS', aar: 'HASK\u2019S RECKONING', assess: 'Hask\u2019s count', settle: 'SETTLEMENT \u00B7 UNDER THE COUNTER, THE SLOW ORBIT',
+                 flawless: 'Hask pays triple for work that leaves no story.', solid: 'Hask is satisfied, which is rarer than it sounds.', standard: 'Paid in cash, counted twice.', invoice: true, title: 'Settled'},
+  tradersguild: {head: 'TRADERS\u2019 GUILD \u00B7 CONTRACT OF SERVICE', aar: 'GUILD ASSESSMENT', assess: 'Guild assessment', settle: 'SETTLEMENT \u00B7 TRADERS\u2019 GUILD CLEARING HOUSE',
+                 flawless: 'Exemplary. The Guild notes it in ink.', solid: 'Satisfactory. The Guild notes it in pencil.', standard: 'Fee remitted per the schedule.', invoice: true, title: 'Contract Complete'},
+  constabulary: {head: 'PORT CONSTABULARY \u00B7 WARRANT WORK', aar: 'CONSTABULARY DEBRIEF', assess: 'Constabulary debrief', settle: 'SETTLEMENT \u00B7 RING OFFICE DISBURSEMENTS',
+                 flawless: 'By the book, and the book pays.', solid: 'Adequate. Filed.', standard: 'Standard warrant fee.', invoice: true, title: 'Warrant Served'},
+};
+function issuerOf(L){ return ISSUERS[(L && L.issuer) || 'gcat'] || ISSUERS.gcat; }
 function showBrief(){
   briefOpen = true;
   const L = currentLevel();
   const el = document.getElementById('brieftoast');
-  el.innerHTML = '<div class="bname">' + L.name + '</div>' +
-    (L.client ? '<div class="bclient">Client · ' + L.client + '</div>' : '') +
+  const iss = issuerOf(L);
+  el.innerHTML = '<div class="bissuer">' + iss.head + '</div>' +
+    '<div class="bname">' + L.name + '</div>' +
+    (L.client && iss !== ISSUERS.none ? '<div class="bclient">Client \u00B7 ' + L.client + '</div>' : '') +
     '<div class="btext">' + (L.brief || '') + '</div>' +
     '<div class="bobj">Objective · ' + (L.objective ||
       (L.package ? 'Retrieve the package · deliver it to extraction' : 'Neutralise all hostiles')) + '</div>' +
@@ -4987,7 +5012,7 @@ function showBrief(){
       L.secondaries.map(x => '<div class="bsecline">• ' + x.label +
         (x.reward ? ' <span class="bsecreward">' + x.reward + '</span>' : '') + '</div>').join('') +
       '</div>' : '') +
-    '<div class="bgo">Click to begin the contract</div>';
+    '<div class="bgo">' + (iss === ISSUERS.none ? 'Click to go in' : 'Click to begin the contract') + '</div>';
   el.classList.add('show');
 }
 
@@ -9984,11 +10009,35 @@ const DEN_CAST = {
     loadout: {primary: null, sidearm: 'pistol'},
     stats: {health: 16, move: 230, strength: 13, aim: 9, bravery: 12, luck: 7, vision: 420, agility: 13, armor: 0, fearless: 0},
     bio: 'Stands outside a door on Tallow Street and tells people to get lost. Paid in drink and the sense of being somebody.'},
-  boss: {name: 'Dace Mortlake', kind: 'human', cls: 'soldier', sex: 'm', color: '#e0483e', race: 'HUMAN',
+  boss: {name: 'Dace Mortlake', title: 'Tallow Street Boss', kind: 'minotaur', cls: 'breaker', sex: 'm', color: '#e0483e', race: 'MINOTAUR',
     loadout: {primary: null, sidearm: 'sawnoff'},
-    stats: {health: 26, move: 170, strength: 12, aim: 12, bravery: 20, luck: 8, vision: 380, agility: 8, armor: 0, fearless: 0},
-    bio: 'Runs the Tallow Street crew out of a back room and believes the Cross is his because nobody has yet told him otherwise.'},
+    stats: {health: 54, move: 95, strength: 19, aim: 9, bravery: 24, luck: 6, vision: 360, agility: 4, armor: 0, fearless: 1},
+    bio: 'Runs the Tallow Street crew out of a back room and believes the Cross is his because nobody has yet told him otherwise. Plated to the neck and carries a sawn-off like a conversation he intends to win.'},
 };
+// the crew: people with roles, not archetypes. Built on the soldier, runner and breaker frames; named on the floor and in the file.
+const GANG_CAST = [
+  {name: 'Dravin', title: 'Tallow Street Enforcer', kind: 'human', cls: 'soldier', sex: 'm', color: '#c25a4a', race: 'HUMAN',
+   loadout: {primary: 'stdautogun', sidearm: 'stdknife'},
+   stats: {health: 19, move: 180, strength: 12, aim: 11, bravery: 15, luck: 7, vision: 390, agility: 8, armor: 0, fearless: 0},
+   bio: 'Collects for Mortlake on the Cross. Prefers the autogun to the conversation, and has never needed both.'},
+  {name: 'Nessa Vole', title: 'Tallow Street Cutter', kind: 'vampire', cls: 'runner', sex: 'f', color: '#c5556f', race: 'VAMPIRE',
+   loadout: {primary: null, sidearm: 'stdknife'},
+   stats: {health: 13, move: 250, strength: 7, aim: 10, bravery: 13, luck: 10, vision: 460, agility: 16, armor: 0, fearless: 0, stealth: 0.6},
+   bio: 'Does the close work. Quiet, quick, and already behind you.'},
+  {name: 'Hob', title: 'Tallow Street Gunhand', kind: 'amarok', cls: 'soldier', sex: 'm', color: '#b8763f', race: 'AMAROK',
+   loadout: {primary: null, sidearm: 'pistol'},
+   stats: {health: 17, move: 220, strength: 12, aim: 12, bravery: 12, luck: 8, vision: 430, agility: 13, armor: 0, fearless: 0},
+   bio: 'Two quick rounds and a loud mouth. The mouth is the louder of the two.'},
+  {name: 'Corin Ashe', title: 'Tallow Street Doorman', kind: 'human', cls: 'soldier', sex: 'm', color: '#9f7a4a', race: 'HUMAN',
+   loadout: {primary: null, sidearm: 'sawnoff'},
+   stats: {health: 21, move: 165, strength: 14, aim: 9, bravery: 16, luck: 6, vision: 370, agility: 7, armor: 0, fearless: 0},
+   bio: 'Keeps the corridor. Sawn-off across his knees and a chair that has not been empty in a year.'},
+  {name: 'Sallow', title: 'Tallow Street Cutter', kind: 'amarok', cls: 'runner', sex: 'f', color: '#e0742e', race: 'AMAROK',
+   loadout: {primary: null, sidearm: 'stdknife'},
+   stats: {health: 15, move: 275, strength: 13, aim: 7, bravery: 12, luck: 9, vision: 440, agility: 17, armor: 0, fearless: 0, stealth: 0.6},
+   bio: 'Runs the back rooms and the knife. Fast enough that the first anyone knows is the second cut.'},
+];
+function gangRegister(){ for(const g of GANG_CAST) namedArchetype(g); namedArchetype(DEN_CAST.boss); }
 const DEN_PRICE = 150;
 function denDoorWalls(){ return (state.walls || []).filter(w => w.den === 'whyme'); }
 function denOpen(how){
@@ -10076,19 +10125,22 @@ const DEN_LEVEL = {
     {x: 0.74, y: 0.16, w: 0.05, h: 0.025},
   ],
   enemies: [
-    {x: 0.36, y: 0.70, type: 'runner'},
-    {x: 0.68, y: 0.68, type: 'soldier'},
-    {x: 0.24, y: 0.46, type: 'runner'},
-    {x: 0.62, y: 0.45, type: 'soldier'},
-    {x: 0.78, y: 0.40, type: 'breaker'},
+    {x: 0.36, y: 0.70, type: 'named_nessa_vole'},
+    {x: 0.68, y: 0.68, type: 'named_dravin'},
+    {x: 0.24, y: 0.46, type: 'named_sallow'},
+    {x: 0.62, y: 0.45, type: 'named_hob'},
+    {x: 0.78, y: 0.40, type: 'named_corin_ashe'},
     {x: 0.62, y: 0.16, type: 'named_dace_mortlake'},
   ],
+  // the strongbox in the back office: the best iron on Tallow Street, and whatever was under it
+  chests: [{x: 0.80, y: 0.14, name: 'Strongbox', loot: [{kind: 'weapon', key: 'rifle', own: 'Dace Mortlake'}, {kind: 'credits', value: 90}]}],
   civilians: 0,
+  issuer: 'none',
 };
 function denIdx(){ let i = LEVELS.indexOf(DEN_LEVEL); if(i < 0){ LEVELS.push(DEN_LEVEL); i = LEVELS.length - 1; } return i; }
 function denEnter(){
   const dn = denFacts(); if(!dn || !dn.open || dn.done || !state.portDock) return false;
-  namedArchetype(DEN_CAST.boss);
+  gangRegister();
   const i = denIdx();
   portReturn = state.portDock || null;
   portReturnPos = {};
@@ -10103,7 +10155,6 @@ function denEnter(){
   state._denRun = true;
   // the man in the back room carries the ledger, and the ledger carries the next stop
   const boss = state.enemies.find(e => e.type === 'named_dace_mortlake');
-  if(boss){ boss.name = DEN_CAST.boss.name; boss.named = DEN_CAST.boss; boss.wpnKey = 'sawnoff'; }
   if(boss) boss.loot = [{kind: 'weapon', key: 'sawnoff', own: 'Dace Mortlake'}, cubeItem('whyme_ledger', 'Dace Mortlake', null), {kind: 'credits', value: 120 + Math.floor(Math.random() * 80)}];
   const whyme = ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open';
   if(!whyme) missionStart('cleanup');
@@ -10151,13 +10202,13 @@ const FACE_NAMES = FACE_CAST;   // the old handle, kept for anything that still 
 function namedArchetype(def){
   const key = 'named_' + def.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
   if(ARCHETYPES[key]) return key;
-  const base = ARCHETYPES[def.cls === 'runner' ? 'runner' : 'soldier'];
+  const base = ARCHETYPES[def.cls === 'runner' ? 'runner' : def.cls === 'breaker' ? 'breaker' : 'soldier'];
   const st = def.stats || {};
   const side = def.loadout && def.loadout.sidearm, prim = def.loadout && def.loadout.primary;
   const carried = prim || side;
   const wpn = carried ? WEAPONS[carried] : null;
   const a = Object.assign({}, base, {
-    label: def.name, hp: st.health || base.hp, bravery: st.bravery || base.bravery, fearless: st.fearless || 0,
+    label: def.title ? def.name + ', ' + def.title : def.name, hp: st.health || base.hp, bravery: st.bravery || base.bravery, fearless: st.fearless || 0,
     vision: st.vision || base.vision, moveRange: st.move || base.moveRange, color: def.color || base.color, bodyR: 10,
     weights: Object.assign({}, base.weights), named: def,
   });
@@ -10167,6 +10218,7 @@ function namedArchetype(def){
     a.weights.close = 3.0; a.weights.range = 0.2; a.weights.flank = 2.0;
   }
   ARCHETYPES[key] = a;
+  if(def.bio && typeof ARCH_DOSSIERS !== 'undefined') ARCH_DOSSIERS[key] = def.bio;
   return key;
 }
 function makeNamedFoe(def, x, y){
@@ -10481,7 +10533,7 @@ function propLand(obj, isPkg){
 function tickProps(dt){
   if(state && state.simPause && state.shipDeck && !state.deckCombat) return;   // held under glass
   if(!state || !state.squad) return;
-  if(state.enemies && state.enemies.some(e => e.cache && lootSpent(e))) state.enemies = state.enemies.filter(e => !(e.cache && lootSpent(e)));
+  if(state.enemies && state.enemies.some(e => e.cache && !e.chest && lootSpent(e))) state.enemies = state.enemies.filter(e => !(e.cache && !e.chest && lootSpent(e)));
   for(const c of state.squad){
     const held = carriedThing(c);
     if(held && held.type === 'prop'){ held.prop.x = c.x; held.prop.y = c.y - c.r - 14; }
@@ -11545,7 +11597,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '18 Oct \u00B7 TALLOW';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '18 Oct \u00B7 CREW';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -13138,18 +13190,19 @@ function win(){
   }
   const t = state.winTurn || state.turn;
   const L = currentLevel();
-  let grade = 'Contract fee: standard rate.';
+  const iss = issuerOf(L);
+  let grade = iss.standard;
   let feeMul = 1;
-  if(t <= L.par){ grade = 'Flawless. The GCAT pays triple for work this clean.'; feeMul = 3; }
-  else if(t <= L.par + 2) grade = 'Solid work. The client is satisfied.';
+  if(L.par && t <= L.par){ grade = iss.flawless; feeMul = 3; }
+  else if(L.par && t <= L.par + 2) grade = iss.solid;
   const hasNext = !usingCustom && levelIdx < LEVELS.length - 1;
   advanceOnRestart = hasNext;
   // the record: what actually happened out there
-  const kills = state.enemies.filter(e => !e.alive).length;
+  const kills = state.enemies.filter(e => !e.alive && !e.cache).length;
   const kos = state.enemies.filter(e => e.alive && e.ko).length;
   const civP = (state.aarCiv && state.aarCiv.player) || 0;
   const civH = (state.aarCiv && state.aarCiv.hostile) || 0;
-  let assess = ` · GCAT Assessment: ${kills} dead · ${kos} subdued · ` +
+  let assess = ` \u00B7 ${iss.assess}: ${kills} dead \u00B7 ${kos} subdued \u00B7 ` +
     (state.everAlerted ? 'presence detected' : 'no trace');
   if(L.civilians) assess += ` · civilian casualties: ${civP + civH}` + (civH ? ` (${civH} theirs)` : '');
   if(civP > 0){
@@ -13169,13 +13222,13 @@ function win(){
       assess += `  ${met ? '✓' : '✗'} ${sec.label}`;
     }
   }
-  document.getElementById('ovTitle').textContent = 'Contract Complete';
+  document.getElementById('ovTitle').textContent = iss.title;
   missionsWon++;
-  // the settlement: every clause itemised, bureaucratically, with a total beneath
-  const fee = L.fee || 300;
+  // the settlement: every clause itemised, bureaucratically, with a total beneath; no employer, no clauses
+  const fee = iss.invoice ? (L.fee || 300) : 0;
   const inv = state.invoiceSnap || state.invoice || {noise: 0, civPanics: 0, cruelty: 0, wallHits: 0};
   const items = [];
-  items.push(['CONTRACT FEE, STANDARD SCHEDULE', fee]);
+  if(iss.invoice) items.push(['CONTRACT FEE, STANDARD SCHEDULE', fee]);
   if(t <= L.par) items.push(['EXPEDITION COMMENDATION (PAR MET)', fee * 2]);
   if(L.secondaries){
     for(const sec of L.secondaries){
@@ -13196,8 +13249,9 @@ function win(){
   const propLevy = Math.min(Math.round(fee * 0.15), 2 * inv.wallHits);
   if(propLevy > 0) items.push(['MUNICIPAL PROPERTY REMEDIATION', -propLevy]);
   if(t > L.par + 2) items.push(['SCHEDULE OVERRUN (' + (t - L.par - 2) + ' TURNS)', -10 * (t - L.par - 2)]);
+  if(!iss.invoice) items.length = 0;   // nobody is billing anybody
   let paid = items.reduce((a, [, v]) => a + v, 0);
-  if(paid < 25){ items.push(['ADMINISTRATIVE MINIMUM, APPLIED', 25 - paid]); paid = 25; }
+  if(iss.invoice && paid < 25){ items.push(['ADMINISTRATIVE MINIMUM, APPLIED', 25 - paid]); paid = 25; }
   state.invoiceItems = items;
   ship.credits += paid;
   state.lastPaid = paid;
@@ -13205,8 +13259,10 @@ function win(){
     const chL = currentLevel();
     const chHurt = state.squad.filter(c => c.alive && c.hp < c.maxHp * 0.5).length;
     const chPar = chL.par && (state.winTurn || state.turn) <= chL.par;
-    chronicle('contract', '\u201C' + (chL.name || 'The contract') + '\u201D settled: ' + paid +
+    if(iss.invoice) chronicle('contract', '\u201C' + (chL.name || 'The contract') + '\u201D settled: ' + paid +
       ' CR remitted' + (chPar ? ', commendation earned' : '') +
+      (chHurt ? '; ' + chHurt + ' walked away hurt' : '') + '.');
+    else chronicle('contract', (chL.name || 'The job') + ' is over. Nobody paid; what the crew carried out is what they got' +
       (chHurt ? '; ' + chHurt + ' walked away hurt' : '') + '.');
   }
   if(ship.medPod) ship.medPod.hp = ship.medPod.max;   // a settled contract refills the pod
@@ -13228,7 +13284,7 @@ function win(){
   const a2 = state.aar || {shots:0, rounds:0, hits:0, crits:0, chunks:0, loudest:0, perHero:{}};
   const acc = a2.rounds ? Math.min(100, Math.round(100 * a2.hits / a2.rounds)) : 0;
   const noiseGrade = a2.loudest <= 0 ? 'SILENT' : a2.loudest < 250 ? 'DISCREET' : a2.loudest < 550 ? 'LOUD' : 'DEAFENING';
-  const kills2 = state.enemies.filter(e => !e.alive).length;
+  const kills2 = state.enemies.filter(e => !e.alive && !e.cache).length;
   const kos2 = state.enemies.filter(e => e.alive && e.ko).length;
   const svc = state.squad.map((c, i) => {
     const rec = SERVICE_RECORDS[SQUAD_DEFS.findIndex(d => d.name === c.name)] || {};
@@ -13244,8 +13300,8 @@ function win(){
   }).join('');
   document.getElementById('result').innerHTML =
     '<div class="aarsheet">' +
-      '<div class="aarhead">GCAT FIELD ASSESSMENT · ' + L.name.toUpperCase() + '</div>' +
-      (L.client ? '<div class="aarclient">Prepared for ' + L.client + '</div>' : '') +
+      '<div class="aarhead">' + iss.aar + ' \u00B7 ' + L.name.toUpperCase() + '</div>' +
+      (L.client && iss.invoice ? '<div class="aarclient">Prepared for ' + L.client + '</div>' : '') +
       '<div class="aargrade">' + `Cleared in ${t} turn${t===1?'':'s'}.` + '</div>' +
       '<div class="aargrid">' +
         '<div><span>Hostiles terminated</span><b>' + kills2 + '</b></div>' +
@@ -13261,7 +13317,7 @@ function win(){
           ((((state.aarCiv||{}).player)||0) + (((state.aarCiv||{}).hostile)||0)) +
           ((((state.aarCiv||{}).hostile)||0) > 0 ? ' (' + state.aarCiv.hostile + ' theirs)' : '') + '</b></div>' : '') +
       '</div>' +
-      '<div class="aarsvcHead">SETTLEMENT OF ACCOUNT · VALHALLA CORPORATION, REMITTANCE DIVISION</div>' +
+      '<div class="aarsvcHead">' + iss.settle + '</div>' +
       '<div class="aarInv">' +
         (state.invoiceItems || []).map(([k, v], ri) =>
           '<div class="aiRow aiLive" style="animation-delay:' + (0.55 + ri * 0.22) + 's"><span>' + k +
@@ -13270,7 +13326,7 @@ function win(){
           '" data-delay="' + (0.55 + ri * 0.22) + '">0</i></b></div>'
         ).join('') +
         '<div class="aiRow aiTotal aiLive" style="animation-delay:' +
-          (0.75 + (state.invoiceItems || []).length * 0.22) + 's"><span>TOTAL REMITTED TO THE ORRIX</span><i></i><b>' +
+          (0.75 + (state.invoiceItems || []).length * 0.22) + 's"><span>' + (iss.invoice ? 'TOTAL REMITTED TO THE ORRIX' : 'REMITTED: NOTHING. LOOTED: SEE PACKS.') + '</span><i></i><b>' +
           '<i class="aiTick aiTickTotal" data-final="' + (state.lastPaid || 0) +
           '" data-delay="' + (0.75 + (state.invoiceItems || []).length * 0.22) + '">0</i> CR</b></div>' +
       '</div>' +
@@ -15732,12 +15788,23 @@ function draw(){
       // the fallen stay fallen: a sprawled shape where they dropped, worth a search
       if(!e.everSeen && !e.visible) continue;
       if(e.cache){
+        if(e.chest){
+          // a strongbox: a lid, a hasp, a glow when there is still something in it
+          ctx.fillStyle = lootSpent(e) ? 'rgba(90,80,60,.6)' : 'rgba(212,168,67,.75)';
+          ctx.strokeStyle = 'rgba(232,224,204,.75)';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.rect(e.x - 12, e.y - 8, 24, 16); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(e.x - 12, e.y - 2); ctx.lineTo(e.x + 12, e.y - 2); ctx.stroke();
+          ctx.fillStyle = 'rgba(7,9,15,.8)';
+          ctx.beginPath(); ctx.rect(e.x - 2, e.y - 4, 4, 5); ctx.fill();
+        }else{
         // a bundle set down on the floor
         ctx.fillStyle = 'rgba(212,168,67,.55)';
         ctx.strokeStyle = 'rgba(232,224,204,.6)';
         ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.rect(e.x - 7, e.y - 5, 14, 10); ctx.fill(); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(e.x - 7, e.y); ctx.lineTo(e.x + 7, e.y); ctx.stroke();
+        }
       }else{
       const archD = ARCHETYPES[e.type] || {};
       ctx.save();
