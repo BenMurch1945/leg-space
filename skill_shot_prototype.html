@@ -631,7 +631,7 @@
   .opCard{flex:1;padding:18px 18px 14px;display:flex;flex-direction:column;gap:9px;height:436px;box-sizing:border-box;}
   .opName{font-family:'Cinzel',serif;font-size:21px;font-weight:800;letter-spacing:.12em;}
   .opLine{font:700 10.5px 'Space Grotesk',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(232,224,204,.6);}
-  .opBio{font-size:12px;line-height:1.55;color:rgba(232,224,204,.78);height:134px;overflow-y:auto;flex:none;}
+  .opBio{font-size:12px;line-height:1.55;color:rgba(232,224,204,.78);height:94px;overflow:hidden;flex:none;}
   .opStats{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;border-top:1px solid rgba(212,168,67,.2);padding-top:9px;}
   .opStats div{display:flex;justify-content:space-between;font:600 11px 'Space Grotesk',sans-serif;letter-spacing:.12em;color:rgba(232,224,204,.65);}
   .opStats b{color:var(--bone);}
@@ -3763,6 +3763,13 @@ function openCharSheet(c, mode, corpse){
           render();
           return;
         }
+        // one click, one pocket: anything packable goes straight in; a full pack shows the paper instead
+        if(PACKABLE[it.kind] && lootTake(c, corpse, li)){
+          addPopup(c.x, c.y - c.r - 14, lootLabelOf(it).toUpperCase() + ' \u00B7 PACKED', '#9fe08e');
+          render();
+          return;
+        }
+        if(PACKABLE[it.kind]) addPopup(c.x, c.y - c.r - 14, 'PACK FULL', '#e0a33e');
         for(const t2 of ov.querySelectorAll('.csTile.csSel')) t2.classList.remove('csSel');
         tile.classList.add('csSel');
         info(it);
@@ -4912,6 +4919,7 @@ function dismissBrief(){
   }
   briefOpen = false;
   document.getElementById('brieftoast').classList.remove('show');
+  flushBanners();   // whatever was waiting for the brief to go
   // the pair greets the contract: two lines, in rhythm
   if(state.turn <= 1 && !state.openerSaid){
     state.openerSaid = true;
@@ -5489,7 +5497,7 @@ const RACE_LORE = {
 
 const CHAR_BIOS_MARK = 1;
 const CHAR_BIOS = [
-  'Born Rennar, and small for a Minotaur: their females tower, and he never grew into the silhouette Earth\'s stories promised. A squadmate\'s grandmother called him Bram once, and it fit: something warm about it, and something like a door closing. Old enough to remember worse laws, patient, deliberate, and kinder than he looks. The Stunner on his hip is a philosophy.',
+  'Born Rennar, and small for a Minotaur: he never grew into the silhouette Earth\'s stories promised. A squadmate\'s grandmother called him Bram once, and it fit. Old enough to remember worse laws, patient, deliberate, and kinder than he looks.',
   'A century and a half of service, most of it spent waiting for exactly the right moment. Ghant speaks rarely, wastes nothing, and considers a fired round a small failure of planning.',
   'Young, loud in company, and utterly silent on the approach. Kallik fights like he has something to prove, because he does: inexperience gnaws at him, and it flares into jealousy when someone else takes the glory.',
   'Humanity\'s kind of soldier: adaptable, unflappable, impossible to embarrass. Mara enlisted the week her colony got the news of the Twist, and she has treated the whole galaxy as her jurisdiction ever since.',
@@ -8003,7 +8011,9 @@ function inVisionOf(viewer, range, tx, ty){
   return losHighPeek(viewer, tx, ty, ex ? ex.peeks : null);
 }
 
-function charVisionRange(c){ return c.stats.vision; }   // honest pixels of the fixed field
+let SIGHT_MUL = 2;   // Ben, 19 Oct: the ports are big, so the crew see twice as far as the sheet says
+function sightMulSet(v){ SIGHT_MUL = v; return SIGHT_MUL; }
+function charVisionRange(c){ return c.stats.vision * SIGHT_MUL; }   // honest pixels of the fixed field
 const ALERT_RANGE_MUL = {unaware: 1, suspicious: 1.2, alerted: 1.35};
 const ALERT_ARC_MUL   = {unaware: 1, suspicious: 1.15, alerted: 1.3};
 const REAR_BLIND = 150 * DEG;      // the last 60 degrees at the back: nobody feels it
@@ -9229,7 +9239,7 @@ function castSightRay(ox, oy, ang, maxR, rects, peeks){
       const ex = ox + dx*t0, ey = oy + dy*t0;
       const xx = ox + dx*Math.min(t1, maxR), xy = oy + dy*Math.min(t1, maxR);
       for(const pk of peeks){
-        if(pk.w !== r) continue;
+        if(pk.w !== r || pk.cvHigh) continue;   // sight does not slip through a join
         if(Math.hypot(ex-pk.cx, ey-pk.cy) < PEEK_R &&
            Math.hypot(xx-pk.cx, xy-pk.cy) < PEEK_R){ grazes = true; break; }
       }
@@ -9327,7 +9337,17 @@ function shooterExemptions(x, y, r){
     if(!w.high && d <= reach) adj.add(w);
     const cs = [[w.x,w.y],[w.x+w.w,w.y],[w.x,w.y+w.h],[w.x+w.w,w.y+w.h]];
     for(const [cx,cy] of cs){
-      if(Math.hypot(x-cx, y-cy) <= reach + 6) peeks.push({w, cx, cy});
+      if(Math.hypot(x-cx, y-cy) > reach + 6) continue;
+      // a corner buried in another wall is a join: two walls meeting, not an end to lean round
+      let cvHigh = false, cvAny = false;
+      for(const o of state.walls){
+        if(o === w) continue;
+        if(cx >= o.x - 1 && cx <= o.x + o.w + 1 && cy >= o.y - 1 && cy <= o.y + o.h + 1){
+          cvAny = true; if(o.high) cvHigh = true;
+          if(cvHigh) break;
+        }
+      }
+      peeks.push({w, cx, cy, cvHigh, cvAny});
     }
   }
   return (adj.size || peeks.length) ? {adj, peeks} : null;
@@ -9337,6 +9357,7 @@ function wallBlocksShot(ex, w, hx, hy){
   if(!ex) return true;
   if(ex.adj.has(w)) return false;
   for(const pk of ex.peeks){
+    if(pk.cvAny) continue;   // a join, not a corner
     if(pk.w === w && Math.hypot(hx-pk.cx, hy-pk.cy) < PEEK_R) return false;
   }
   return true;
@@ -9650,7 +9671,7 @@ function ramEnemy(e, speedFrac, rammer, mult){
 
 const banner = document.getElementById('banner');
 let bannerTimer = null;
-function showBanner(text, color, big, boxed){
+function showBanner(text, color, big, boxed, holdMs){
   banner.textContent = text;
   banner.style.color = color || 'var(--brass)';
   banner.style.borderColor = color || 'var(--brass)';
@@ -9659,7 +9680,21 @@ function showBanner(text, color, big, boxed){
   banner.classList.toggle('boxed', !!boxed);
   clearTimeout(bannerTimer);
   bannerTimer = setTimeout(()=>{ banner.style.opacity = 0; banner.classList.remove('big'); banner.classList.remove('boxed'); },
-    (big || boxed) ? 1700 : 900);
+    holdMs || ((big || boxed) ? 1700 : 900));
+}
+// a banner that matters waits until nothing is covering the glass, then stays long enough to read
+function showBannerLater(text, color, holdMs){
+  if(typeof briefOpen !== 'undefined' && briefOpen){
+    (state.bannerQ = state.bannerQ || []).push({text, color, holdMs});
+    return false;
+  }
+  showBanner(text, color, true, false, holdMs || 4000);
+  return true;
+}
+function flushBanners(){
+  const q = state.bannerQ || [];
+  state.bannerQ = [];
+  q.forEach((b, i) => setTimeout(() => showBanner(b.text, b.color, true, false, b.holdMs || 4000), 400 + i * 4300));
 }
 
 // the career ledger: this session's story, layered over the service record
@@ -11103,7 +11138,7 @@ function missionStart(id, extra){
   ship.missions = ship.missions || {};
   if(ship.missions[id]) return false;
   ship.missions[id] = Object.assign({state: 'open', day: ship.day || 0, waypoint: m.waypoint ? Object.assign({}, m.waypoint) : null}, extra || {});
-  showBanner('MISSION STARTED \u00B7 ' + m.name.toUpperCase(), '#d4a843', true);
+  showBannerLater('MISSION STARTED \u00B7 ' + m.name.toUpperCase(), '#d4a843', 4000);
   chronicle('event', 'Mission started: ' + m.name + '.' + (m.waypoint ? ' A waypoint is set for ' + m.waypoint.label + '.' : ''));
   shipSave();
   return true;
@@ -11111,7 +11146,7 @@ function missionStart(id, extra){
 function missionEnd(id, how){
   const ms = ship.missions && ship.missions[id]; if(!ms || ms.state !== 'open') return false;
   ms.state = how || 'done'; ms.waypoint = null;
-  showBanner('MISSION COMPLETE \u00B7 ' + MISSIONS[id].name.toUpperCase(), '#9fe08e', true);
+  showBannerLater('MISSION COMPLETE \u00B7 ' + MISSIONS[id].name.toUpperCase(), '#9fe08e', 4000);
   chronicle('event', 'Mission complete: ' + MISSIONS[id].name + '.');
   shipSave();
   return true;
@@ -11597,7 +11632,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '18 Oct \u00B7 CREW';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '19 Oct \u00B7 MON';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
