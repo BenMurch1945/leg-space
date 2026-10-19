@@ -662,6 +662,11 @@
     text-align:center;pointer-events:none;
     border:1.5px solid rgba(212,168,67,.6);background:rgba(7,9,15,.88);
     padding:22px 46px 14px;box-shadow:0 0 44px rgba(0,0,0,.65);}
+  #missionBanner{position:absolute;top:17%;left:0;right:0;text-align:center;pointer-events:none;opacity:0;transition:opacity .45s;z-index:40;}
+  #missionBanner.show{opacity:1;}
+  #mbKind{font-family:'Cinzel',serif;font-weight:800;font-size:clamp(28px,5vw,50px);letter-spacing:.3em;color:#d4a843;text-shadow:0 0 30px rgba(212,168,67,.45);margin-left:.3em;}
+  #mbKind.done{color:#9fe08e;text-shadow:0 0 30px rgba(159,224,142,.4);}
+  #mbName{font:600 clamp(13px,1.6vw,19px) 'Space Grotesk',sans-serif;letter-spacing:.32em;text-transform:uppercase;color:rgba(232,224,204,.88);margin-top:10px;margin-left:.32em;}
   #banner.boxed{border:1.5px solid;background:rgba(7,9,15,.9);
     padding:12px 26px;box-shadow:0 0 34px rgba(0,0,0,.6);}
   #fiDest{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:15px;
@@ -1330,6 +1335,7 @@
       </div>
     </div>
     <div id="banner"></div>
+    <div id="missionBanner"><div id="mbKind"></div><div id="mbName"></div></div>
     <div id="tune"></div>
     <div id="edpanel"></div>
     <div id="title">Legendary Space, Contract 001</div>
@@ -7040,6 +7046,12 @@ function onMove(e){
       state.hoverShelf = null;
       hideNpcTip();
     }
+    // a door or an arch: what it is, what state it is in, what it takes
+    let dr9 = null;
+    if(!u && !nc && si9 < 0 && state.shipDeck && !state.deckCombat && state.portDock)
+      dr9 = (state.doors || []).find(d => d.label && Math.hypot(d.x - hp2.x, d.y - hp2.y) < 36) || null;
+    if(dr9){ state.hoverDoor = dr9; showDoorTip(dr9, e.clientX, e.clientY); }
+    else if(state.hoverDoor){ state.hoverDoor = null; if(!nc && si9 < 0) hideNpcTip(); }
     if(u && u !== state.hoverUnit){
       state.hoverUnit = u;
       openInspect(u);
@@ -9682,19 +9694,33 @@ function showBanner(text, color, big, boxed, holdMs){
   bannerTimer = setTimeout(()=>{ banner.style.opacity = 0; banner.classList.remove('big'); banner.classList.remove('boxed'); },
     holdMs || ((big || boxed) ? 1700 : 900));
 }
-// a banner that matters waits until nothing is covering the glass, then stays long enough to read
-function showBannerLater(text, color, holdMs){
+// the mission banner: the kind of moment in one line, the name under it, in the top third, for long enough to read
+let missionBannerTimer = null;
+function showMissionBanner(kind, name, done, holdMs){
+  if(typeof document.getElementById !== 'function') return false;
+  const el = document.getElementById('missionBanner');
+  if(!el || !el.classList) return false;
+  const k = document.getElementById('mbKind'), n = document.getElementById('mbName');
+  if(k){ k.textContent = kind; if(k.classList) k.classList.toggle('done', !!done); }
+  if(n) n.textContent = name;
+  el.classList.add('show');
+  clearTimeout(missionBannerTimer);
+  missionBannerTimer = setTimeout(() => el.classList.remove('show'), holdMs || 4500);
+  return true;
+}
+// a banner that matters waits until nothing is covering the glass
+function showBannerLater(kind, name, done, holdMs){
   if(typeof briefOpen !== 'undefined' && briefOpen){
-    (state.bannerQ = state.bannerQ || []).push({text, color, holdMs});
+    (state.bannerQ = state.bannerQ || []).push({kind, name, done, holdMs});
     return false;
   }
-  showBanner(text, color, true, false, holdMs || 4000);
+  showMissionBanner(kind, name, done, holdMs || 4500);
   return true;
 }
 function flushBanners(){
   const q = state.bannerQ || [];
   state.bannerQ = [];
-  q.forEach((b, i) => setTimeout(() => showBanner(b.text, b.color, true, false, b.holdMs || 4000), 400 + i * 4300));
+  q.forEach((b, i) => setTimeout(() => showMissionBanner(b.kind, b.name, b.done, b.holdMs || 4500), 500 + i * 4900));
 }
 
 // the career ledger: this session's story, layered over the service record
@@ -9995,7 +10021,32 @@ function districtGo(to){
   ship.where = 'port'; shipSave();
   return true;
 }
-// the arch tick: the whole crew at one arch goes through it; one of them at it is told to fetch the others
+// what a door would say if you asked it: title, state, and what it takes
+function doorStatus(dr){
+  if(dr.den){
+    const dn = denFacts();
+    if(!dn || dn.done) return {title: dr.label, line: 'SHUT FOR GOOD', tint: '#e0483e', note: 'Whatever was in there is finished.'};
+    if(dn.open) return {title: dr.label, line: 'OPEN', tint: '#9fe08e', note: 'The crew goes in together. Stand everyone at the door.'};
+    return {title: dr.label, line: 'SHUT', tint: '#e0a33e', note: denKeyHeld() ? 'You have the key. Bring the crew to the door.' : 'A lookout, a key, or a hard enough knock.'};
+  }
+  if(!dr.to) return {title: dr.label, line: 'CLOSED FOR WORKS', tint: 'rgba(232,224,204,.6)', note: 'This district is not open yet.'};
+  const dd = districtDef(ship.at, dr.to);
+  return {title: 'TO ' + dr.label, line: 'ARCH', tint: '#6fd6ff', note: 'The crew goes through together. Stand everyone at the arch' + (dd ? ' to reach ' + dd.name : '') + '.'};
+}
+function showDoorTip(dr, cx, cy){
+  if(typeof document.getElementById !== 'function') return;
+  let tip = document.getElementById('npcTip');
+  if(!tip){
+    if(!document.body || !document.body.appendChild) return;
+    tip = document.createElement('div'); tip.id = 'npcTip'; document.body.appendChild(tip);
+  }
+  const st = doorStatus(dr);
+  tip.innerHTML = '<b style="color:' + st.tint + '">' + st.title + '</b><span>' + st.line + '</span><p>' + st.note + '</p>';
+  tip.style.left = (cx + 18) + 'px';
+  tip.style.top = (cy - 10) + 'px';
+  tip.style.display = 'block';
+}
+// the arch tick: the whole crew at one arch goes through it
 function districtDoorTick(){
   if(!state.portDock || state.deckCombat || !ship.district) return;
   const crew = state.squad.filter(c => c.alive && !c.downed && !c.ko);
@@ -10005,22 +10056,17 @@ function districtDoorTick(){
     const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < 70);
     if(!near.length){ dr.armed = true; continue; }
     if(dr.armed === false) continue;   // the arch you just came through waits until you have stepped clear
+    // the door explains itself on hover (doorStatus); here it only acts
     if(dr.den){
-      const dn = denFacts(); const now2 = performance.now();
-      if(!dn || dn.done){ if(!dr._saidT || now2 > dr._saidT){ dr._saidT = now2 + 6000; showBanner(dr.label + ' \u00B7 SHUT FOR GOOD', '#e0a33e'); } continue; }
+      const dn = denFacts();
+      if(!dn || dn.done) continue;
       if(!dn.open && denKeyHeld()){ denOpen('key'); continue; }
-      if(!dn.open){ if(!dr._saidT || now2 > dr._saidT){ dr._saidT = now2 + 5000; showBanner(dr.label + ' \u00B7 SHUT. A LOOKOUT, A KEY, OR A HARD ENOUGH KNOCK', '#e0a33e'); } continue; }
+      if(!dn.open) continue;
       if(near.length === crew.length){ denEnter(); return; }
-      if(!dr._saidT || now2 > dr._saidT){ dr._saidT = now2 + 4000; showBanner('INTO ' + dr.label + ' \u00B7 THE CREW GOES IN TOGETHER', '#6fd6ff'); }
       continue;
     }
-    const now = performance.now();
-    if(!dr.to){
-      if(!dr._saidT || now > dr._saidT){ dr._saidT = now + 6000; showBanner(dr.label + ' \u00B7 CLOSED FOR WORKS', '#e0a33e'); }
-      continue;
-    }
+    if(!dr.to) continue;
     if(near.length === crew.length){ districtGo(dr.to); return; }
-    if(!dr._saidT || now > dr._saidT){ dr._saidT = now + 4000; showBanner('TO ' + dr.label + ' \u00B7 THE CREW GOES THROUGH TOGETHER', '#6fd6ff'); }
   }
   // whoever followed you through comes out of the arch a few strides behind
   if(state.arrivals && state.arrivals.length){
@@ -10128,47 +10174,53 @@ function denLookoutTick(cv){
 // the way in: an unlisted contract, the interior of the unit
 const DEN_LEVEL = {
   name: 'Tallow Street Unit', fee: 0, par: 0, at: 'gateway', crew: 4, hidden: true,
+  world: {w: 2100, h: 1320},   // half again the field: room to pull a rifle back without the mouse hitting glass
   client: 'Nobody', faction: 'THE TALLOW STREET CREW',
   location: 'The Cross \u00B7 Tallow Street', time: 'Now',
   brief: 'A front room, a corridor, and a back office with the man who sent the knife.<br><br>Whoever is in here already knows the door opened. Clear it.',
   objective: 'Clear the unit \u00B7 the man in the back room is the point',
-  player: {x: 0.5, y: 0.92},
+  player: {x: 0.5, y: 0.78},
   walls: [
+    // the mass of the block around the unit: solid building, not floor
+    {x: 0.000, y: 0.000, w: 1.000, h: 0.215, high: true},
+    {x: 0.000, y: 0.785, w: 1.000, h: 0.215, high: true},
+    {x: 0.000, y: 0.000, w: 0.255, h: 1.000, high: true},
+    {x: 0.745, y: 0.000, w: 0.255, h: 1.000, high: true},
     // the shell
-    {x: 0.14, y: 0.08, w: 0.72, h: 0.012, high: true},
-    {x: 0.14, y: 0.08, w: 0.010, h: 0.84, high: true},
-    {x: 0.85, y: 0.08, w: 0.010, h: 0.84, high: true},
-    {x: 0.14, y: 0.91, w: 0.31, h: 0.012, high: true},
-    {x: 0.55, y: 0.91, w: 0.31, h: 0.012, high: true},
+    {x: 0.26, y: 0.22, w: 0.48, h: 0.008, high: true},
+    {x: 0.26, y: 0.22, w: 0.0067, h: 0.56, high: true},
+    {x: 0.7333, y: 0.22, w: 0.0067, h: 0.56, high: true},
+    {x: 0.26, y: 0.7733, w: 0.2067, h: 0.008, high: true},
+    {x: 0.5333, y: 0.7733, w: 0.2067, h: 0.008, high: true},
     // the front room ends at a partition with a gap on the left
-    {x: 0.30, y: 0.62, w: 0.56, h: 0.012, high: true},
-    {x: 0.14, y: 0.62, w: 0.09, h: 0.012, high: true},
+    {x: 0.3667, y: 0.58, w: 0.3733, h: 0.008, high: true},
+    {x: 0.26, y: 0.58, w: 0.06, h: 0.008, high: true},
     // a side store off the corridor
-    {x: 0.14, y: 0.40, w: 0.24, h: 0.012, high: true},
-    {x: 0.37, y: 0.40, w: 0.010, h: 0.14, high: true},
+    {x: 0.26, y: 0.4333, w: 0.16, h: 0.008, high: true},
+    {x: 0.4133, y: 0.4333, w: 0.0067, h: 0.0933, high: true},
     // the back office: the partition with a door on the right
-    {x: 0.44, y: 0.30, w: 0.010, h: 0.33, high: true},
-    {x: 0.44, y: 0.30, w: 0.26, h: 0.012, high: true},
-    {x: 0.78, y: 0.30, w: 0.08, h: 0.012, high: true},
+    {x: 0.46, y: 0.3667, w: 0.0067, h: 0.22, high: true},
+    {x: 0.46, y: 0.3667, w: 0.1733, h: 0.008, high: true},
+    {x: 0.6867, y: 0.3667, w: 0.0533, h: 0.008, high: true},
     // cover
-    {x: 0.32, y: 0.78, w: 0.07, h: 0.025},
-    {x: 0.60, y: 0.74, w: 0.06, h: 0.025},
-    {x: 0.26, y: 0.50, w: 0.05, h: 0.025},
-    {x: 0.56, y: 0.48, w: 0.07, h: 0.025},
-    {x: 0.70, y: 0.42, w: 0.05, h: 0.025},
-    {x: 0.52, y: 0.18, w: 0.06, h: 0.025},
-    {x: 0.74, y: 0.16, w: 0.05, h: 0.025},
+    {x: 0.38, y: 0.6867, w: 0.0467, h: 0.0167},
+    {x: 0.5667, y: 0.66, w: 0.04, h: 0.0167},
+    {x: 0.34, y: 0.5, w: 0.0333, h: 0.0167},
+    {x: 0.54, y: 0.4867, w: 0.0467, h: 0.0167},
+    {x: 0.6333, y: 0.4467, w: 0.0333, h: 0.0167},
+    {x: 0.5133, y: 0.2867, w: 0.04, h: 0.0167},
+    {x: 0.66, y: 0.2733, w: 0.0333, h: 0.0167},
   ],
   enemies: [
-    {x: 0.36, y: 0.70, type: 'named_nessa_vole'},
-    {x: 0.68, y: 0.68, type: 'named_dravin'},
-    {x: 0.24, y: 0.46, type: 'named_sallow'},
-    {x: 0.62, y: 0.45, type: 'named_hob'},
-    {x: 0.78, y: 0.40, type: 'named_corin_ashe'},
-    {x: 0.62, y: 0.16, type: 'named_dace_mortlake'},
+    {x: 0.4067, y: 0.6333, type: 'named_nessa_vole'},
+    {x: 0.62, y: 0.62, type: 'named_dravin'},
+    {x: 0.3267, y: 0.4733, type: 'named_sallow'},
+    {x: 0.58, y: 0.4667, type: 'named_hob'},
+    {x: 0.6867, y: 0.4333, type: 'named_corin_ashe'},
+    {x: 0.58, y: 0.2733, type: 'named_dace_mortlake'},
   ],
   // the strongbox in the back office: the best iron on Tallow Street, and whatever was under it
-  chests: [{x: 0.80, y: 0.14, name: 'Strongbox', loot: [{kind: 'weapon', key: 'rifle', own: 'Dace Mortlake'}, {kind: 'credits', value: 90}]}],
+  chests: [{x: 0.7, y: 0.26, name: 'Strongbox', loot: [{kind: 'weapon', key: 'rifle', own: 'Dace Mortlake'}, {kind: 'credits', value: 90}]}],
   civilians: 0,
   issuer: 'none',
 };
@@ -10433,6 +10485,11 @@ function faceTick(){
   }
   if(b.ff.face === 'fan'){
     const cv = (state.civs || []).find(c3 => c3.name === b.ff.name);
+    // the first shot fired anywhere near is enough: a fan bolts the moment irons are out and live
+    if(cv && cv.alive && !cv.spooked && state.deckCombat && (state.enemies || []).some(e => e.alive && !e.ko)){
+      cv.spooked = true; cv.tide = true; cv.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
+      addPopup(cv.x, cv.y - cv.r - 14, '!!', '#e0483e');
+    }
     if(!cv || cv.gone) return void faceResolve('gone', b.ff.name + ' gave up and drifted off to tell everyone they met ' + (b.ff.famous || 'somebody') + '. Nobody will believe it. Nobody needs to.');
     if(!cv.alive) return void faceResolve('dead', b.ff.name + ' is dead. They thought you were ' + (b.ff.famous || 'somebody famous') + '. That is all they ever thought.');
     if(cv.errand && cv.errand.kind === 'law') return void faceResolve('told', b.ff.name + ' saw what the crew did and ran for the law with it. A fan sees everything; this one talked.');
@@ -11138,7 +11195,7 @@ function missionStart(id, extra){
   ship.missions = ship.missions || {};
   if(ship.missions[id]) return false;
   ship.missions[id] = Object.assign({state: 'open', day: ship.day || 0, waypoint: m.waypoint ? Object.assign({}, m.waypoint) : null}, extra || {});
-  showBannerLater('MISSION STARTED \u00B7 ' + m.name.toUpperCase(), '#d4a843', 4000);
+  showBannerLater('MISSION STARTED', m.name, false, 4500);
   chronicle('event', 'Mission started: ' + m.name + '.' + (m.waypoint ? ' A waypoint is set for ' + m.waypoint.label + '.' : ''));
   shipSave();
   return true;
@@ -11146,7 +11203,7 @@ function missionStart(id, extra){
 function missionEnd(id, how){
   const ms = ship.missions && ship.missions[id]; if(!ms || ms.state !== 'open') return false;
   ms.state = how || 'done'; ms.waypoint = null;
-  showBannerLater('MISSION COMPLETE \u00B7 ' + MISSIONS[id].name.toUpperCase(), '#9fe08e', 4000);
+  showBannerLater('MISSION COMPLETE', MISSIONS[id].name, true, 4500);
   chronicle('event', 'Mission complete: ' + MISSIONS[id].name + '.');
   shipSave();
   return true;
@@ -11632,7 +11689,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '19 Oct \u00B7 MON';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '19 Oct \u00B7 QUIET';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
