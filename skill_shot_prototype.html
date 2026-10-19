@@ -4082,6 +4082,7 @@ function deckDown(p){
       if(state.movePreview && state.movePreview.valid){
         c0.propGoal = true;
         commitMove();
+        squadFollow(lp.x + 20, lp.y + 14);
       }else addPopup(lp.x, lp.y - 20, 'NO PATH', '#e0a33e');
     }
     return;
@@ -4105,6 +4106,7 @@ function deckDown(p){
           if(state.movePreview && state.movePreview.valid){
             c0.shelfGoal = si;
             commitMove();
+            squadFollow(state.shelves[si].x + 18, state.shelves[si].y + 16);
           }else addPopup(state.shelves[si].x, state.shelves[si].y - 18, 'NO PATH', '#e0a33e');
         }
         return;
@@ -4128,6 +4130,7 @@ function deckDown(p){
       if(state.movePreview && state.movePreview.valid){
         c0.npcGoal = ncv.name;
         commitMove();
+        squadFollow(ncv.x + 34, ncv.y + 10);
       }else{
         addPopup(ncv.x, ncv.y - 24, 'NO PATH', '#e0a33e');
       }
@@ -4161,6 +4164,7 @@ function deckDown(p){
       if(state.movePreview && state.movePreview.valid){
         c.deckGoal = st.id;
         commitMove();
+        squadFollow(ax, ay);
       }else{
         addPopup(st.x, st.y - 22, 'NO PATH', '#e0a33e');
       }
@@ -4175,23 +4179,27 @@ function deckDown(p){
   state.movePreview = computeMovePreview(p.x, p.y);
   commitMove();
   // together: the rest of the squad fans out around the same point
-  if(state.squadMove !== false){
-    const selKeep = state.sel;
-    state.squad.forEach((c2, i2) => {
-      if(i2 === selKeep || !c2.alive || c2.downed) return;
-      if(c2.friskT && performance.now() < c2.friskT) return;   // the searched stand still
-      const a2 = i2 * 2.4 + 0.8;
-      state.sel = i2;
-      state.movePreview = computeMovePreview(p.x + Math.cos(a2) * 48, p.y + Math.sin(a2) * 48);
-      if(!(state.movePreview && state.movePreview.valid))
-        state.movePreview = computeMovePreview(p.x, p.y);   // the offset is blocked: share the spot
-      if(state.movePreview && state.movePreview.valid) commitMove();
-      else state.movePreview = null;
-    });
-    state.sel = selKeep;
-    state.movePreview = null;
-    state.moveGraph = null;
-  }
+  if(state.squadMove !== false) squadFollow(p.x, p.y);
+}
+// the rest of the squad fans out around a point the active operator is walking to.
+// Usage clicks (a person, a shelf, a door, a station, a prop) always call this, toggle or no toggle:
+// a crew of two that splits up is a crew of one (Ben, 19 Oct).
+function squadFollow(px, py){
+  const selKeep = state.sel;
+  state.squad.forEach((c2, i2) => {
+    if(i2 === selKeep || !c2.alive || c2.downed) return;
+    if(c2.friskT && performance.now() < c2.friskT) return;   // the searched stand still
+    const a2 = i2 * 2.4 + 0.8;
+    state.sel = i2;
+    state.movePreview = computeMovePreview(px + Math.cos(a2) * 48, py + Math.sin(a2) * 48);
+    if(!(state.movePreview && state.movePreview.valid))
+      state.movePreview = computeMovePreview(px, py);   // the offset is blocked: share the spot
+    if(state.movePreview && state.movePreview.valid) commitMove();
+    else state.movePreview = null;
+  });
+  state.sel = selKeep;
+  state.movePreview = null;
+  state.moveGraph = null;
 }
 let customLevel = {
   name: 'Custom', par: 4,
@@ -10198,17 +10206,19 @@ function doorStatus(dr){
   return {title: 'TO ' + dr.label, line: 'ARCH', tint: '#6fd6ff', note: 'The crew goes through together. Stand everyone at the arch' + (dd ? ' to reach ' + dd.name : '') + '.'};
 }
 // the door, asked properly: its state, what it takes, and (when open) whether to go in
+const DOOR_NEAR = 90;   // a crew fanned out around the threshold still counts as at the door
 function doorInspect(dr){
   const st = doorStatus(dr);
   const leave = {label: 'LEAVE IT', cb: () => {}};
   const crew = (state.squad || []).filter(c => c.alive && !c.downed && !c.ko);
-  const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < 70);
+  const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < DOOR_NEAR);
   const all = near.length === crew.length;
   const walkUp = () => {
     const c0 = pc();
     if(!c0) return;
-    state.movePreview = computeMovePreview(dr.x, dr.y + (dr.y < H * 0.5 ? 40 : -40));
-    if(state.movePreview && state.movePreview.valid) commitMove();
+    const ty = dr.y + (dr.y < H * 0.5 ? 40 : -40);
+    state.movePreview = computeMovePreview(dr.x, ty);
+    if(state.movePreview && state.movePreview.valid){ commitMove(); squadFollow(dr.x, ty); }
     else addPopup(dr.x, dr.y - 24, 'NO PATH', '#e0a33e');
   };
   const headcount = near.length + ' of ' + crew.length + ' operators are at the ';
@@ -10264,7 +10274,7 @@ function districtDoorTick(){
   if(!crew.length) return;
   for(const dr of (state.doors || [])){
     if(!dr.label) continue;
-    const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < 70);
+    const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < DOOR_NEAR);
     if(!near.length){ dr.armed = true; continue; }
     if(dr.armed === false) continue;   // the arch you just came through waits until you have stepped clear
     // the door explains itself on hover (doorStatus); here it only acts
@@ -11940,7 +11950,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '19 Oct \u00B7 SIGNPOST';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '19 Oct \u00B7 TOGETHER';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],

@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 389-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 390-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,10 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### Usage clicks move the crew (19 Oct, late)
+- **Rule (Ben)**: a usage click (a person, a shelf, a door, a station, a prop) walks the WHOLE crew there, SQUAD toggle or not; the toggle only governs plain ground clicks. `squadFollow(px, py)` is the fan-out lifted out of `deckDown` (offsets of 48 px, share the spot if blocked, the frisked stand still); called after every `commitMove()` that sets `deckGoal` / `propGoal` / `shelfGoal` / `npcGoal`, and by `doorInspect`'s WALK TO buttons.
+- `DOOR_NEAR` = 90 px (was 70) in `districtDoorTick` and `doorInspect`, so a crew fanned out round the threshold still counts as at the door. Test `QL4`.
 
 ### Quality of life (19 Oct, evening)
 - **Health carries everywhere (bug fix)**: `layout()` now writes `def.hp = c.hp` for every living operator in the outgoing `state.squad` before it rebuilds the squad, so port damage reaches the Tallow Street contract, contract damage reaches the street, arches and the deck. (Before, only `win()`/`fail()`/the med pod wrote `def.hp`, so a port-hurt operator entered a contract at full health.) The med pod remains the only healing.
