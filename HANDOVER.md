@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 386-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 389-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,13 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### Quality of life (19 Oct, evening)
+- **Health carries everywhere (bug fix)**: `layout()` now writes `def.hp = c.hp` for every living operator in the outgoing `state.squad` before it rebuilds the squad, so port damage reaches the Tallow Street contract, contract damage reaches the street, arches and the deck. (Before, only `win()`/`fail()`/the med pod wrote `def.hp`, so a port-hurt operator entered a contract at full health.) The med pod remains the only healing.
+- **The spotlight**: `spotlightOn(cv, {hold, label})` plants a civ (`cv.held = now + hold`; `errandTick` returns early while held, panic still outranks it), glides the camera to them (`camGlide(x, y, ms)` / `camGlideTick()` in `frame`, cancelled by a middle-mouse pan, zoom untouched) and shows the mission banner as `SITUATION / <name>`. `drawSpotlight()` draws three brass rings closing on the body (reverse pulse) for the hold. `SPOT_HOLD_MS` = 3000, `spotHoldSet(ms)`; the harness sets 0 at the top (QL2 sets 3000 for itself). Wired into `faceTrigger` only so far; the cutpurse act and Stop and Search were left alone on purpose (spotlighting the thief would undo the witness game).
+- **Signposts**: `poiLive(cv)` (named, alive, not ko/gone, not porter/cleaner) gets a slow brass pulse ring under them in free-roam ports; `poiVerb(cv)` gives the top line of the NPC card (`u.tipVerb`: CLICK TO SPEAK TO THE LOOKOUT / THE LAW / TRADE / ...). Door cards carry CLICK TO INSPECT THE DOOR / CLICK FOR THE WAY THROUGH.
+- **The door answers a click**: `doorInspect(dr)` (from `deckDown`, 36 px, before the named-civ check) opens an event modal and returns `{title, body, labels}` for the harness. Den: shut → the three ways in (lookout's price 150 CR / key from his body / smash the low shutter), key held → WALK TO THE DOOR, open → GO IN when the whole crew is within 70 px else WALK TO THE DOOR with a headcount, done → shut for good. Arches: GO THROUGH / WALK TO THE ARCH. Walking uses `computeMovePreview` + `commitMove` for the active operator.
+- Tests `QL1`..`QL3`. Known flakes now: `BZ5 blindspot` (~1/50), `PB1` (seen once in ~12 runs, beat walk; not investigated).
 
 ### Every piece is its own piece (19 Oct, evening)
 - **Rule (Ben)**: looting should be a decision. Two Standard Autoguns are never identical, and the player can read the difference on hover.

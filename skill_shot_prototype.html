@@ -507,6 +507,8 @@
   #npcTip i{display:block;font-style:normal;font-size:9px;letter-spacing:.22em;
     color:rgba(232,224,204,.5);}
   #npcTip em{font-style:normal;font-weight:800;}
+  #npcTip u.tipVerb{display:block;text-decoration:none;font-size:8.5px;letter-spacing:.28em;font-weight:800;
+    color:var(--brass);margin:-4px 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(212,168,67,.25);}
   #ixBtn{position:fixed;z-index:70;display:none;transform:translate(0,-100%);
     background:rgba(11,14,26,.95);border:1.5px solid rgba(159,224,142,.8);color:#9fe08e;
     font:800 11px 'Space Grotesk',sans-serif;letter-spacing:.24em;padding:7px 14px;
@@ -4109,6 +4111,11 @@ function deckDown(p){
       }
     }
   }
+  // a door or an arch: a click reads it, and an open door asks whether to go in
+  if(state.portDock && !state.deckCombat && !unitAtPoint(state.squad, p.x, p.y, 22)){
+    const drC = (state.doors || []).find(d => d.label && Math.hypot(d.x - p.x, d.y - p.y) < 36);
+    if(drC){ doorInspect(drC); return; }
+  }
   // a named face on the concourse: near enough, talk; too far, walk over first
   const ncv = (state.civs || []).find(v => v.name && v.alive && !v.ko &&
     Math.hypot(v.x - p.x, v.y - p.y) < 20);
@@ -4258,6 +4265,10 @@ function layout(){
   }
 
 
+  // the flesh remembers: whatever the last floor cost a body, the next floor starts from
+  for(const c of (s.squad || []))
+    if(c.alive && c.def && typeof c.hp === 'number' && SQUAD_DEFS.includes(c.def))
+      c.def.hp = Math.max(0, Math.min(c.hp, c.maxHp || c.hp));
   // squad spawns around the level's start point, nudged out of any wall
   s.squad = rosterSelection.map(si => SQUAD_DEFS[si]).map((def, i) => {
     // (fresh kit is issued below, after construction)
@@ -7006,6 +7017,58 @@ function camClamp(){
 }
 function camReset(){ cam.zoom = 1; cam.cx = W / 2; cam.cy = H / 2; cam.pan = null; }
 // close on the crew: a new player should see two people and a street, not a whole port
+// the camera slides to a point over a few hundred ms; a middle-mouse grab cancels it
+function camGlide(x, y, ms){
+  cam.glide = {x0: cam.cx, y0: cam.cy, x1: x, y1: y, t0: performance.now(), ms: ms || 800};
+}
+function camGlideTick(){
+  const g = cam.glide;
+  if(!g) return;
+  if(cam.pan){ cam.glide = null; return; }
+  const k = Math.min(1, (performance.now() - g.t0) / g.ms);
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  cam.cx = g.x0 + (g.x1 - g.x0) * e;
+  cam.cy = g.y0 + (g.y1 - g.y0) * e;
+  camClamp();
+  if(k >= 1) cam.glide = null;
+}
+// ---- the spotlight: a person the story just chose, held and shown before they act ----
+let SPOT_HOLD_MS = 3000;
+function spotHoldSet(ms){ SPOT_HOLD_MS = ms; }
+let spot = null;   // {cv, t0, hold}
+function spotlightOn(cv, opts){
+  opts = opts || {};
+  const hold = opts.hold != null ? opts.hold : SPOT_HOLD_MS;
+  const now = performance.now();
+  spot = {cv, t0: now, hold};
+  cv.held = now + hold;                                  // feet planted until the moment has landed
+  if(hold > 0){
+    camGlide(cv.x, cv.y, Math.min(900, hold / 2));
+    showMissionBanner('SITUATION', opts.label || (cv.name ? cv.name.toUpperCase() : 'A FACE IN THE TIDE'), false, Math.max(1600, hold));
+  }
+  return spot;
+}
+function spotlightTick(){
+  if(spot && (!spot.cv.alive || performance.now() - spot.t0 >= spot.hold)) spot = null;
+}
+// rings closing on the chosen one: a reverse pulse, three deep, for as long as the moment holds
+function drawSpotlight(){
+  if(!spot || !spot.cv.alive) return;
+  const cv = spot.cv, now = performance.now();
+  const age = now - spot.t0;
+  const fade = Math.min(1, (spot.hold - age) / 500, age / 200);
+  if(fade <= 0) return;
+  for(let i = 0; i < 3; i++){
+    const k = ((age / 1100) + i / 3) % 1;              // 1 = far out, 0 = on the body
+    const rr = cv.r + 6 + (1 - k) * 110;
+    ctx.strokeStyle = 'rgba(212,168,67,' + (0.75 * k * fade).toFixed(3) + ')';
+    ctx.lineWidth = 1.5 + 2 * k;
+    ctx.beginPath(); ctx.arc(cv.x, cv.y, rr, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(212,168,67,' + (0.9 * fade).toFixed(3) + ')';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cv.x, cv.y, cv.r + 5, 0, Math.PI * 2); ctx.stroke();
+}
 function camFocusCrew(zoom){
   const live = (state.squad || []).filter(c => c.alive);
   if(!live.length) return false;
@@ -8697,6 +8760,10 @@ function witnessRun(cv, crime){
 }
 function errandTick(cv, dt){
   if(cv.panic > 0) return false;   // terror outranks every errand; flee movement handles it
+  if(cv.held){                     // the spotlight: the moment has to land before they move
+    if(performance.now() < cv.held) return true;
+    cv.held = null;
+  }
   const er = cv.errand;
   if(!er) return false;
   // the stalk: a hand drifting toward a stranger's pocket
@@ -10130,6 +10197,52 @@ function doorStatus(dr){
   const dd = districtDef(ship.at, dr.to);
   return {title: 'TO ' + dr.label, line: 'ARCH', tint: '#6fd6ff', note: 'The crew goes through together. Stand everyone at the arch' + (dd ? ' to reach ' + dd.name : '') + '.'};
 }
+// the door, asked properly: its state, what it takes, and (when open) whether to go in
+function doorInspect(dr){
+  const st = doorStatus(dr);
+  const leave = {label: 'LEAVE IT', cb: () => {}};
+  const crew = (state.squad || []).filter(c => c.alive && !c.downed && !c.ko);
+  const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < 70);
+  const all = near.length === crew.length;
+  const walkUp = () => {
+    const c0 = pc();
+    if(!c0) return;
+    state.movePreview = computeMovePreview(dr.x, dr.y + (dr.y < H * 0.5 ? 40 : -40));
+    if(state.movePreview && state.movePreview.valid) commitMove();
+    else addPopup(dr.x, dr.y - 24, 'NO PATH', '#e0a33e');
+  };
+  const headcount = near.length + ' of ' + crew.length + ' operators are at the ';
+  let title = dr.label.toUpperCase(), body, btns = [];
+  if(dr.den){
+    const dn = denFacts();
+    if(!dn || dn.done){
+      body = 'The door on Tallow Street is shut for good. ' + st.note;
+    }else if(dn.open){
+      body = 'The door stands open. ' + (all ? 'The crew is at the threshold. Go in?' : headcount + 'door. Everyone goes in together, so bring the rest.');
+      btns = all ? [{label: 'GO IN', cb: () => { denEnter(); }}] : [{label: 'WALK TO THE DOOR', cb: walkUp}];
+    }else{
+      const key = denKeyHeld();
+      const lk = (state.civs || []).find(cv => cv.kind === 'lookout' && cv.alive && !cv.ko);
+      body = 'Shut. ' + (key
+        ? 'You are holding the key. Stand the crew at the door and it opens.'
+        : 'Shuttered and barred. Three ways in: ' +
+          (lk ? 'the lookout outside has a key and a price (speak to him, buy him off for 150 CR, or take it from his body); '
+              : 'the lookout is gone, and the key with him; ') +
+          'the shutter is low cover, and a hard enough knock brings it down. A gun will do it, loudly.');
+      if(key) btns = [{label: 'WALK TO THE DOOR', cb: walkUp}];
+    }
+  }else if(!dr.to){
+    body = 'Closed for works. ' + st.note;
+  }else{
+    const dd = districtDef(ship.at, dr.to);
+    title = 'TO ' + title;
+    body = 'The arch to ' + (dd ? dd.name : dr.label) + '. ' + (all ? 'The crew is here. Step through together.' : headcount + 'arch. Everyone goes through together.');
+    btns = all ? [{label: 'GO THROUGH', cb: () => { districtGo(dr.to); }}] : [{label: 'WALK TO THE ARCH', cb: walkUp}];
+  }
+  btns.push(leave);
+  showEventModal(title, body, btns);
+  return {title, body, labels: btns.map(b => b.label)};
+}
 function showDoorTip(dr, cx, cy){
   if(typeof document.getElementById !== 'function') return;
   let tip = document.getElementById('npcTip');
@@ -10138,7 +10251,8 @@ function showDoorTip(dr, cx, cy){
     tip = document.createElement('div'); tip.id = 'npcTip'; document.body.appendChild(tip);
   }
   const st = doorStatus(dr);
-  tip.innerHTML = '<b style="color:' + st.tint + '">' + st.title + '</b><span>' + st.line + '</span><p>' + st.note + '</p>';
+  tip.innerHTML = '<u class="tipVerb">' + (dr.den ? 'CLICK TO INSPECT THE DOOR' : dr.to ? 'CLICK FOR THE WAY THROUGH' : 'CLOSED') + '</u>' +
+    '<b style="color:' + st.tint + '">' + st.title + '</b><span>' + st.line + '</span><p>' + st.note + '</p>';
   tip.style.left = (cx + 18) + 'px';
   tip.style.top = (cy - 10) + 'px';
   tip.style.display = 'block';
@@ -10461,6 +10575,7 @@ function faceTrigger(forceKey, forceCv){
   addPopup(cv.x, cv.y - cv.r - 14, '!', '#e0a33e');
   chronicle('event', 'A face in the tide stopped dead, stared at ' + tg.name + ', and started to run.');
   cv.errand = {kind: 'approach', path: [], leg: 0, waitT: 0, spd: civSpd({gait: 1.7}), then: (cvA, tgA) => faceArrive(cvA, tgA)};
+  spotlightOn(cv);                 // the player is shown who, before the running starts
   return cv;
 }
 function faceArrive(cv, tg){
@@ -11825,7 +11940,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '19 Oct \u00B7 ROLLS';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '19 Oct \u00B7 SIGNPOST';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -12728,6 +12843,7 @@ function showNpcTip(cv, cx, cy){
   const tint = cv.kind === 'constable' ? '#b06ae0' : cv.kind === 'trader' ? '#6fd6ff'
     : cv.kind === 'barkeep' ? '#9fe08e' : 'var(--brass)';
   tip.innerHTML =
+    '<u class="tipVerb">' + poiVerb(cv) + '</u>' +
     '<b style="color:' + tint + '">' + cv.name.toUpperCase() + '</b>' +
     '<span>' + (cast.race ? cast.race + ' \u00B7 ' + cast.sex + ' \u00B7 ' : '') +
       (cast.faction || (cv.kind || '').toUpperCase()) + '</span>' +
@@ -12736,6 +12852,19 @@ function showNpcTip(cv, cx, cy){
   tip.style.left = (cx + 18) + 'px';
   tip.style.top = (cy - 10) + 'px';
   tip.style.display = 'block';
+}
+// the verb a click on this person resolves to, for the signpost line at the top of their card
+function poiVerb(cv){
+  if(cv.kind === 'lookout') return 'CLICK TO SPEAK TO THE LOOKOUT';
+  if(cv.kind === 'constable') return 'CLICK TO SPEAK TO THE LAW';
+  if(cv.kind === 'trader' || cv.name === 'Kestrel') return 'CLICK TO TRADE';
+  if(cv.kind === 'barkeep') return 'CLICK TO SPEAK TO THE BARKEEP';
+  if(cv.kind === 'face') return 'CLICK TO SPEAK';
+  return 'CLICK TO SPEAK TO';
+}
+// who on the floor is worth a click: a named face the crew can talk to
+function poiLive(cv){
+  return !!(cv.name && cv.alive && !cv.ko && !cv.gone && cv.kind !== 'porter' && cv.kind !== 'cleaner');
 }
 function hideNpcTip(){
   const tip = (typeof document.getElementById === 'function') && document.getElementById('npcTip');
@@ -14839,6 +14968,7 @@ function frame(now){
   last = now;
   if(state && state.simPause && state.shipDeck && !state.deckCombat) realDt = 0;   // a popup holds the world
   if(state && state.shipDeck && state.squad) deckSeparate();
+  camGlideTick(); spotlightTick();
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();
   if(state && state.squad && !editorOn){
@@ -15966,6 +16096,16 @@ function draw(){
       }
     }
   }
+  // signposts: a soft pulse under anyone a click can reach, so a new hand knows where the game is
+  if(s.civs && s.shipDeck && !s.deckCombat) for(const cv of s.civs){
+    if(!poiLive(cv)) continue;
+    const ph = (performance.now() / 1400 + (cv.bob || 0) / 6) % 1;
+    const rr = cv.r + 4 + ph * 14;
+    ctx.strokeStyle = 'rgba(212,168,67,' + (0.5 * (1 - ph)).toFixed(3) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cv.x, cv.y, rr, 0, Math.PI * 2); ctx.stroke();
+  }
+  drawSpotlight();
   // the crowd: soft grey figures, bobbing, oblivious until they aren't
   if(s.civs) for(const cv of s.civs){
     if(!cv.alive){
