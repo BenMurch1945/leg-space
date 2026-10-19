@@ -60,7 +60,7 @@ const hooked = script.replace('})();',
   'addStress, updateMorale, moraleThresholds, tryRally, decayStress, grazeCheck, updateDetection, updateVisibility, ' +
   'noiseAt, targetHuggingBlocker, enemyDecide, enemyFireAt, allyInLine, raycast, activateAbility, ramEnemy, aimSteadiness, aimBreathSpeed, losHigh, losHighPeek, shooterExemptions, charConcealed, inVisionOf, TUNE, ARCHETYPES, ' +
   'commitWatch, checkOverwatch, inWatchWedge, watchRange, hiddenBehindLow, renameSquad, SQUAD_DEFS, placeScan, ' +
-  'muzzleFlash, enemyDecide, chunksOf, wallAliveFrac, damageChunk, canShootFrom, impactDamage, isFearless, conePolyAt, alertEnemy, memWrite, memTarget, refreshMemory, canPerceive, allyInLine, WEAPONS, pushNoiseRing, sedCap, sedState, addSed, checkWin, renderObjectives, LEVELS, busy, dismissBrief, explainState, STATE_EXPLAINED, hugsCoverAt, showMoveHint, sedMoveMul, maxMoveDist, heroStateLines, stressPop, grazeStressOf, pinStressOf, flushStressPops, setSysPause, dismissSys, WPN_DESC, RACE_INFO, CLASS_INFO, STAT_TIPS, STATE_TIPS, cycleLoadout, SQUAD_DEFS, WPN_SLOTS, wpnFor, commitWatch, RACE_LORE, rosterSelection, toggleSelect, CHAR_BIOS, SERVICE_RECORDS, bark, BARKS, PAIR_TALK, pairTalk, queueBark, careerOf, fmtRecVal, win, showBrief, LEVELS, currentLevel, startRange, exitRange, checkWin, setToggleMode, RANGE_LEVEL, defLocked, contractsAvailable, renderRoster, renderContractPicker, setMissionsWon, cycleContract, setAdvisoryClock, showNextSys, ARCHETYPES, panicCivs, enemyDecide, fail, LEVEL_OPENERS, kill, layout, hitEnemy, unstickFromWalls, addStress, buildMoveGraph, maybeAdviseWatch, setContractsPlayed, W, H, canPerceive, refreshMemory, inVisionOf, enemyVisionRange, hiddenBehindLow, startEnemyTurn, enemyMelee, loadIntoEditor, customLevel: () => customLevel, rosterSel: () => rosterSelection, ship, hireRecruit, buyWeapon, sellWeapon, buySlot, RECRUIT_POOL, recruitAvailable, livingRoster, weaponAllowed, standUp, charDown, charDie, applyInjuries, INJURIES, WPN_PRICE, SLOT_PRICE, shipSave, shipLoad, shipShowPane, endEnemyTurn, squadWipe, setTeamView, buildRosterCard, WPN_META, GROUP_LABELS, CLASS_WEAPON_ACCESS, classAllows, slotLegal, SLOT_LABELS, SLOT_GROUPS, equipWeapon, gridCandidates, openWeaponGrid, closeWeaponGrid, reloadWeapon, clipOf, WPN_CLIP, WPN_AMMO, GROUP_ICONS, bluntSlam, bluntPulseR, isBluntKey, WPN_CALLSIGNS, doShipReset, GALAXY, galaxyNode, daysBetween, travelTo, contractsAt, LEVELS, postingOpen, postingClosesIn, postingReopensIn, boardState, stockAt, RUMOURS, RECRUIT_POOL, deployContract, showPlanet, PORT_DESCS, PORT_AREAS, AREA_LABELS, portGo, SHIP_LEVEL, SHIP_STATIONS, enterShipDeck, leaveShipDeck, deckStation, deckDown, computeMovePreview, commitMove, beginFlight, flightTick, SEC_PER_DAY, deckSeparate, deckMaskGet, beginBoarding, enterDeckCombat, resolveBoarding, exitDeckCombat, startEnemyTurn, endEnemyTurn, checkWin, cam, camClamp, camReset, toLocal, dims: () => ({W, H}), followRun, win, openMedPod, maxMoveDist, ARMOUR_SETS, ISSUE_STOCK, gridCandidates, canUseTile, slotForKey, equipFromBag, tileColor, SLOT_TINTS, openCharSheet, unequipToBag, WEAPONS, nearestHighWallPoint, STATION_LABELS, enterPort, undockToDeck, startPortFight, buildMercyPort, afterActionReturn, LEVELS, deployContract, embedShipInPort, PORT_LEVELS, chronicle, shipLoad, bz, bzSet, worldEnsure, bzCrate, bzPickup, carriedThing, carryAttach, dropCarried, throwCarried, tickProps, syncCargo, lootOf, lootStash, lootTake, lootEquip, lootLeave, lootSpent, packTotal, sellSalvage, carryCardHtml, syncWeaponButtons, bzBuyFromJune, bzReturnToVarric, bzVarricMood, bzConfront, startConstableFight, npcAttitude, enemyFireAt, bzSellToHask, bzGiveBackToJune, portTalk, hireRecruit, buyWeapon, RECRUIT_POOL, checkWin, carveDoorF, checkWin, outfitOf, protMax, applyDamage, openArmourLocker, priceMulAt, buyPrice, sellHeatMul, bzRecruitLocked, bzHaskPrice, bzLawless, BZ_SUCCESSOR, bzCastOf, FACTIONS, facRepOf, facRepAdd, crimeSeen, witnessNerve, CRATE_CRIME, bzSellBackToVarric, stakeSettle, resolveBoarding, beginBoarding, freeRoam, deckDown, draw, ironsToggle, squadMoveToggle, copCamFlush, CROSSPORT_PORT, errandNew, errandTick, crowdTick, crowdSpawn, witnessRun, openGround, inShipZone, civSpd, civStep, BZ_RESERVES, lootOf: lootOf, respRouteBuild, outOfShipZone, nearestRouteIdx, armKey, armFind, provOf, provSet, crewContraband, rapsOf, rapAdd, rapClear, rapsAnyMajor, contrabandOfOp, bzConfiscate, bzSearch, bzFrisk, bzSearchResults, bzSearchAccept, bzArrest, bzArrestComply, bzCrimeWitness, worldSeed, portFacts, orgOf, crimeStage, bzNpcCrimeAct, crimeStepIn, crimeTip, facRepCross, renderStore, renderRecruit, simPauseStart, simResume, tickProps, civTravel, civLineClear, civPathTo, portFightBreakOff, npcAttitude: npcAttitude, canPerceive, memTarget, packEquip, unequipToPack, shopOf, shelfItem, shopBuy, shopSend, shopSteal, shopSeed, eqCardOpen, shelfCompareLines, shopKeeperCiv, castPlacements, placeAt, placeBeside, rngFor, SITUATIONS, situationsTick, situationPick, situationLive, situationOpen, lawStrength, civStruck, squadUnstack, bladeDash, FACES, FACE_NAMES, faceTrigger, faceArrive, faceResolve, faceTick, faceAssassinFight, cleanupCall, bodiesOnFloor, BZ_CLEANUP, makeBoarder, sitDealAll, cnavBuild, cnavDirty, cnavFreeNear, civLineClearR, civBlocked, CNAV, OPERATOR_PRESETS, newGameStart, opPick, opPickCycle, opPickGo, opApply, continueGame, titleShow, saveExists, CROSS_PORT, DISTRICTS, PORT_HOME, CROSS_CAST, districtGo, districtPark, districtWake, districtDoorTick, districtDef, portCast, packGive, packDrop, nearOperators, cacheAt, camFocusCrew, FACE_CAST, namedArchetype, makeNamedFoe, CUBES, cubeItem, cubeOpen, MISSIONS, missionStart, missionEnd, missionsOpen, waypointHere, denFacts, denOpen, denBuy, denLookoutDraw, denEnter, denReturn, denKeyHeld, denDoorWalls, DEN_CAST, DEN_LEVEL, denIdx, afterActionReturn, contractsAt, contrabandOfOp, GANG_CAST, gangRegister, ISSUERS, issuerOf, ARCH_DOSSIERS, shooterExemptions, wallBlocksShot, visionPolyAt, charVisionRange, showBannerLater, flushBanners, showMissionBanner, doorStatus, circleRect, sightMulSet, sightMul: () => SIGHT_MUL, portAnchors, segClearHigh}; })();');
+  'muzzleFlash, enemyDecide, chunksOf, wallAliveFrac, damageChunk, canShootFrom, impactDamage, isFearless, conePolyAt, alertEnemy, memWrite, memTarget, refreshMemory, canPerceive, allyInLine, WEAPONS, pushNoiseRing, sedCap, sedState, addSed, checkWin, renderObjectives, LEVELS, busy, dismissBrief, explainState, STATE_EXPLAINED, hugsCoverAt, showMoveHint, sedMoveMul, maxMoveDist, heroStateLines, stressPop, grazeStressOf, pinStressOf, flushStressPops, setSysPause, dismissSys, WPN_DESC, RACE_INFO, CLASS_INFO, STAT_TIPS, STATE_TIPS, cycleLoadout, SQUAD_DEFS, WPN_SLOTS, wpnFor, commitWatch, RACE_LORE, rosterSelection, toggleSelect, CHAR_BIOS, SERVICE_RECORDS, bark, BARKS, PAIR_TALK, pairTalk, queueBark, careerOf, fmtRecVal, win, showBrief, LEVELS, currentLevel, startRange, exitRange, checkWin, setToggleMode, RANGE_LEVEL, defLocked, contractsAvailable, renderRoster, renderContractPicker, setMissionsWon, cycleContract, setAdvisoryClock, showNextSys, ARCHETYPES, panicCivs, enemyDecide, fail, LEVEL_OPENERS, kill, layout, hitEnemy, unstickFromWalls, addStress, buildMoveGraph, maybeAdviseWatch, setContractsPlayed, W, H, canPerceive, refreshMemory, inVisionOf, enemyVisionRange, hiddenBehindLow, startEnemyTurn, enemyMelee, loadIntoEditor, customLevel: () => customLevel, rosterSel: () => rosterSelection, ship, hireRecruit, buyWeapon, sellWeapon, buySlot, RECRUIT_POOL, recruitAvailable, livingRoster, weaponAllowed, standUp, charDown, charDie, applyInjuries, INJURIES, WPN_PRICE, SLOT_PRICE, shipSave, shipLoad, shipShowPane, endEnemyTurn, squadWipe, setTeamView, buildRosterCard, WPN_META, GROUP_LABELS, CLASS_WEAPON_ACCESS, classAllows, slotLegal, SLOT_LABELS, SLOT_GROUPS, equipWeapon, gridCandidates, openWeaponGrid, closeWeaponGrid, reloadWeapon, clipOf, WPN_CLIP, WPN_AMMO, GROUP_ICONS, bluntSlam, bluntPulseR, isBluntKey, WPN_CALLSIGNS, doShipReset, GALAXY, galaxyNode, daysBetween, travelTo, contractsAt, LEVELS, postingOpen, postingClosesIn, postingReopensIn, boardState, stockAt, RUMOURS, RECRUIT_POOL, deployContract, showPlanet, PORT_DESCS, PORT_AREAS, AREA_LABELS, portGo, SHIP_LEVEL, SHIP_STATIONS, enterShipDeck, leaveShipDeck, deckStation, deckDown, computeMovePreview, commitMove, beginFlight, flightTick, SEC_PER_DAY, deckSeparate, deckMaskGet, beginBoarding, enterDeckCombat, resolveBoarding, exitDeckCombat, startEnemyTurn, endEnemyTurn, checkWin, cam, camClamp, camReset, toLocal, dims: () => ({W, H}), followRun, win, openMedPod, maxMoveDist, ARMOUR_SETS, ISSUE_STOCK, gridCandidates, canUseTile, slotForKey, equipFromBag, tileColor, SLOT_TINTS, openCharSheet, unequipToBag, WEAPONS, nearestHighWallPoint, STATION_LABELS, enterPort, undockToDeck, startPortFight, buildMercyPort, afterActionReturn, LEVELS, deployContract, embedShipInPort, PORT_LEVELS, chronicle, shipLoad, bz, bzSet, worldEnsure, bzCrate, bzPickup, carriedThing, carryAttach, dropCarried, throwCarried, tickProps, syncCargo, lootOf, lootStash, lootTake, lootEquip, lootLeave, lootSpent, packTotal, sellSalvage, carryCardHtml, syncWeaponButtons, bzBuyFromJune, bzReturnToVarric, bzVarricMood, bzConfront, startConstableFight, npcAttitude, enemyFireAt, bzSellToHask, bzGiveBackToJune, portTalk, hireRecruit, buyWeapon, RECRUIT_POOL, checkWin, carveDoorF, checkWin, outfitOf, protMax, applyDamage, openArmourLocker, priceMulAt, buyPrice, sellHeatMul, bzRecruitLocked, bzHaskPrice, bzLawless, BZ_SUCCESSOR, bzCastOf, FACTIONS, facRepOf, facRepAdd, crimeSeen, witnessNerve, CRATE_CRIME, bzSellBackToVarric, stakeSettle, resolveBoarding, beginBoarding, freeRoam, deckDown, draw, ironsToggle, squadMoveToggle, copCamFlush, CROSSPORT_PORT, errandNew, errandTick, crowdTick, crowdSpawn, witnessRun, openGround, inShipZone, civSpd, civStep, BZ_RESERVES, lootOf: lootOf, respRouteBuild, outOfShipZone, nearestRouteIdx, armKey, armFind, provOf, provSet, crewContraband, rapsOf, rapAdd, rapClear, rapsAnyMajor, contrabandOfOp, bzConfiscate, bzSearch, bzFrisk, bzSearchResults, bzSearchAccept, bzArrest, bzArrestComply, bzCrimeWitness, worldSeed, portFacts, orgOf, crimeStage, bzNpcCrimeAct, crimeStepIn, crimeTip, facRepCross, renderStore, renderRecruit, simPauseStart, simResume, tickProps, civTravel, civLineClear, civPathTo, portFightBreakOff, npcAttitude: npcAttitude, canPerceive, memTarget, packEquip, unequipToPack, shopOf, shelfItem, shopBuy, shopSend, shopSteal, shopSeed, eqCardOpen, shelfCompareLines, shopKeeperCiv, castPlacements, placeAt, placeBeside, rngFor, SITUATIONS, situationsTick, situationPick, situationLive, situationOpen, lawStrength, civStruck, squadUnstack, bladeDash, FACES, FACE_NAMES, faceTrigger, faceArrive, faceResolve, faceTick, faceAssassinFight, cleanupCall, bodiesOnFloor, BZ_CLEANUP, makeBoarder, sitDealAll, cnavBuild, cnavDirty, cnavFreeNear, civLineClearR, civBlocked, CNAV, OPERATOR_PRESETS, newGameStart, opPick, opPickCycle, opPickGo, opApply, continueGame, titleShow, saveExists, CROSS_PORT, DISTRICTS, PORT_HOME, CROSS_CAST, districtGo, districtPark, districtWake, districtDoorTick, districtDef, portCast, packGive, packDrop, nearOperators, cacheAt, camFocusCrew, FACE_CAST, namedArchetype, makeNamedFoe, CUBES, cubeItem, cubeOpen, MISSIONS, missionStart, missionEnd, missionsOpen, waypointHere, denFacts, denOpen, denBuy, denLookoutDraw, denEnter, denReturn, denKeyHeld, denDoorWalls, DEN_CAST, DEN_LEVEL, denIdx, afterActionReturn, contractsAt, contrabandOfOp, GANG_CAST, gangRegister, ISSUERS, issuerOf, ARCH_DOSSIERS, shooterExemptions, wallBlocksShot, visionPolyAt, charVisionRange, showBannerLater, flushBanners, showMissionBanner, doorStatus, circleRect, sightMulSet, sightMul: () => SIGHT_MUL, portAnchors, segClearHigh, wpnRoll, wpnView, wpnItemMods, provMods, wpnModsOf, clipOfC, wpnCompareRows, wpnTableHtml, provFields, armEntry, armModsAt, wpnStatList, WPN_SPREAD}; })();');
 eval(hooked);
 const G = global.window.__G;
 G.restart(); G.dismissBrief();   // step off the boot-time firing range before testing
@@ -5711,3 +5711,117 @@ const qt1 = (() => {
 })();
 console.log('QT1 doors speak on hover, the unit has room to breathe:', qt1.ok ? 'PASS' : 'FAIL',
   `(shut ${qt1.a}, key ${qt1.b}, open ${qt1.c}, arch ${qt1.d}, closed ${qt1.e}, roomy ${qt1.roomy}, massed ${qt1.massed}, start clear ${qt1.start}, foes clear ${qt1.foes})`);
+
+
+// ---- RL: every piece is its own piece ----
+// RL1 a roll stays inside the spread and never changes what kind of gun it is
+const rl1 = (() => {
+  let inside = true, kinds = true, biased = 0;
+  for(let i = 0; i < 300; i++){
+    for(const key of ['stdautogun', 'rifle', 'mg88', 'pistol', 'blade', 'dart']){
+      const m = G.wpnRoll(key);
+      const w = G.wpnView(key, m), b = G.WEAPONS[key];
+      for(const k of ['dmg', 'rng', 'noise', 'bloom']) if(m[k] != null && Math.abs(m[k] - 1) > G.WPN_SPREAD + 1e-9) inside = false;
+      if(m.clip != null && Math.abs(m.clip) > Math.max(1, Math.round(G.WPN_CLIP[key] * G.WPN_SPREAD))) inside = false;
+      if(w.burst !== b.burst || w.pen !== b.pen || w.apCost !== b.apCost || w.melee !== b.melee || w.critMul !== b.critMul) kinds = false;
+      if(G.clipOf(key, m) < 1) inside = false;
+    }
+    if(G.wpnRoll('rifle', 1).dmg >= 1) biased++;
+  }
+  const nominal = G.wpnRoll('unarmed') === null && G.wpnView('rifle', null) === G.WEAPONS.rifle;
+  // the strongbox leans high: a biased roll lands above nominal far more often than not
+  return {ok: inside && kinds && nominal && biased > 200, inside, kinds, nominal, biased};
+})();
+console.log('RL1 rolls stay in the spread and keep the kind:', rl1.ok ? 'PASS' : 'FAIL', `(inside ${rl1.inside}, kinds ${rl1.kinds}, nominal ${rl1.nominal}, biased ${rl1.biased}/300)`);
+
+// RL2 the hand fires what it holds: mods ride provenance into wpnFor and the clip
+const rl2 = (() => {
+  G.enterPort();
+  const c = G.state.squad[0], d = c.def;
+  const key0 = d.loadout.primary;
+  const mods = {dmg: 1.08, rng: 0.92, noise: 1.05, bloom: 0.9, clip: 2};
+  c.slot = 'primary'; c.weapon = key0;
+  G.provSet(d, 'primary', {mods});
+  const w = G.wpnFor(c), b = G.WEAPONS[key0];
+  const dmgUp = Math.abs(w.dmg - Math.round(b.dmg * 1.08 * 10) / 10) < 0.051;
+  const rngDown = Math.abs(w.life - b.life * 0.92) < 1e-9;
+  const clip = G.clipOfC(c) === G.WPN_CLIP[key0] + 2;
+  const paperless = G.provOf(d, 'primary') && !G.provOf(d, 'primary').own && !!G.provOf(d, 'primary').mods;
+  // a roll without paper is not stolen goods
+  const law = G.contrabandOfOp(d.name);
+  const clean = law.stolen.length === 0 && law.badge.length === 0;
+  // and it survives the books
+  G.shipSave(); G.shipLoad();
+  const d2 = G.SQUAD_DEFS.find(d3 => d3.name === d.name);
+  const kept = G.provMods(d2, 'primary') && G.provMods(d2, 'primary').clip === 2;
+  G.provSet(d2, 'primary', null); G.provSet(d, 'primary', null);
+  G.undockToDeck(); G.doShipReset();
+  return {ok: dmgUp && rngDown && clip && paperless && clean && kept, dmgUp, rngDown, clip, paperless, clean, kept};
+})();
+console.log('RL2 the hand fires what it holds:', rl2.ok ? 'PASS' : 'FAIL', `(dmg ${rl2.dmgUp}, range ${rl2.rngDown}, clip ${rl2.clip}, paperless ${rl2.paperless}, clean ${rl2.clean}, kept ${rl2.kept})`);
+
+// RL3 the roll travels: body to hand, hand to body, hand to pack, pack to hand, rack by index
+const rl3 = (() => {
+  G.enterPort();
+  G.startConstableFight();
+  const dren = G.state.enemies.find(e2 => e2.name === 'Dren');
+  dren.alive = false;
+  const c = G.state.squad[0], d = c.def;
+  const key0 = d.loadout.primary;
+  const loot = G.lootOf(dren);
+  const lw = loot.findIndex(it => it.kind === 'weapon');
+  const it = loot[lw];
+  const rolled = G.wpnItemMods(it) && typeof it.mods.dmg === 'number';
+  const slot = G.slotForKey(it.key);
+  const mods = it.mods;
+  const swapped = G.lootEquip(c, dren, lw, slot) && G.provMods(d, slot) === mods;
+  // the old piece lies on the body as nominal, explicitly
+  const old = dren.loot.find(it2 => it2.kind === 'weapon' && it2.key === (slot === 'primary' ? key0 : null) || (slot !== 'primary' && it2.kind === 'weapon' && it2.mods === null));
+  const oldNominal = !!old && old.mods === null && G.wpnItemMods(old) === null;
+  // into the pack and back: the same roll
+  const toPack = G.unequipToPack(c, slot) && d.pack[d.pack.length - 1].mods === mods;
+  const backOut = G.packEquip(c, d.pack.length - 1, slot) && G.provMods(d, slot) === mods;
+  // the rack: two of a kind, each its own
+  G.ship.armoury.length = 0;
+  G.ship.armoury.push({key: 'mg', mods: {dmg: 1.05}}, {key: 'mg', mods: {dmg: 0.95}});
+  const dm = G.SQUAD_DEFS.find(d3 => G.weaponAllowed(d3, 'mg') && !d3.dead) || d;
+  const okMg = G.weaponAllowed(dm, 'mg');
+  let byIdx = !okMg;
+  if(okMg){
+    const keep = {p: dm.loadout.primary, s: dm.loadout.sidearm, pv: dm.prov ? {...dm.prov} : null};
+    byIdx = G.equipWeapon(dm, 'primary', 'mg', 1) && G.provMods(dm, 'primary').dmg === 0.95 &&
+      G.ship.armoury.some(a => a.key === 'mg' && a.mods.dmg === 1.05) && G.armModsAt(0) && G.armModsAt(0).dmg === 1.05;
+    dm.loadout.primary = keep.p; dm.loadout.sidearm = keep.s; dm.prov = keep.pv || undefined;
+  }
+  for(const e2 of G.state.enemies) e2.alive = false;
+  G.checkWin();
+  G.undockToDeck(); G.doShipReset();
+  return {ok: rolled && swapped && oldNominal && toPack && backOut && byIdx, rolled, swapped, oldNominal, toPack, backOut, byIdx};
+})();
+console.log('RL3 the roll travels with the piece:', rl3.ok ? 'PASS' : 'FAIL', `(rolled ${rl3.rolled}, swapped ${rl3.swapped}, old nominal ${rl3.oldNominal}, pack ${rl3.toPack}, back ${rl3.backOut}, rack by index ${rl3.byIdx})`);
+
+// RL4 the table reads right: better is green, lower noise is better, the held piece shows no rival
+const rl4 = (() => {
+  G.enterPort();
+  const c = G.state.squad.find(c2 => c2.def.loadout.primary === 'stdautogun') || G.state.squad[0];
+  const d = c.def, key = d.loadout.primary;
+  G.provSet(d, 'primary', null);
+  const cmp = G.wpnCompareRows(key, {dmg: 1.05, noise: 1.05, clip: -1, rng: 1}, c);
+  const row = (l) => cmp.rows.find(r => r.label === l);
+  const dmg = row('DAMAGE') && row('DAMAGE').better === true && row('DAMAGE').hv === G.WEAPONS[key].dmg;
+  const noise = row('NOISE') && row('NOISE').better === false;
+  const clip = !row('CLIP') || row('CLIP').better === false;
+  const burst = row('BURST') && row('BURST').better === null;
+  const self = G.wpnCompareRows(key, null, c, {self: true}).curK === null;
+  const html = G.wpnTableHtml(key, {dmg: 1.05}, c);
+  const shows = html.indexOf('HELD') >= 0 && html.indexOf('#9fe08e') >= 0 && html.indexOf('—') < 0;
+  // a blade reads reach and dash, not clip
+  const blade = G.wpnStatList(G.WEAPONS.blade, 'blade').map(r => r[0]);
+  const bladeOk = blade.includes('REACH') && blade.includes('DASH') && !blade.includes('CLIP');
+  // the shop card still speaks delta
+  const shelf = G.shelfCompareLines(key, c, {dmg: 1.05}).rows.join('');
+  const shelfOk = shelf.indexOf('(+') >= 0;
+  G.undockToDeck(); G.doShipReset();
+  return {ok: dmg && noise && clip && burst && self && shows && bladeOk && shelfOk, dmg, noise, clip, burst, self, shows, bladeOk, shelfOk};
+})();
+console.log('RL4 the table reads right:', rl4.ok ? 'PASS' : 'FAIL', `(dmg ${rl4.dmg}, noise ${rl4.noise}, clip ${rl4.clip}, burst ${rl4.burst}, self ${rl4.self}, shows ${rl4.shows}, blade ${rl4.bladeOk}, shelf ${rl4.shelfOk})`);

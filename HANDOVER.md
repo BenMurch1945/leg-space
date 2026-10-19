@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 382-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 386-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,16 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### Every piece is its own piece (19 Oct, evening)
+- **Rule (Ben)**: looting should be a decision. Two Standard Autoguns are never identical, and the player can read the difference on hover.
+- **Mods**: a weapon instance is `key + mods`, `mods = {dmg, rng, noise, bloom}` multipliers within `WPN_SPREAD` (0.08) of 1 and `clip` an integer within `round(clip*0.08)` (min 1). `wpnRoll(key, bias)` rolls one (`bias: 1` takes the better of two rolls per stat: the strongbox rifle). Burst, pellets, pen, AP, crit, group and class rating NEVER move. `unarmed`/`trainer` never roll. `mods: null` means nominal and stays nominal; `undefined` rolls lazily the first time anyone looks (`wpnItemMods(it)`), so every preset loot array, `lootOf`, shop stock and the like roll without being touched.
+- **Resolution**: `wpnView(key, mods)` is the pattern wearing its mods (dmg, clipDmg, sed, life or melee range, noise, bloom, altMode). `wpnFor(c)` applies `wpnModsOf(c)` (= `provMods(c.def, c.slot)` when `loadout[slot] === c.weapon`) with a per-character cache `c._wv`. `clipOf(key, mods)` / `clipOfC(c)` size the mag; spawn mags use `provMods`. Foes fire nominal (archetype aim rules them); their gun rolls when it hits the floor.
+- **Where mods live**: pack/loot/cache items carry `mods`; `def.prov[slot]` carries `{own?, ownFac?, mods}` via `provFields(pv)`; rack entries via `armEntry(key, pv)` (an object whenever there is paper OR a roll); porter `cv.carryMods`; shop `shopBuy/shopSteal/shopSend` pass the shelf item's roll. `provSet` keeps a slot entry when it has mods even with no paper; the law (`contrabandOfOp`, `bzConfiscate`) now checks `pv.own || pv.ownFac`, not just `pv`, so a rolled piece of your own is not stolen goods.
+- **Rack by index**: ship-stores tiles carry `data-arm` (index into `ship.armoury`); `equipFromBag(c, key, armIdx)` → `equipWeapon(def, slot, key, armIdx)` takes THAT entry, so two Ares-7s can be told apart. `armModsAt(i)`.
+- **Tables**: `wpnStatList(w, key)` → rows [SEDATIVE?, DAMAGE, PELLETS?, BURST, CLIP, RANGE/REACH, DASH (melee), NOISE, PEN, SPREAD (deg), AP] with a lower-is-better flag. `wpnCompareRows(key, mods, c, {self})` compares against what `c` holds in the same slot (`self: true` = this IS the held piece, no rival). `wpnTableHtml(...)` renders the `.wst` grid (STAT / THIS / HELD; green better, red worse, dim equal; "HELD: <name>" footer). Shown on: loot and pack tile hover (`tipForItem`), slot and rack tile hover, the paper panel `#csInfoBox` (now 290 px), and `csStatline` under each slot. The shop card's `shelfCompareLines(key, c, mods)` is built on the same rows and keeps its (+delta) style. `csTipPlace(tip, rect)` flips a tooltip below its tile when it would leave the top of the screen.
+- Compare is against the operator whose sheet is open (Ben: "if the other operator wants a look, they walk over"). Names and tiles do not show quality; the numbers are the only tell.
+- Tests `RL1`..`RL4` (the WV label was already taken by provenance). 5-run battery clean.
 
 ### Quieter glass (19 Oct, afternoon)
 - **Rule (Ben)**: information about an object lives on its MOUSEOVER, not in a fleeting banner. `doorStatus(dr)` → {title, line, note}; `showDoorTip` reuses `#npcTip`; the pointer-move hover checks doors within 36 px after units/civs/shelves (`state.hoverDoor`). `districtDoorTick` no longer shows any banner: it only acts (arch crossing, key unlock, den entry).

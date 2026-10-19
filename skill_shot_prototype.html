@@ -531,7 +531,7 @@
     font:800 13px 'Space Grotesk',sans-serif;color:var(--brass);
     text-shadow:0 1px 3px rgba(0,0,0,.9);}
   #csInfoBox{margin-top:16px;border:1.5px solid rgba(232,224,204,.18);background:rgba(5,7,13,.55);
-    padding:16px 18px;height:200px;overflow-y:auto;box-sizing:border-box;}
+    padding:16px 18px;height:290px;overflow-y:auto;box-sizing:border-box;}
   .csiName{font-family:'Cinzel',serif;font-size:17px;font-weight:800;letter-spacing:.08em;
     white-space:nowrap;}
   .csiLine{font-size:10.5px;letter-spacing:.2em;color:rgba(232,224,204,.55);margin:4px 0 12px;
@@ -558,6 +558,15 @@
     padding:7px 12px;pointer-events:none;text-align:center;white-space:nowrap;
     box-shadow:0 4px 18px rgba(0,0,0,.8);}
   #csTip b{display:block;font-size:13px;font-weight:800;letter-spacing:.06em;}
+  .wst{display:grid;grid-template-columns:auto auto;gap:2px 14px;margin-top:7px;padding-top:6px;
+    border-top:1px solid rgba(232,224,204,.14);text-align:right;font-size:11px;line-height:1.25;}
+  .wst.wstHeld{grid-template-columns:auto auto auto;}
+  .wst i{font-style:normal;font-size:8px;letter-spacing:.22em;color:rgba(232,224,204,.4);padding-bottom:2px;}
+  .wst span{text-align:left;color:rgba(232,224,204,.6);letter-spacing:.14em;font-size:9px;align-self:center;}
+  .wst b{display:inline;font-size:12px;font-weight:800;letter-spacing:0;}
+  .wst em{font-style:normal;color:rgba(232,224,204,.55);font-size:12px;}
+  .wstVs{display:block;text-decoration:none;font-size:8px;letter-spacing:.22em;color:rgba(232,224,204,.4);margin-top:5px;}
+  #csTip .wst{text-align:right;}
   #csTip span{display:block;font-size:9px;letter-spacing:.26em;color:rgba(232,224,204,.6);
     margin-top:2px;}
   #csGhost{position:fixed;z-index:99;width:68px;height:68px;pointer-events:none;
@@ -1445,8 +1454,69 @@ const WEAPONS = {
             burstGap:0, bloom:0, pen:0, noise:40,
             coneMin:3*DEG, coneMax:30*DEG, coneSpeed:5},
 };
+// ---- every piece is its own piece: the key names the pattern, mods say how this one came off the line ----
+// mods: {dmg, rng, noise, bloom} multipliers and {clip} rounds, each a few points either side of
+// nominal. Burst, penetration, AP cost, group and class rating never move: a gun stays its kind.
+const WPN_SPREAD = 0.08;
+function wpnRoll(key, bias){
+  const w = WEAPONS[key];
+  if(!w || key === 'unarmed' || key === 'trainer') return null;
+  const roll = () => {
+    let u = Math.random() * 2 - 1;
+    if(bias){ const u2 = Math.random() * 2 - 1; u = bias > 0 ? Math.max(u, u2) : Math.min(u, u2); }
+    return u;
+  };
+  const mul = (lowGood) => Math.round((1 + (lowGood ? -1 : 1) * roll() * WPN_SPREAD) * 1000) / 1000;
+  const m = {dmg: mul(), rng: mul(), noise: mul(true)};
+  if(!w.melee){
+    if(w.bloom) m.bloom = mul(true);
+    const clip = WPN_CLIP[key] || 0;
+    if(clip) m.clip = Math.round(roll() * Math.max(1, Math.round(clip * WPN_SPREAD)));
+  }
+  return m;
+}
+const wpnRound = (v) => v < 1 ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10;
+// the pattern wearing its mods: what the hand actually holds
+function wpnView(key, mods){
+  const base = WEAPONS[key];
+  if(!base || !mods) return base;
+  const w = {...base};
+  if(mods.dmg){
+    w.dmg = wpnRound(base.dmg * mods.dmg);
+    if(base.clipDmg) w.clipDmg = wpnRound(base.clipDmg * mods.dmg);
+    if(base.sed) w.sed = Math.round(base.sed * mods.dmg);
+  }
+  if(mods.rng){ if(base.melee) w.range = Math.round(base.range * mods.rng); else w.life = base.life * mods.rng; }
+  if(mods.noise) w.noise = Math.round(base.noise * mods.noise);
+  if(mods.bloom && base.bloom) w.bloom = base.bloom * mods.bloom;
+  if(base.altMode){
+    const a = {...base.altMode};
+    if(mods.dmg && a.dmg) a.dmg = wpnRound(a.dmg * mods.dmg);
+    if(mods.noise && a.noise) a.noise = Math.round(a.noise * mods.noise);
+    if(mods.bloom && a.bloom) a.bloom = a.bloom * mods.bloom;
+    w.altMode = a;
+  }
+  return w;
+}
+function provMods(def, slot){ const pv = def && slot ? provOf(def, slot) : null; return (pv && pv.mods) || null; }
+function wpnModsOf(c){
+  if(!c || !c.def || !c.slot || !c.def.loadout || c.def.loadout[c.slot] !== c.weapon) return null;
+  return provMods(c.def, c.slot);
+}
+// a loose item rolls the first time anyone looks at it; null means nominal and stays that way
+function wpnItemMods(it){
+  if(!it || it.kind !== 'weapon') return null;
+  if(it.mods === undefined) it.mods = WEAPONS[it.key] ? wpnRoll(it.key, it.bias) : null;
+  return it.mods || null;
+}
 const wpnFor = (c) => {
-  const base = WEAPONS[c.weapon];
+  const mods = wpnModsOf(c);
+  let base = WEAPONS[c.weapon];
+  if(mods){
+    const cv = c._wv;
+    if(cv && cv.key === c.weapon && cv.mods === mods) base = cv.w;
+    else{ base = wpnView(c.weapon, mods); c._wv = {key: c.weapon, mods, w: base}; }
+  }
   return (base && base.altMode && c.fireMode === 'burst') ? {...base, ...base.altMode} : base;
 };
 const wpn = () => wpnFor(pc());
@@ -3313,7 +3383,7 @@ function unequipToBag(c, slotId){
   shipSave();
   return true;
 }
-function equipFromBag(c, key){
+function equipFromBag(c, key, armIdx){
   // the drop, resolved by law: weapons through the racks, suits through the wardrobe
   const def = c.def;
   if(ARMOUR_SETS[key]){
@@ -3332,9 +3402,9 @@ function equipFromBag(c, key){
   }
   const slot = slotForKey(key);
   if(!slot) return false;
-  if(!equipWeapon(def, slot, key)) return false;
+  if(!equipWeapon(def, slot, key, armIdx)) return false;
   c.weapon = def.loadout[c.slot] || 'unarmed';
-  if(c.mag && WPN_CLIP[key]) c.mag[slot] = WPN_CLIP[key];   // a fresh piece arrives loaded
+  if(c.mag && WPN_CLIP[key]) c.mag[slot] = clipOf(key, provMods(def, slot));   // a fresh piece arrives loaded
   shipSave();
   return true;
 }
@@ -3354,10 +3424,10 @@ function packEquip(c, pi, slot){
   provSet(d, slot, it);
   d.pack.splice(pi, 1);
   if(old) d.pack.splice(Math.min(pi, d.pack.length), 0,
-    Object.assign({kind: 'weapon', key: old}, pvOld ? {own: pvOld.own, ownFac: pvOld.ownFac} : {}));
+    Object.assign({kind: 'weapon', key: old}, provFields(pvOld)));
   if(c.slot === slot) c.weapon = it.key;
   if(c.mag && WPN_CLIP[it.key])
-    c.mag[slot] = Math.max(1, Math.floor(WPN_CLIP[it.key] * (0.4 + 0.5 * Math.random())));
+    c.mag[slot] = Math.max(1, Math.floor(clipOf(it.key, it.mods) * (0.4 + 0.5 * Math.random())));
   shipSave();
   return true;
 }
@@ -3370,7 +3440,7 @@ function unequipToPack(c, slotId){
   if(!Array.isArray(d.pack)) d.pack = [];
   if(d.pack.length >= 4) return false;
   const pv = provOf(d, slotId);
-  d.pack.push(Object.assign({kind: 'weapon', key}, pv ? {own: pv.own, ownFac: pv.ownFac} : {}));
+  d.pack.push(Object.assign({kind: 'weapon', key}, provFields(pv)));
   d.loadout[slotId] = null;
   provSet(d, slotId, null);
   if(c.slot === slotId) c.weapon = 'unarmed';
@@ -3388,16 +3458,29 @@ const ARCH_DOSSIERS = {
 };
 let sheetDrag = null;
 let sheetCtx = null;   // {c, render}: the ov-level listeners read the live context
-function csStatline(c, key){
+// a tooltip sits above its tile, or below it when the top of the screen is in the way
+function csTipPlace(tip, r){
+  tip.style.display = 'block';
+  tip.style.left = (r.left + r.width / 2) + 'px';
+  const h = tip.offsetHeight || 0;
+  if(r.top - 8 - h < 4){
+    tip.style.top = ((r.bottom || r.top) + 8) + 'px';
+    tip.style.transform = 'translate(-50%, 0)';
+  }else{
+    tip.style.top = (r.top - 8) + 'px';
+    tip.style.transform = 'translate(-50%, -100%)';
+  }
+}
+function csStatline(c, key, mods){
   if(!key) return '-';
   if(ARMOUR_SETS[key]){
     const set = ARMOUR_SETS[key];
     return 'PROT ' + Math.round(c.armor || 0) + ' / ' + set.prot;
   }
-  const w = WEAPONS[key] || {};
+  const w = wpnView(key, mods) || {};
   if(w.melee) return 'DMG ' + w.dmg + ' \u00B7 RNG ' + Math.round(w.range || 0);
   return 'DMG ' + w.dmg + (w.burst > 1 ? '\u00D7' + w.burst : '') +
-    ' \u00B7 CLIP ' + (WPN_CLIP[key] || '-') + ' \u00B7 PEN ' + (w.pen != null ? w.pen : 0);
+    ' \u00B7 CLIP ' + (isFinite(clipOf(key)) ? clipOf(key, mods) : '-') + ' \u00B7 PEN ' + (w.pen != null ? w.pen : 0);
 }
 const LOOT_ICONS = {
   datacube: '<path d="M20 6 L33 13 L33 27 L20 34 L7 27 L7 13 Z M7 13 L20 20 L33 13 M20 20 L20 34" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>',
@@ -3475,7 +3558,7 @@ function openCharSheet(c, mode, corpse){
       }else{
         const slotEl = drop && drop.closest ? drop.closest('.csSlot') : null;
         if(slotEl && slotEl.dataset.slot === slotForKey(sheetDrag.key)){
-          if(equipFromBag(sheetCtx.c, sheetDrag.key)) sheetCtx.render();
+          if(equipFromBag(sheetCtx.c, sheetDrag.key, sheetDrag.armIdx)) sheetCtx.render();
         }
       }
       if(sheetDrag.ghost && sheetDrag.ghost.remove) sheetDrag.ghost.remove();
@@ -3502,6 +3585,7 @@ function openCharSheet(c, mode, corpse){
         '<div class="csiLine">' + it.kind.toUpperCase() +
           (it.value && it.kind !== 'credits' ? ' \u00B7 WORTH ' + it.value + ' CR AT A VENDOR' : '') + '</div>' +
         (it.own ? '<div class="csiLine" style="color:#e0a33e">TAKEN FROM ' + it.own.toUpperCase() + '</div>' : '') +
+        (it.kind === 'weapon' && !foe ? wpnTableHtml(it.key, wpnItemMods(it), c) : '') +
         '<div class="csiDesc">' + (it.kind === 'weapon' ? (WPN_DESC[it.key] || '')
           : it.kind === 'credits' ? 'Hard currency. Click it and it is yours; nobody will mind.'
           : it.kind === 'gear' ? 'Field equipment. It rides in a pocket until it is needed.'
@@ -3522,16 +3606,15 @@ function openCharSheet(c, mode, corpse){
         '<div class="csiDesc">' + set.desc + '</div>';
       return;
     }
-    const w = WEAPONS[key] || {}, m = WPN_META[key] || {};
-    const rows = [];
-    if(w.melee){ rows.push(['DAMAGE', String(w.dmg)], ['RANGE', String(Math.round(w.range || 0))]); }
-    else{ rows.push(['DAMAGE', w.dmg + (w.pellets > 1 ? ' \u00D7' + w.pellets : '') + (w.burst > 1 ? ' \u00D7' + w.burst : '')],
-                    ['CLIP', String(WPN_CLIP[key] || '-')], ['PEN', String(w.pen != null ? w.pen : '-')]); }
-    rows.push(['NOISE', String(w.noise || 0)]);
+    const m = WPN_META[key] || {};
+    // which piece: the held one in its slot, or a rack entry, or issue stock
+    const heldSlot = (d.loadout && (d.loadout.primary === key ? 'primary' : d.loadout.sidearm === key ? 'sidearm' : null)) || null;
+    const selT = ov.querySelector('.csTile.csSel[data-key="' + key + '"]');
+    const modsP = heldSlot ? provMods(d, heldSlot) : (selT && selT.dataset.arm != null ? armModsAt(+selT.dataset.arm) : null);
     panel.innerHTML = '<div class="csiName" style="color:' + tileColor(key) + '">' + (WPN_NAMES[key] || key).toUpperCase() + '</div>' +
       '<div class="csiLine">' + (GROUP_LABELS[m.group] || '').toUpperCase() + ' \u00B7 ' + (WPN_CALLSIGNS[key] || '') +
-        (ISSUE_STOCK.includes(key) ? ' \u00B7 ISSUE' : '') + '</div>' +
-      '<div class="csiRows">' + rows.map(([k2, v]) => '<span>' + k2 + '</span><b>' + v + '</b>').join('') + '</div>' +
+        (ISSUE_STOCK.includes(key) ? ' \u00B7 ISSUE' : '') + (heldSlot ? ' \u00B7 IN HAND' : '') + '</div>' +
+      (foe ? '' : wpnTableHtml(key, modsP, c, {self: !!heldSlot})) +
       (canUseTile(d, key) ? '' : '<div class="csiSpec" style="color:#e0483e">NOT RATED FOR ' + (d.cls || '').toUpperCase() + '</div>') +
       '<div class="csiDesc">' + (WPN_DESC[key] || '') + '</div>';
   };
@@ -3569,7 +3652,7 @@ function openCharSheet(c, mode, corpse){
               tileSvg(sl.key) + '</div>' : '<div class="csTile csEmpty">-</div>') +
             '<div class="csSlotName"' + (sl.key ? ' style="color:' + tileColor(sl.key) + '"' : '') + '>' +
               (sl.key ? (WPN_NAMES[sl.key] || (ARMOUR_SETS[sl.key] || {}).name || sl.key) : 'Empty') + '</div>' +
-            '<div class="csSlotStat">' + (sl.key ? csStatline(c, sl.key)
+            '<div class="csSlotStat">' + (sl.key ? csStatline(c, sl.key, provMods(d, sl.id))
               : (sl.id === 'primary' || sl.id === 'sidearm') ? 'UNARMED \u00B7 DMG = STRENGTH' : '-') + '</div>' +
           '</div>').join('') + '</div>' +
         '<div class="csStats">' + statLines.map(([k2, v]) =>
@@ -3605,13 +3688,16 @@ function openCharSheet(c, mode, corpse){
       '</div>';
     }else if(mode === 'loadout'){
       const bagKeys = ISSUE_STOCK.concat(ship.armoury.map(armKey), ship.wardrobe.filter(id => ARMOUR_SETS[id]));
+      const armAt = (i2) => i2 - ISSUE_STOCK.length;   // rack index of a cell, or negative for issue
       const cells = Math.max(16, Math.ceil(bagKeys.length / 4) * 4);
       let bag = '';
       for(let i2 = 0; i2 < cells; i2++){
         const key = bagKeys[i2];
+        const ai2 = armAt(i2);
         bag += key
           ? '<div class="csCell"><div class="csTile' + (canUseTile(d, key) ? '' : ' barred') +
-            '" data-key="' + key + '" style="color:' + tileColor(key) + '">' + tileSvg(key) +
+            '" data-key="' + key + '"' + (ai2 >= 0 && ai2 < ship.armoury.length ? ' data-arm="' + ai2 + '"' : '') +
+            ' style="color:' + tileColor(key) + '">' + tileSvg(key) +
             (ISSUE_STOCK.includes(key) ? '<i class="csInf">\u221E</i>' : '') + '</div></div>'
           : '<div class="csCell"></div>';
       }
@@ -3689,7 +3775,8 @@ function openCharSheet(c, mode, corpse){
         : 'TRINKET \u00B7 ' + (it.value || 0) + ' CR AT A VENDOR';
       return '<b style="color:' + lootTileColor(it) + '">' + lootLabelOf(it) + '</b><span>' +
         kindLine.toUpperCase() + '</span>' +
-        (it.own ? '<span style="color:#e0a33e">TAKEN FROM ' + it.own.toUpperCase() + '</span>' : '');
+        (it.own ? '<span style="color:#e0a33e">TAKEN FROM ' + it.own.toUpperCase() + '</span>' : '') +
+        (it.kind === 'weapon' && !foe ? wpnTableHtml(it.key, wpnItemMods(it), c) : '');
     };
     const hoverTip = (tile, html) => {
       tile.addEventListener('mouseenter', () => {
@@ -3697,10 +3784,7 @@ function openCharSheet(c, mode, corpse){
         let tip = document.getElementById('csTip');
         if(!tip){ tip = document.createElement('div'); tip.id = 'csTip'; document.body.appendChild(tip); }
         tip.innerHTML = html();
-        const r = tile.getBoundingClientRect ? tile.getBoundingClientRect() : {left: 0, top: 0, width: 0};
-        tip.style.left = (r.left + r.width / 2) + 'px';
-        tip.style.top = (r.top - 8) + 'px';
-        tip.style.display = 'block';
+        csTipPlace(tip, tile.getBoundingClientRect ? tile.getBoundingClientRect() : {left: 0, top: 0, width: 0, bottom: 0});
       });
       tile.addEventListener('mouseleave', () => {
         const tip = document.getElementById('csTip');
@@ -3730,11 +3814,14 @@ function openCharSheet(c, mode, corpse){
           const pvT = provOf(d, slotId9);
           if(pvT && pvT.own) ownLine = '<span style="color:#e0a33e">TAKEN FROM ' + pvT.own.toUpperCase() + '</span>';
         }
-        tip.innerHTML = tipFor(tile.dataset.key) + ownLine;
-        const r = tile.getBoundingClientRect ? tile.getBoundingClientRect() : {left: 0, top: 0, width: 0};
-        tip.style.left = (r.left + r.width / 2) + 'px';
-        tip.style.top = (r.top - 8) + 'px';
-        tip.style.display = 'block';
+        const keyT = tile.dataset.key;
+        let tableT = '';
+        if(WEAPONS[keyT] && !ARMOUR_SETS[keyT]){
+          if(slotId9) tableT = wpnTableHtml(keyT, provMods(d, slotId9), c, {self: true});
+          else tableT = wpnTableHtml(keyT, tile.dataset.arm != null ? armModsAt(+tile.dataset.arm) : null, c);
+        }
+        tip.innerHTML = tipFor(keyT) + ownLine + tableT;
+        csTipPlace(tip, tile.getBoundingClientRect ? tile.getBoundingClientRect() : {left: 0, top: 0, width: 0, bottom: 0});
       });
       tile.addEventListener('mouseleave', () => {
         const tip = document.getElementById('csTip');
@@ -3877,7 +3964,7 @@ function openCharSheet(c, mode, corpse){
       tile.addEventListener('pointerdown', (e) => {
         const key = tile.dataset.key;
         if(!canUseTile(d, key)) return;
-        sheetDrag = {key, ghost: null};
+        sheetDrag = {key, ghost: null, armIdx: tile.dataset.arm != null ? +tile.dataset.arm : null};
         const g = document.createElement('div');
         g.id = 'csGhost';
         g.style.color = tileColor(key);
@@ -4194,7 +4281,7 @@ function layout(){
       ap: 2, facing: -Math.PI/2,
       stress: 0, morale: 'steady',
       watch: null, braced: false, downed: false, downTimer: 0,
-      mag: {primary: clipOf(def.loadout.primary), sidearm: clipOf(def.loadout.sidearm)},
+      mag: {primary: clipOf(def.loadout.primary, provMods(def, 'primary')), sidearm: clipOf(def.loadout.sidearm, provMods(def, 'sidearm'))},
       moving: false, run: null, hitFlash: 0, alive: true
     };
   });
@@ -4384,7 +4471,7 @@ function refreshSpecialBtn(){
 }
 
 function wcMagHtml(c){
-  const full = clipOf(c.weapon);
+  const full = clipOfC(c);
   if(!isFinite(full) || !c.mag) return '';
   const left = c.mag[c.slot] || 0;
   const cls = left <= 0 ? ' dry' : (left <= Math.ceil(full / 3) ? ' low' : '');
@@ -4498,7 +4585,7 @@ function renderParty(){
       }
       if(c.ap <= 0) pips.classList.add('spent');
       d.appendChild(pips);
-      const full = clipOf(c.weapon);
+      const full = clipOfC(c);
       if(isFinite(full) && c.mag){
         const rounds = document.createElement('div');
         rounds.className = 'magcount';
@@ -5147,12 +5234,13 @@ const WPN_AMMO = {
   dart: 'Chem', screamer: 'EMP', goad: 'EMP', blade: 'None',
   dvalin: 'Lead', hydra: 'Lead', boardinghammer: 'None', reckoning: 'None',
 };
-function clipOf(key){
+function clipOf(key, mods){
   const w = WEAPONS[key];
   if(!w || w.melee) return Infinity;      // a blade never runs dry
   if(key === 'trainer') return Infinity;  // and neither does Old Patience: the range teaches aim, not thrift
-  return WPN_CLIP[key] || 8;
+  return Math.max(1, (WPN_CLIP[key] || 8) + ((mods && mods.clip) || 0));
 }
+const clipOfC = (c) => clipOf(c.weapon, wpnModsOf(c));
 const GROUP_ICONS = {
   // GCAT requisition stencils: the marks sprayed on the ammunition crates
   rifles: '<path d="M6 7 L32 20 L6 33 L6 25 L22 20 L6 15 Z"/>',
@@ -5194,7 +5282,7 @@ function gridCandidates(def, slot){
     return weaponAllowed(def, k) && slotLegal(slot, k);
   });
 }
-function equipWeapon(def, slot, key){
+function equipWeapon(def, slot, key, armIdx){
   if(!weaponAllowed(def, key) || !slotLegal(slot, key)) return false;
   const other = slot === 'primary' ? 'sidearm' : 'primary';
   if(key === def.loadout[other]) return false;
@@ -5202,7 +5290,7 @@ function equipWeapon(def, slot, key){
   const std = ISSUE_STOCK;
   let took = null;
   if(!std.includes(key)){                       // anything beyond issue leaves the rack…
-    const ai = armFind(key);
+    const ai = (armIdx != null && armKey(ship.armoury[armIdx]) === key) ? armIdx : armFind(key);
     if(ai < 0) return false;                    // …but only if the ship owns one
     took = ship.armoury.splice(ai, 1)[0];
   }
@@ -5429,12 +5517,21 @@ function armFind(key){ return ship.armoury.findIndex(a => armKey(a) === key); }
 function provOf(def, slot){ return (def.prov || {})[slot] || null; }
 function provSet(def, slot, p){
   def.prov = def.prov || {};
-  if(p && (p.own || p.ownFac)) def.prov[slot] = {own: p.own, ownFac: p.ownFac};
+  if(p && p.kind === 'weapon') wpnItemMods(p);   // an item settles its roll before it is held
+  if(p && (p.own || p.ownFac || p.mods)) def.prov[slot] = provFields(p);
   else delete def.prov[slot];
 }
-function armEntry(key, pv){
-  return (pv && (pv.own || pv.ownFac)) ? {key, own: pv.own, ownFac: pv.ownFac} : key;
+// the paper and the roll that travel with a piece: own/ownFac when it has a history, mods always (null = nominal)
+function provFields(pv){
+  const out = {mods: (pv && pv.mods) || null};
+  if(pv && pv.own) out.own = pv.own;
+  if(pv && pv.ownFac) out.ownFac = pv.ownFac;
+  return out;
 }
+function armEntry(key, pv){
+  return (pv && (pv.own || pv.ownFac || pv.mods)) ? Object.assign({key}, provFields(pv)) : key;
+}
+const armModsAt = (i) => { const a = ship.armoury[i]; return (a && typeof a === 'object' && a.mods) || null; };
 function weaponAllowed(def, key){
   const w = WEAPONS[key];
   if(w && w.race && w.race !== def.kind) return false;      // keyed to one blood
@@ -7457,7 +7554,7 @@ function fire(){
   }
 
   // the clip is real: no rounds, no bang (weapons without a clip walk past the gate)
-  if(isFinite(clipOf(c.weapon)) && c.mag && c.mag[c.slot] !== undefined && c.mag[c.slot] <= 0){
+  if(isFinite(clipOfC(c)) && c.mag && c.mag[c.slot] !== undefined && c.mag[c.slot] <= 0){
     addPopup(c.x, c.y - c.r - 16, 'CLIP EMPTY, RELOAD (1 AP)', '#e0a33e');
     clipEmptyAdvisory();
     s.aiming = false;
@@ -7478,7 +7575,7 @@ function fire(){
   noiseAt(c.x, c.y, wpn().noise || NOISE_GUN, false, true);
 
   let roundsToFire = 1;
-  if(!isFinite(clipOf(c.weapon))){
+  if(!isFinite(clipOfC(c))){
     roundsToFire = w.burst || 1;                            // bottomless: full burst, no ledger
   }else if(c.mag && c.mag[c.slot] !== undefined){
     roundsToFire = Math.min(w.burst || 1, c.mag[c.slot]);   // a short clip cuts the burst
@@ -7496,7 +7593,7 @@ function fire(){
 function reloadWeapon(){
   const c = pc();
   if(!c || !c.alive || c.downed || state.phase !== 'player' || state.over) return false;
-  const full = clipOf(c.weapon);
+  const full = clipOfC(c);
   if(!isFinite(full)) return false;                        // blades have nothing to feed
   if(!c.mag || c.mag[c.slot] >= full) {
     addPopup(c.x, c.y - c.r - 14, 'CLIP FULL', '#6fd6ff');
@@ -8623,7 +8720,7 @@ function errandTick(cv, dt){
     const gx = (z.x0 + z.x1) / 2, gy = z.y1 + 60;
     if(Math.hypot(gx - cv.x, gy - cv.y) < 72){
       if(cv.carryKey){
-        ship.armoury.push(cv.carryKey);
+        ship.armoury.push(armEntry(cv.carryKey, {mods: cv.carryMods}));
         addPopup(cv.x, cv.y - cv.r - 14, 'DELIVERED TO THE ORRIX', '#9fe08e');
         chronicle('trade', 'The porter set the ' + (WPN_NAMES[cv.carryKey] || 'piece') + ' inside the Orrix\u2019s ramp. Paid for, carried, delivered.');
         cv.carryKey = null;
@@ -8658,7 +8755,7 @@ function errandTick(cv, dt){
     const mk = er.mark;
     if(!mk || !mk.alive || mk.gone || mk.ko || !mk.carryKey){ cv.errand = cv.tide ? errandNew(cv) : null; return true; }
     if(Math.hypot(mk.x - cv.x, mk.y - cv.y) < 22){
-      cv.stolen = {kind: 'weapon', key: mk.carryKey, own: 'the crew of the Orrix'};
+      cv.stolen = {kind: 'weapon', key: mk.carryKey, own: 'the crew of the Orrix', mods: mk.carryMods || null};
       mk.carryKey = null;
       mk.panic = 2.2;
       addPopup(cv.x, cv.y - cv.r - 14, 'SNATCHED!', '#e0483e');
@@ -10220,7 +10317,7 @@ const DEN_LEVEL = {
     {x: 0.58, y: 0.2733, type: 'named_dace_mortlake'},
   ],
   // the strongbox in the back office: the best iron on Tallow Street, and whatever was under it
-  chests: [{x: 0.7, y: 0.26, name: 'Strongbox', loot: [{kind: 'weapon', key: 'rifle', own: 'Dace Mortlake'}, {kind: 'credits', value: 90}]}],
+  chests: [{x: 0.7, y: 0.26, name: 'Strongbox', loot: [{kind: 'weapon', key: 'rifle', own: 'Dace Mortlake', bias: 1}, {kind: 'credits', value: 90}]}],
   civilians: 0,
   issuer: 'none',
 };
@@ -11307,11 +11404,10 @@ function lootEquip(c, e, idx, slot){
   c.def.loadout[slot] = it.key;
   provSet(c.def, slot, it);
   e.loot.splice(idx, 1);
-  if(old) e.loot.push(Object.assign({kind: 'weapon', key: old},
-    pvOld ? {own: pvOld.own, ownFac: pvOld.ownFac} : {}));
+  if(old) e.loot.push(Object.assign({kind: 'weapon', key: old}, provFields(pvOld)));
   if(c.slot === slot) c.weapon = it.key;
   if(c.mag && WPN_CLIP[it.key])
-    c.mag[slot] = Math.max(1, Math.floor(WPN_CLIP[it.key] * (0.4 + 0.5 * Math.random())));
+    c.mag[slot] = Math.max(1, Math.floor(clipOf(it.key, it.mods) * (0.4 + 0.5 * Math.random())));
   if(lootSpent(e)) e.looted = true;
   shipSave();
   return true;
@@ -11520,7 +11616,7 @@ function shopBuy(i, cName){
   if(!Array.isArray(c.def.pack)) c.def.pack = [];
   if(c.def.pack.length >= 4) return false;
   ship.credits -= it.price;
-  c.def.pack.push({kind: 'weapon', key: it.key});
+  c.def.pack.push({kind: 'weapon', key: it.key, mods: wpnItemMods(it)});
   it.gone = true; it.by = 'bought';
   addPopup(c.x, c.y - c.r - 14, 'BOUGHT \u00B7 ' + (WPN_NAMES[it.key] || it.key).toUpperCase(), '#9fe08e');
   chronicle('trade', c.name + ' bought a ' + (WPN_NAMES[it.key] || it.key) + ' off Kestrel\u2019s shelf for ' + it.price + ' CR. Honest money, honest iron.');
@@ -11542,7 +11638,7 @@ function shopSend(i){
     pace: 24, bob: Math.random() * 6, hood: true, kind: 'porter', name: 'Tobb',
     race: 'MINOTAUR', sex: 'MALE', faction: 'PORTER \u00B7 THE DOCKS', brave: 8,
     bio: 'Carries what\u2019s paid for and asks nothing about it.', gait: 0.8, tide: false,
-    carryKey: it.key,
+    carryKey: it.key, carryMods: wpnItemMods(it),
     robAt: Math.random() < 0.25 ? performance.now() + 3500 + Math.random() * 5000 : 0,
     errand: {kind: 'deliver', path: [], leg: 0, waitT: 0},
   });
@@ -11560,7 +11656,7 @@ function shopSteal(i, cName){
   if(!Array.isArray(c.def.pack)) c.def.pack = [];
   if(c.def.pack.length >= 4) return false;
   it.gone = true; it.by = 'stolen';
-  c.def.pack.push({kind: 'weapon', key: it.key, own: 'Kestrel \u00B7 Outfitters stock', ownFac: 'tradersguild'});
+  c.def.pack.push({kind: 'weapon', key: it.key, own: 'Kestrel \u00B7 Outfitters stock', ownFac: 'tradersguild', mods: wpnItemMods(it)});
   const keeper = shopKeeperCiv();
   const seen = keeper && !keeper.ko &&
     Math.hypot(keeper.x - c.x, keeper.y - c.y) < 320 && segClearHigh(keeper.x, keeper.y, c.x, c.y);
@@ -11581,30 +11677,70 @@ function shopSteal(i, cName){
   shipSave();
   return true;
 }
-// what the new piece changes, stat by stat, against what the hand holds now
-function shelfCompareLines(key, c){
-  const w = WEAPONS[key] || {};
+// one piece, stat by stat, beside what the operator holds in the same slot.
+// rows: {label, v, hv, better} where hv is the held value (null when nothing is held there,
+// or when this IS the held piece) and better is true/false/null against it.
+function wpnStatList(w, key){
+  if(!w) return [];
+  const rng = w.melee ? Math.round(w.range || 0) : Math.round((w.speed || 0) * (w.life || 0));
+  const out = [];
+  if(w.sed) out.push(['SEDATIVE', w.sed, false]);
+  out.push(['DAMAGE', w.dmg != null ? w.dmg : 0, false]);
+  if(w.pellets > 1) out.push(['PELLETS', w.pellets, false]);
+  if(!w.melee) out.push(['BURST', w.burst || 1, false], ['CLIP', isFinite(clipOf(key)) ? clipOf(key, null) : 0, false]);
+  out.push([w.melee ? 'REACH' : 'RANGE', rng, false]);
+  if(w.melee) out.push(['DASH', Math.round(w.dashSpeed || 0), false]);
+  out.push(['NOISE', w.noise || 0, true]);
+  if(!w.melee) out.push(['PEN', w.pen != null ? w.pen : 0, false], ['SPREAD', Math.round((w.bloom || 0) / DEG * 10) / 10, true]);
+  out.push(['AP', w.apCost || 1, true]);
+  return out;
+}
+function wpnCompareRows(key, mods, c, opts){
+  opts = opts || {};
+  const w = wpnView(key, mods);
+  if(!w) return {rows: [], curK: null, slot: null};
   const slot = slotForKey(key);
-  const curK = (c && c.def && slot && c.def.loadout[slot]) || null;
-  const cw = curK ? (WEAPONS[curK] || null) : null;
-  const rows = [];
-  const add = (label, nv, ov, lowGood) => {
-    if(nv == null) return;
+  const curK = (!opts.self && c && c.def && slot && c.def.loadout && c.def.loadout[slot]) || null;
+  const cw = curK ? wpnView(curK, provMods(c.def, slot)) : null;
+  const mine = wpnStatList(w, key);
+  if(mods && mods.clip) for(const r of mine) if(r[0] === 'CLIP') r[1] = clipOf(key, mods);
+  const theirs = {};
+  if(cw){
+    const cm = provMods(c.def, slot);
+    for(const r of wpnStatList(cw, curK)) theirs[r[0]] = r[0] === 'CLIP' && cm && cm.clip ? clipOf(curK, cm) : r[1];
+  }
+  const rows = mine.map(([label, v, lowGood]) => {
+    const hv = cw && theirs[label] != null ? theirs[label] : null;
+    const better = hv == null || hv === v ? null : (lowGood ? v < hv : v > hv);
+    return {label, v, hv, better, lowGood};
+  });
+  return {rows, curK, slot, same: !!cw && mine.every(r => theirs[r[0]] === r[1])};
+}
+const WPN_CMP_COL = {true: '#9fe08e', false: '#e0483e', null: 'rgba(232,224,204,.45)'};
+// the compact table that rides on a tooltip or a paper panel
+function wpnTableHtml(key, mods, c, opts){
+  const cmp = wpnCompareRows(key, mods, c, opts);
+  if(!cmp.rows.length) return '';
+  const held = cmp.curK != null;
+  return '<div class="wst' + (held ? ' wstHeld' : '') + '">' +
+    '<i>STAT</i><i>' + (held ? 'THIS' : '') + '</i>' + (held ? '<i>HELD</i>' : '') +
+    cmp.rows.map(r => '<span>' + r.label + '</span><b style="color:' + WPN_CMP_COL[r.better] + '">' + r.v + '</b>' +
+      (held ? '<em>' + (r.hv != null ? r.hv : '-') + '</em>' : '')).join('') +
+    '</div>' +
+    (held ? '<u class="wstVs">HELD: ' + (WPN_NAMES[cmp.curK] || cmp.curK).toUpperCase() + '</u>' : '');
+}
+// what the new piece changes, stat by stat, against what the hand holds now (the shop card)
+function shelfCompareLines(key, c, mods){
+  const cmp = wpnCompareRows(key, mods, c);
+  const rows = cmp.rows.map(r => {
     let dHtml = '';
-    if(ov != null && ov !== nv){
-      const better = lowGood ? nv < ov : nv > ov;
-      const dv = Math.round((nv - ov) * 10) / 10;
-      dHtml = ' <em style="color:' + (better ? '#9fe08e' : '#e0483e') + '">(' + (dv > 0 ? '+' : '') + dv + ')</em>';
+    if(r.hv != null && r.hv !== r.v){
+      const dv = Math.round((r.v - r.hv) * 10) / 10;
+      dHtml = ' <em style="color:' + WPN_CMP_COL[r.better] + '">(' + (dv > 0 ? '+' : '') + dv + ')</em>';
     }
-    rows.push('<span>' + label + '</span><b>' + nv + dHtml + '</b>');
-  };
-  const dmgOf = (ww) => ww ? Math.round((ww.dmg || 0) * (ww.pellets || 1) * (ww.burst || 1) * 10) / 10 : null;
-  add('DAMAGE', dmgOf(w), dmgOf(cw));
-  if(!w.melee) add('CLIP', WPN_CLIP[key] || 0, curK && !(cw && cw.melee) ? (WPN_CLIP[curK] || 0) : null);
-  if(w.pen != null) add('PEN', w.pen, cw && cw.pen != null ? cw.pen : null);
-  add('NOISE', w.noise || 0, cw ? (cw.noise || 0) : null, true);
-  if(w.melee) add('REACH', Math.round(w.range || 0), cw && cw.melee ? Math.round(cw.range || 0) : null);
-  return {rows, curK, slot};
+    return '<span>' + r.label + '</span><b>' + r.v + dHtml + '</b>';
+  });
+  return {rows, curK: cmp.curK, slot: cmp.slot};
 }
 // ---- placement: tags in, points out, the same points for the same seed ----
 function hash32(str){
@@ -11689,7 +11825,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '19 Oct \u00B7 QUIET';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '19 Oct \u00B7 ROLLS';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
@@ -12124,7 +12260,7 @@ function contrabandOfOp(name){
   }
   for(const sl of ['primary', 'sidearm']){
     const pv = provOf(d, sl);
-    if(!pv) continue;
+    if(!pv || !(pv.own || pv.ownFac)) continue;
     (pv.ownFac === 'constabulary' ? out.badge : out.stolen).push({kind: 'weapon', key: d.loadout[sl], own: pv.own});
   }
   const bC = bz();
@@ -12143,7 +12279,7 @@ function bzConfiscate(name){
   });
   for(const sl of ['primary', 'sidearm']){
     const pv = provOf(d, sl);
-    if(!pv) continue;
+    if(!pv || !(pv.own || pv.ownFac)) continue;
     taken.push(WPN_NAMES[d.loadout[sl]] || d.loadout[sl]);
     d.loadout[sl] = null;
     provSet(d, sl, null);
@@ -12504,7 +12640,7 @@ function eqCardOpen(i){
   const m = WPN_META[it.key] || {};
   const allowed = weaponAllowed(c.def, it.key);
   const guildOut = facRepOf('tradersguild') <= -2;
-  const cmp = shelfCompareLines(it.key, c);
+  const cmp = shelfCompareLines(it.key, c, wpnItemMods(it));
   const packFull = (c.def.pack || []).length >= 4;
   const canPay = ship.credits >= it.price;
   const btn = (id, label, on, title) =>
@@ -12560,7 +12696,7 @@ function showShelfTip(i, cx, cy){
     document.body.appendChild(tip);
   }
   const c = pc();
-  const cmp = shelfCompareLines(it.key, c);
+  const cmp = shelfCompareLines(it.key, c, wpnItemMods(it));
   const m9 = WPN_META[it.key] || {};
   const slot9 = slotForKey(it.key);
   const typeLine = (slot9 === 'primary' ? 'PRIMARY' : slot9 === 'sidearm' ? 'SIDEARM' : 'GEAR') +
