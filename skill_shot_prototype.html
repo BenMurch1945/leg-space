@@ -4089,7 +4089,7 @@ function deckDown(p){
   }
   // a shelf piece: near enough, read its card; too far, walk over first
   if(state.portDock && !state.deckCombat && state.shelves && state.shelves.length){
-    const sh0 = bz() && bz().shop;
+    const sh0 = shopOf();
     if(sh0){
       let si = -1;
       state.shelves.forEach((pt, i2) => {
@@ -7193,8 +7193,8 @@ function onMove(e){
       : null;
     let si9 = -1;
     if(!u && !nc && state.shipDeck && !state.deckCombat && state.portDock &&
-       state.shelves && state.shelves.length && bz() && bz().shop){
-      const sh9 = bz().shop;
+       state.shelves && state.shelves.length && shopOf()){
+      const sh9 = shopOf();
       state.shelves.forEach((pt, i3) => {
         if(si9 >= 0) return;
         const it3 = sh9.stock[i3];
@@ -9640,6 +9640,7 @@ function addPopup(x, y, txt, color, vx, vy){
 function wpnCritMul(b){ return b.critMul || 2; }
 
 function hitEnemy(e, b){
+  if(b && b.team === 'player' && e.duel) e.hitByCrew = true;   // the crew made the duel their fight
   const pierceMul = Math.max(0, 1 - (TUNE.bodyPenFalloff || 0) * (b.pierced ? b.pierced.size : 0));
   // critical: did the round's path pass through the very heart of the circle?
   const spd = Math.hypot(b.vx, b.vy) || 1;
@@ -10480,6 +10481,350 @@ function denReturn(){
   chronicle('event', 'Out onto Tallow Street. The door shut behind the crew and will not open again; whatever the unit was, it is finished.');
   return true;
 }
+// ---- wrong address: a bonded crate, two claims, and lead if nobody steps in ----
+// (Ben, 19 Oct) a porter dropped Erina's crate at the wrong door. The recipient says it is hers now.
+// They argue in bubbles; after a minute in view of the crew they draw, and they are terrible shots.
+const WA_CAST = {
+  porter: {name: 'Hollis Brand', kind: 'amarok', cls: 'runner', sex: 'm', color: '#c48a5a', race: 'AMAROK',
+    loadout: {primary: null, sidearm: 'pistol'},
+    stats: {health: 24, move: 200, strength: 9, aim: 2, bravery: 9, luck: 8, vision: 380, agility: 10, armor: 0, fearless: 0},
+    bio: 'Bonded porter, Crossport Despatch. Four years without a lost crate, and he would like to keep it that way.', brave: 9},
+  recipient: {name: 'Mira Fenn', kind: 'human', cls: 'runner', sex: 'f', color: '#9bb0d8', race: 'HUMAN',
+    loadout: {primary: null, sidearm: 'pistol'},
+    stats: {health: 22, move: 195, strength: 7, aim: 2, bravery: 13, luck: 11, vision: 380, agility: 11, armor: 0, fearless: 0},
+    bio: 'Signed for it, so it is hers. That is how signing works, she will tell you, at length.', brave: 13},
+};
+const WA_LINES = [
+  ['porter', 'That crate is bonded. Wrong door. Hand it back.'],
+  ['recipient', 'It came to MY door. I signed. It is mine.'],
+  ['porter', 'You signed for a mistake. Erina Jones is waiting on it.'],
+  ['recipient', 'Then Erina Jones can come and ask me herself.'],
+  ['porter', 'I lose this crate, I lose the bond. Do not make me.'],
+  ['recipient', 'Make you what? Say it. Say it in front of all these people.'],
+  ['porter', 'Last time. Step away from the crate.'],
+  ['recipient', 'Or what, porter?'],
+];
+const WA_LINE_MS = 4500;
+const WA_CLOCK_MS = 60000;      // a minute in view of the crew and the irons come out
+const WA_UNSEEN_MS = 120000;    // two minutes with nobody watching and the porter wins the argument on his own
+function waFacts(){ const b = bz(); return (b && b.wa) || null; }
+function waSet(patch){ const b = bz(); if(!b) return; bzSet({wa: Object.assign({}, b.wa || {}, patch)}); }
+function waCivs(){
+  const cvs = state.civs || [];
+  return {porter: cvs.find(cv => cv.wa === 'porter' && cv.alive), recipient: cvs.find(cv => cv.wa === 'recipient' && cv.alive)};
+}
+function waCrate(){ return (state.props || []).find(p => p.wa) || null; }
+// the trigger: two people and a crate, on open ground the crew can see from where they stand
+function waTrigger(){
+  const b = bz();
+  if(!b || !b.visit || ship.district !== 'cross') return null;
+  if(b.wa && b.wa.n === b.visit.n) return null;
+  const tg = (state.squad || []).find(c2 => c2.alive && !c2.downed && !inShipZone(c2.x, c2.y));
+  if(!tg) return null;
+  // somewhere on the Cross, three to six hundred px from the crew, on clear ground
+  let at = null;
+  for(let i = 0; i < 40 && !at; i++){
+    const a = Math.random() * Math.PI * 2, d = 320 + Math.random() * 280;
+    const x = tg.x + Math.cos(a) * d, y = tg.y + Math.sin(a) * d;
+    if(x < W * 0.08 || x > W * 0.92 || y < H * 0.08 || y > H * 0.92) continue;
+    if(state.walls.some(w => circleRect(x, y, 70, w))) continue;
+    if(inShipZone(x, y)) continue;
+    at = {x, y};
+  }
+  if(!at) return null;
+  const mk = (role, dx) => {
+    const def = WA_CAST[role];
+    const cv = {x: at.x + dx, y: at.y, r: 8, alive: true, ko: false, panic: 0, tx: at.x + dx, ty: at.y,
+      pace: 22, bob: Math.random() * 6, hood: false, kind: role === 'porter' ? 'porter' : 'face', name: def.name, named: def,
+      race: def.race, sex: def.sex === 'f' ? 'FEMALE' : 'MALE', faction: role === 'porter' ? 'CROSSPORT DESPATCH' : 'NO FIXED ADDRESS',
+      bio: def.bio, brave: def.brave, color: def.color, wa: role, tide: false, gait: 1,
+      facing: dx < 0 ? 0 : Math.PI, errand: null, barkSide: dx < 0 ? -1 : 1};
+    state.civs.push(cv);
+    return cv;
+  };
+  const porter = mk('porter', -34), recipient = mk('recipient', 34);
+  state.props = state.props || [];
+  state.props.push({kind: 'crate', wa: true, x: at.x, y: at.y + 16, holder: null, label: 'BONDED \u00B7 E. JONES'});
+  waSet({n: b.visit.n, state: 'arguing', seenT: 0, unseenT: 0, line: 0, lineT: performance.now(), crate: 'floor', drawAt: 0, drew: null, outcome: null});
+  spotlightOn(porter, {label: 'A CRATE, TWO CLAIMS'});
+  recipient.held = porter.held;
+  chronicle('event', 'Voices rose on the Cross: a porter and a stranger, one crate between them, and neither letting go.');
+  return {porter, recipient};
+}
+// does anyone in the crew have eyes on the pair
+function waSeen(){
+  const {porter, recipient} = waCivs();
+  const who = porter || recipient; if(!who) return false;
+  return (state.squad || []).some(c => c.alive && !c.downed &&
+    Math.hypot(c.x - who.x, c.y - who.y) <= charVisionRange(c) && segClearHigh(c.x, c.y, who.x, who.y));
+}
+function waTick(dt){
+  const wa = waFacts();
+  if(!wa || !state.portDock || ship.district !== 'cross') return;
+  const now = performance.now();
+  if(wa.state === 'arguing'){
+    const {porter, recipient} = waCivs();
+    if(!porter || !recipient){ waResolve('broken', 'One of them is down before a shot was fired. The crate sits where it was.'); return; }
+    if(performance.now() < Math.max(porter.held || 0, recipient.held || 0)) return;   // the spotlight is still on them
+    // the script: one line each, slow enough to read, round and round
+    if(now - wa.lineT >= WA_LINE_MS){
+      const [who, txt] = WA_LINES[wa.line % WA_LINES.length];
+      sayLine(who === 'porter' ? porter : recipient, txt, WA_LINE_MS / 1000 - 0.3);
+      wa.line++; wa.lineT = now;
+    }
+    if(state.deckCombat) return;   // somebody else's fight: the argument waits
+    if(waSeen()){ wa.seenT += dt * 1000; if(wa.seenT >= WA_CLOCK_MS) waDraw(Math.random() < 0.5 ? 'porter' : 'recipient'); }
+    else{ wa.unseenT += dt * 1000; if(wa.unseenT >= WA_UNSEEN_MS) waWalked(); }
+    return;
+  }
+  if(wa.state === 'drawn'){
+    const {porter, recipient} = waCivs();
+    if(porter && recipient){   // two strides back each: room for the first rounds to go wide
+      const mx = (porter.x + recipient.x) / 2, my = (porter.y + recipient.y) / 2;
+      const ax = Math.atan2(porter.y - my, porter.x - mx);
+      if(Math.hypot(porter.x - recipient.x, porter.y - recipient.y) < 200){
+        civTravel(porter, mx + Math.cos(ax) * 110, my + Math.sin(ax) * 110, 140, dt);
+        civTravel(recipient, mx - Math.cos(ax) * 110, my - Math.sin(ax) * 110, 140, dt);
+      }
+    }
+    if(now < wa.drawAt) return;
+    waFight();
+    return;
+  }
+  if(wa.state === 'shooting'){ waDuelCheck(); return; }
+  if(wa.state === 'done') waAfterTick(dt);
+}
+// "RIGHT, THAT'S IT!!": the camera comes over, the words land, and two seconds later so does the lead
+function waDraw(role){
+  const wa = waFacts(); if(!wa || wa.state !== 'arguing') return false;
+  const {porter, recipient} = waCivs();
+  const who = role === 'porter' ? porter : recipient;
+  if(!who) return false;
+  const other = who === porter ? recipient : porter;
+  camGlide((porter.x + recipient.x) / 2, (porter.y + recipient.y) / 2, 700);
+  state.barks = (state.barks || []).filter(bk => bk.c !== porter && bk.c !== recipient);
+  sayLine(who, 'RIGHT, THAT\u2019S IT!!', 2.2);
+  who.held = performance.now() + 2200; other.held = who.held;
+  waSet({state: 'drawn', drawAt: performance.now() + 2000, drew: role});
+  return true;
+}
+// both of them become foes, to each other first: bad pistols, open ground, the crowd between
+function waFight(){
+  const wa = waFacts(); if(!wa || wa.state !== 'drawn') return false;
+  const {porter, recipient} = waCivs();
+  if(!porter || !recipient){ waSet({state: 'done', outcome: 'broken'}); return false; }
+  const foes = [];
+  for(const cv of [porter, recipient]){
+    const e = makeNamedFoe(cv.named, cv.x, cv.y);
+    e.wasCiv = true; e.defence = true; e.duel = true; e.waRole = cv.wa;
+    e.feud = cv === porter ? recipient.name : porter.name;
+    e.alert = 'alerted'; e.lastKnown = {x: cv === porter ? recipient.x : porter.x, y: cv === porter ? recipient.y : porter.y};
+    e.loot = [{kind: 'weapon', key: 'pistol', own: cv.name}, {kind: 'credits', value: 10 + Math.floor(Math.random() * 25)}];
+    e.color = cv.color;
+    state.enemies.push(e); foes.push(e);
+  }
+  state.civs = state.civs.filter(c3 => c3 !== porter && c3 !== recipient);
+  state.portFight = true;
+  if(!state.deckCombat) enterDeckCombat();
+  waSet({state: 'shooting'});
+  showBanner('LEAD FLIES \u00B7 NONE OF IT YOURS', '#e0483e');
+  chronicle('event', (wa.drew === 'porter' ? porter.name : recipient.name) + ' drew first over the crate. The other answered. Neither can shoot.');
+  // the law hears about gunfire the way it hears about anything: from whoever runs
+  bzCrimeWitness(porter.x, porter.y, {grade: 'brawl', who: null, what: 'gunfire over a crate on the Cross'}, null);
+  startEnemyTurn();
+  return foes;
+}
+// who a duellist shoots at: the other one while they stand; a badge shoots whichever duellist is nearest
+function feudTarget(e){
+  if(!e.duel) return null;
+  if(e.lawDuel){
+    let best = null, bd = 1e9;
+    for(const o of state.enemies){
+      if(!o.duel || o.lawDuel || !o.alive || o.ko) continue;
+      const d = Math.hypot(o.x - e.x, o.y - e.y);
+      if(d < bd){ bd = d; best = o; }
+    }
+    return best;
+  }
+  return state.enemies.find(o => o.name === e.feud && o.alive && !o.ko) || null;
+}
+// a constable who reaches a live duel joins it, against the shooters
+function waCopJoin(cv){
+  const e = makeBoarder('constable', cv.x, cv.y);
+  e.name = cv.name; e.duel = true; e.lawDuel = true; e.feud = '*'; e.alert = 'alerted';
+  e.lastKnown = {x: cv.x, y: cv.y};
+  state.enemies.push(e);
+  state.civs = state.civs.filter(c3 => c3 !== cv);
+  addPopup(e.x, e.y - e.r - 14, 'CONSTABULARY \u00B7 DROP THEM', '#b06ae0');
+  chronicle('event', 'Constable ' + cv.name + ' reached the Cross with a weapon out and no interest in who started it.');
+  return e;
+}
+function waCivFrom(e, role){
+  const def = e.named || WA_CAST[role];
+  const cv = {x: e.x, y: e.y, r: 8, alive: true, ko: false, panic: 0, tx: e.x, ty: e.y, pace: 22, bob: Math.random() * 6, hood: false,
+    kind: role === 'porter' ? 'porter' : 'face', name: e.name, named: def, race: def.race, sex: def.sex === 'f' ? 'FEMALE' : 'MALE',
+    faction: role === 'porter' ? 'CROSSPORT DESPATCH' : 'NO FIXED ADDRESS', bio: def.bio, brave: def.brave, color: def.color,
+    wa: role, tide: false, gait: 1, errand: null, survivor: true, hp: e.hp};
+  state.civs.push(cv);
+  return cv;
+}
+function waCopRevert(e){
+  const home = bzCastOf(e.name);
+  state.civs.push({x: e.x, y: e.y, r: 9, alive: true, ko: false, panic: 0, tx: e.x, ty: e.y, pace: 22, bob: Math.random() * 6, hood: false,
+    kind: 'constable', name: e.name, home: home ? {x: home.x * W, y: home.y * H} : {x: e.x, y: e.y}, homeR: (home && home.homeR) || 200,
+    fac: (home && home.fac) || 'constabulary', brave: (home && home.brave) || 14});
+}
+// the duel ends when one of them is down. The survivor is a civilian again unless the crew shot at them.
+function waDuelCheck(){
+  const wa = waFacts(); if(!wa || wa.state !== 'shooting') return;
+  // the law walking onto a live duel joins it
+  const duellists = state.enemies.filter(e => e.duel && !e.lawDuel);
+  const live = duellists.filter(e => e.alive && !e.ko);
+  for(const cv of (state.civs || [])){
+    if(cv.kind !== 'constable' || !cv.alive || cv.ko) continue;
+    if(live.some(e => Math.hypot(e.x - cv.x, e.y - cv.y) < 150 && segClearHigh(e.x, e.y, cv.x, cv.y))) waCopJoin(cv);
+  }
+  if(live.length === duellists.length) return;
+  // somebody is down
+  let outcome = live.length ? (live[0].waRole + '_stands') : 'both_down';
+  for(const e of live){
+    if(e.hitByCrew) continue;                          // the crew made it their fight: he stays in it
+    waCivFrom(e, e.waRole);
+    state.enemies = state.enemies.filter(x => x !== e);
+  }
+  for(const e of state.enemies.filter(x => x.lawDuel)){
+    if(!e.alive) continue;
+    if(state.enemies.some(x => x.duel && !x.lawDuel && x.alive && !x.ko)) continue;   // still a shooter standing: the badge stays on it
+    waCopRevert(e);
+    state.enemies = state.enemies.filter(x => x !== e);
+  }
+  waSet({state: 'done', outcome, doneT: performance.now()});
+  const {porter, recipient} = waCivs();
+  const surv = porter || recipient;
+  chronicle('event', outcome === 'both_down' ? 'Both of them went down over the crate. It sits on the Cross with nobody\u2019s name on it but the label.'
+    : (surv ? surv.name : 'The survivor') + ' is the last one standing over the crate, and the Cross is quiet again.');
+  checkWin();
+}
+// after: the survivor waits a little for a word, then takes the crate and leaves
+function waAfterTick(dt){
+  const wa = waFacts(); if(!wa || wa.state !== 'done' || state.deckCombat) return;
+  const {porter, recipient} = waCivs();
+  const surv = porter || recipient;
+  if(!surv || surv.leaving) return;
+  if(performance.now() - (wa.doneT || 0) < 20000) return;
+  const crate = waCrate();
+  if(crate && !crate.holder){
+    if(Math.hypot(crate.x - surv.x, crate.y - surv.y) > 22){ civTravel(surv, crate.x, crate.y, civSpd(surv), dt); return; }
+    state.props = state.props.filter(p => p !== crate);
+    waSet({crate: surv.wa, outcome: wa.outcome + '_took'});
+    addPopup(surv.x, surv.y - surv.r - 14, 'TOOK THE CRATE', '#e0a33e');
+    chronicle('event', surv.name + ' picked the crate up off the Cross and walked off with it. Nobody argued.');
+  }
+  surv.leaving = true;
+  waLeave(surv);
+}
+function waLeave(cv){
+  cv.errand = {kind: 'cross', path: [], leg: 0, waitT: 0};
+  const arches = (state.doors || []).filter(d => !d.den);
+  const dr = arches[Math.floor(Math.random() * arches.length)];
+  if(dr) cv.errand.path = [{x: dr.x, y: dr.y}];
+  cv.leaveT = performance.now();
+}
+// nobody watching for two minutes: the porter wins the argument the old way
+function waWalked(){
+  const {porter, recipient} = waCivs();
+  const crate = waCrate();
+  if(crate) state.props = state.props.filter(p => p !== crate);
+  for(const cv of [porter, recipient]) if(cv){ cv.leaving = true; waLeave(cv); }
+  state.barks = (state.barks || []).filter(bk => bk.c !== porter && bk.c !== recipient);
+  waSet({state: 'done', outcome: 'walked', crate: 'porter', doneT: performance.now()});
+  chronicle('event', 'The argument on the Cross ran its course without the crew. The porter took the crate; the stranger took the loss.');
+}
+function waResolve(outcome, text){
+  waSet({state: 'done', outcome, doneT: performance.now()});
+  chronicle('event', text);
+}
+// the crew's verbs during the argument
+function waIntim(op, vs){
+  const intim = Math.round((((op && op.stats && op.stats.strength) || 8) / 2) +
+    (((op && WEAPONS[op.weapon]) && WEAPONS[op.weapon].noise) || 0) / 160);
+  return intim >= (vs.brave || 10);
+}
+function waBack(role){
+  const wa = waFacts(); if(!wa || wa.state !== 'arguing') return false;
+  const {porter, recipient} = waCivs();
+  const backed = role === 'porter' ? porter : recipient, other = role === 'porter' ? recipient : porter;
+  if(!backed || !other) return false;
+  const op = pc();
+  if(!waIntim(op, other)){
+    addPopup(other.x, other.y - other.r - 14, 'STAY OUT OF IT', '#e0483e');
+    chronicle('event', (op ? op.name : 'The crew') + ' backed ' + backed.name + ' and ' + other.name + ' did not care for the odds. Irons.');
+    waDraw(role === 'porter' ? 'recipient' : 'porter');
+    return 'drew';
+  }
+  state.barks = (state.barks || []).filter(bk => bk.c !== porter && bk.c !== recipient);
+  const crate = waCrate();
+  if(crate) state.props = state.props.filter(p => p !== crate);
+  other.leaving = true; waLeave(other);
+  backed.leaving = true; waLeave(backed);
+  if(role === 'porter'){ facRepAdd('tradersguild', 1); waSet({state: 'done', outcome: 'backed_porter', crate: 'porter', doneT: performance.now()}); }
+  else{ facRepAdd('greymarket', 1); waSet({state: 'done', outcome: 'backed_recipient', crate: 'recipient', doneT: performance.now()}); }
+  addPopup(other.x, other.y - other.r - 14, 'FINE. KEEP IT.', '#e0a33e');
+  chronicle('event', (op ? op.name : 'The crew') + ' stood behind ' + backed.name + ', and ' + other.name + ' looked at the crew, then at the crate, and walked.');
+  return 'backed';
+}
+const WA_BUY = 60;
+function waBuy(){
+  const wa = waFacts(); if(!wa || wa.state !== 'arguing') return false;
+  if(ship.credits < WA_BUY) return false;
+  const {porter, recipient} = waCivs();
+  ship.credits -= WA_BUY;
+  state.barks = (state.barks || []).filter(bk => bk.c !== porter && bk.c !== recipient);
+  for(const cv of [porter, recipient]) if(cv){ cv.leaving = true; waLeave(cv); }
+  waSet({state: 'done', outcome: 'bought', crate: 'floor', doneT: performance.now()});
+  chronicle('trade', 'Sixty credits, split two ways, and the crate on the Cross belongs to whoever picks it up. Both of them walked.');
+  shipCreditsRefresh && shipCreditsRefresh();
+  return true;
+}
+// who in the crew is carrying the crate
+function waCarrier(){
+  const crate = waCrate();
+  if(!crate || !crate.holder) return null;
+  return (state.squad || []).find(c => c.name === crate.holder) || null;
+}
+const WA_ERINA_PAY = 90, WA_HASK_PAY = 110;
+function waReturnToErina(){
+  const c = waCarrier(); if(!c) return false;
+  state.props = state.props.filter(p => !p.wa);
+  ship.credits += WA_ERINA_PAY;
+  facRepAdd('tradersguild', 1);
+  waSet({crate: 'erina', outcome: (waFacts().outcome || '') + '_returned', erinaKnows: true});
+  refreshDropBtn && refreshDropBtn();
+  shipCreditsRefresh && shipCreditsRefresh();
+  chronicle('trade', 'Carried the bonded crate to Erina\u2019s Exotics. ' + WA_ERINA_PAY + ' CR, and a look that said she had work for people who bring things back.');
+  return true;
+}
+function waSellToHask(){
+  const c = waCarrier(); if(!c) return false;
+  state.props = state.props.filter(p => !p.wa);
+  ship.credits += WA_HASK_PAY;
+  facRepAdd('greymarket', 1);
+  waSet({crate: 'hask', outcome: (waFacts().outcome || '') + '_sold'});
+  refreshDropBtn && refreshDropBtn();
+  shipCreditsRefresh && shipCreditsRefresh();
+  chronicle('trade', 'Sold a sealed, bonded crate to Hask for ' + WA_HASK_PAY + ' CR without asking what was in it. Neither did he.');
+  return true;
+}
+function waHandTo(cv){
+  const c = waCarrier(); if(!c || !cv || !cv.wa) return false;
+  state.props = state.props.filter(p => !p.wa);
+  facRepAdd(cv.wa === 'porter' ? 'tradersguild' : 'greymarket', 1);
+  waSet({crate: cv.wa, outcome: (waFacts().outcome || '') + '_handed'});
+  cv.leaving = true; waLeave(cv);
+  refreshDropBtn && refreshDropBtn();
+  chronicle('event', 'Handed the crate to ' + cv.name + '. ' + (cv.wa === 'porter' ? 'The bond holds; Erina gets her crate the slow way.' : 'Hers now, by signature and by firepower.'));
+  return true;
+}
 // ---- a familiar face: who breaks from the crowd, and what they want ----
 // the familiar faces are people with sheets: the same shape as an operator, so one of them can be fielded as a foe
 // (naming rule, Ben 18 Oct: a mix of single names and first-and-second names)
@@ -10939,6 +11284,15 @@ function tickProps(dt){
         if(bF && bF.visit && !(bF.ff && bF.ff.n === bF.visit.n) && outF){
           if(!state.faceT) state.faceT = performance.now() + 10000 + Math.random() * 15000;
           else if(performance.now() > state.faceT){ state.faceT = 0; faceTrigger(); }
+        }
+      }
+      // wrong address: a crate and two claims, a little later than the face, and only on the Cross
+      if(situationLive('wrongaddress') && !state.deckCombat && !state.portFight && ship.district === 'cross'){
+        const bW = bz();
+        const outW = (state.squad || []).some(c2 => c2.alive && !c2.downed && !inShipZone(c2.x, c2.y));
+        if(bW && bW.visit && !(bW.wa && bW.wa.n === bW.visit.n) && outW){
+          if(!state.waT) state.waT = performance.now() + 20000 + Math.random() * 20000;
+          else if(performance.now() > state.waT){ state.waT = 0; waTrigger(); }
         }
       }
       // Varric reads the concourse for new faces, and comes over when he finds one
@@ -11724,7 +12078,17 @@ function shopSeed(){
   }
   return {stock, keeper: 'Kestrel', keeperDead: false, grudge: null, stocktakeT: 0, counted: false};
 }
-function shopOf(){ const b = bz(); return (b && b.shop) || null; }
+// Erina's shelves: the catch kit. Nothing on them kills if you can help it.
+function erinaSeed(){
+  const keys = ['dart', 'goad', 'screamer', 'sawnoff'];
+  return {stock: keys.map(k => ({key: k, price: Math.max(10, Math.round((WPN_PRICE[k] || 100) * (1.0 + Math.random() * 0.2))), gone: false})),
+    keeper: 'Erina Jones', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, erina: true};
+}
+function shopOf(){
+  const b = bz(); if(!b) return null;
+  if(ship.district === 'cross'){ if(!b.shop2) b.shop2 = erinaSeed(); return b.shop2; }
+  return b.shop || null;
+}
 function shelfItem(i){ const sh = shopOf(); const it = sh && sh.stock[i]; return it && !it.gone ? it : null; }
 function shopKeeperCiv(){
   const sh = shopOf();
@@ -11797,7 +12161,7 @@ function shopSteal(i, cName){
       sh.stocktakeT = performance.now() + 60000 + Math.random() * 60000;  // the count never lies
     }
     bzCrimeWitness(c.x, c.y, {grade: 'minor', who: c.name, what: 'shoplifting at Kestrel Outfitters'}, c);
-    chronicle('event', c.name + ' palmed a ' + (WPN_NAMES[it.key] || it.key) + ' from Kestrel\u2019s shelf. For now, nobody who matters saw it.');
+    chronicle('event', c.name + ' palmed a ' + (WPN_NAMES[it.key] || it.key) + ' from ' + (sh.keeper === 'Kestrel' ? 'Kestrel\u2019s' : sh.keeper + '\u2019s') + ' shelf. For now, nobody who matters saw it.');
   }
   shipSave();
   return true;
@@ -11950,8 +12314,9 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '19 Oct \u00B7 TOGETHER';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '19 Oct \u00B7 CRATE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
+  wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
     name: 'Varric\u2019s Package', kind: 'chain', weight: 3, cast: ['June', 'Varric'],
     pinned(){ const b = bz(); return !!(b && !b.resolved && (b.metDay != null || b.crateHolder !== 'june')); },
@@ -12199,6 +12564,9 @@ const CROSS_CAST = [
   {name: 'Fenn', kind: 'barkeep', x: 0.36, y: 0.16, homeR: 40, brave: 9, district: 'cross',
    race: 'AMAROK', sex: 'MALE', faction: 'THE BEACON',
    bio: 'Keeps the Beacon. Pours for everyone, remembers everyone, repeats nothing without being paid to.'},
+  {name: 'Erina Jones', kind: 'trader', x: 0.61, y: 0.735, homeR: 36, brave: 15, district: 'cross',
+   race: 'HUMAN', sex: 'FEMALE', faction: 'ERINA\u2019S EXOTICS',
+   bio: 'Owner of the Exotics. A Colossus put her through six trees and left her a leg and an arm short; she lives through her retrievers now, and pays them well for work nobody else will take.'},
 ];
 function portCast(){ return BAZAAR_CAST.concat(CROSS_CAST); }
 function bzCastOf(name){
@@ -12514,6 +12882,11 @@ function bzCrimeWitness(x, y, crime, op){
     if(cv.kind !== 'constable' || !cv.alive || cv.ko) continue;
     if(Math.hypot(cv.x - x, cv.y - y) > reach) continue;
     if(!segClearHigh(cv.x, cv.y, x, y)) continue;
+    if(crime.grade === 'brawl'){   // not the crew's gunfire: the badge goes to the sound of it
+      cv.scene = {x, y, what: crime.what};
+      addPopup(cv.x, cv.y - cv.r - 14, 'SHOTS', '#b06ae0');
+      return;
+    }
     if(crime.grade === 'defence'){
       // the badge saw who drew first: no paper moves, but the officer wants a word, and the floor wants clearing
       cv.attend = crime.who;
@@ -13010,7 +13383,51 @@ function portTalk(cv){
     }
     return showEventModal('VARRIC', '\u201CSomeone lifted a sealed crate of mine. A hundred and fifty credits to whoever brings it back. No questions asked, that\u2019s the civilised way.\u201D', close);
   }
+  if(cv.wa){
+    const wa = waFacts();
+    const {porter, recipient} = waCivs();
+    const carrier = waCarrier();
+    if(wa && wa.state === 'arguing' && porter && recipient){
+      const other = cv === porter ? recipient : porter;
+      return showEventModal('A CRATE, TWO CLAIMS',
+        porter.name + ', bonded porter: \u201CWrong door. The label says Erina Jones and the bond says my name. I need it back.\u201D ' +
+        recipient.name + ': \u201CI signed for it. Signing is owning. He can take it up with the despatch office.\u201D ' +
+        'Neither hand has left the crate.',
+        [{label: 'BACK ' + porter.name.split(' ')[0].toUpperCase(), cb: () => waBack('porter')},
+         {label: 'BACK ' + recipient.name.split(' ')[0].toUpperCase(), cb: () => waBack('recipient')},
+         {label: 'BUY IT \u00B7 ' + WA_BUY + ' CR', cb: () => { if(!waBuy()) addPopup(cv.x, cv.y - cv.r - 14, 'NOT ENOUGH CREDITS', '#e0a33e'); }},
+         {label: 'WALK AWAY', cb: () => {}}]);
+    }
+    if(carrier && wa && wa.state === 'done'){
+      return showEventModal(String(cv.name).toUpperCase(),
+        cv.wa === 'porter' ? '\u201CThat\u2019s my bond you\u2019re carrying. Hand it over and I\u2019ll see it to Erina myself.\u201D'
+                           : '\u201CThat\u2019s mine. I signed for it. Give it here and we\u2019re square.\u201D',
+        [{label: 'HAND IT OVER', cb: () => waHandTo(cv)}].concat(close));
+    }
+    return showEventModal(String(cv.name).toUpperCase(),
+      cv.wa === 'porter' ? '\u201CFour years without a lost crate. Four years.\u201D' : '\u201CIt was addressed to my door. Everything else is noise.\u201D', close);
+  }
+  if(cv.name === 'Erina Jones'){
+    const wa = waFacts();
+    const carrier = waCarrier();
+    if(carrier){
+      return showEventModal('ERINA JONES',
+        'She reads the label without touching it. \u201CThat is mine. It was meant for my floor this morning and instead it went on a tour.\u201D She looks at the crew properly for the first time. \u201CBring it in. ' + WA_ERINA_PAY + ' credits for the carriage, and I pay better than that for people who go out and fetch.\u201D',
+        [{label: 'RETURN THE CRATE \u00B7 ' + WA_ERINA_PAY + ' CR', cb: waReturnToErina}].concat(close));
+    }
+    if(wa && wa.crate === 'erina'){
+      return showEventModal('ERINA JONES',
+        '\u201CThe crate arrived, thanks to you. There is always something that needs bringing back, and always somewhere nobody sane goes to get it. When I have one worth your time, you will hear.\u201D', close);
+    }
+    return showEventModal('ERINA JONES',
+      '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D', close);
+  }
   if(cv.name === 'Hask'){
+    if(waCarrier()){
+      return showEventModal('HASK',
+        '\u201CBonded, sealed, somebody\u2019s name on it that isn\u2019t yours. ' + WA_HASK_PAY + ', and I never saw a crate.\u201D',
+        [{label: 'SELL \u00B7 ' + WA_HASK_PAY + ' CR', cb: waSellToHask}].concat(close));
+    }
     if(holds){
       const hot = b.witnessed;
       const hp = bzHaskPrice();
@@ -13386,11 +13803,11 @@ function queueBark(c, txt, delay){
   if(!state.barkQueue) state.barkQueue = [];
   state.barkQueue.push({c, txt, at: delay});
 }
-function sayLine(c, txt){
+function sayLine(c, txt, life){
   if(!c || !c.alive) return;
   if(!state.barks) state.barks = [];
   state.barks = state.barks.filter(bk => bk.c !== c);
-  state.barks.push({c, txt, t: 0, life: 3.5});
+  state.barks.push({c, txt, t: 0, life: life || 3.5});
 }
 function pairTalk(){
   const [a, b] = state.squad;
@@ -14389,7 +14806,7 @@ function enemyFireAt(e, target){
   const arch = ARCHETYPES[e.type];
   const p = (target && target.alive) ? target : nearestChar(e.x, e.y);
   if(!p) return;
-  if(allyInLine(e, p.x, p.y)) return;                     // never through a brother
+  if(!e.duel && allyInLine(e, p.x, p.y)) return;          // never through a brother (a duellist has none)
   if(!canShootFrom(e.x, e.y, e.r, p.x, p.y) &&
      !targetHuggingBlocker(e.x, e.y, e.r, p)) return;     // walls are not targets
   const baseA = Math.atan2(p.y - e.y, p.x - e.x);
@@ -14480,6 +14897,14 @@ function processEnemyTurn(realDt){
       }
       const e = et.e = et.order[et.k];
       decayStress(e);
+      { const fd = feudTarget(e);
+        if(fd){
+          et.plan = {target: fd, shots: 1, path: null};
+          et.shotsLeft = 1;
+          e.facing = Math.atan2(fd.y - e.y, fd.x - e.x);
+          et.stage = 'aim'; et.timer = 0.5;
+          return;
+        } }
       if(e.alert === 'alerted') applyPressure(e, s.squad);
       et.plan = enemyDecide(e);
       et.shotsLeft = et.plan.shots;
@@ -14979,6 +15404,7 @@ function frame(now){
   if(state && state.simPause && state.shipDeck && !state.deckCombat) realDt = 0;   // a popup holds the world
   if(state && state.shipDeck && state.squad) deckSeparate();
   camGlideTick(); spotlightTick();
+  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)) waTick(realDt);
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();
   if(state && state.squad && !editorOn){
@@ -17124,8 +17550,8 @@ function draw(){
       const txt = '\u201c' + bk.txt + '\u201d';
       const tw = ctx.measureText(txt).width;
       const mate = state.squad.find(w => w !== c && w.alive);
-      const side = mate ? (c.x >= mate.x ? 1 : -1)                 // open away from the partner
-                        : ((state.squad.indexOf(c) % 2 === 0) ? 1 : -1);
+      const side = c.barkSide || (mate ? (c.x >= mate.x ? 1 : -1)   // open away from the partner
+                        : ((state.squad.indexOf(c) % 2 === 0) ? 1 : -1));
       let bx = c.x + side * (c.r + 22);
       const by = c.y - c.r - 34 - (bi % 2) * 6;
       if(side < 0) bx -= tw + 20;
@@ -17646,7 +18072,7 @@ const CROSS_PORT = {
     {x: 0.645, y: 0.17, kind: 'shop', label: 'CROSSPORT EXCHANGE'},
     {x: 0.21, y: 0.555, kind: 'society', label: 'GUILD REPRESENTATIVES'},
     {x: 0.33, y: 0.815, kind: 'society', label: 'THE JOB BOARD'},
-    {x: 0.61, y: 0.76, kind: 'shop', label: 'THE SUPPLY POST'},
+    {x: 0.61, y: 0.76, kind: 'shop', label: 'ERINA\u2019S EXOTICS'},
     {x: 0.89, y: 0.61, kind: 'shop', label: 'SHIP SERVICES'},
     {x: 0.72, y: 0.49, kind: 'food', label: 'FOOD STALLS'},
     {x: 0.745, y: 0.585, kind: 'food', label: ''},
@@ -17657,7 +18083,7 @@ const CROSS_PORT = {
     {x: 0.21, y: 0.33, kind: 'shop', label: 'STALLS'},
   ],
   npcs: [],
-  shelves: [],
+  shelves: [{x: 0.585, y: 0.775}, {x: 0.605, y: 0.785}, {x: 0.625, y: 0.785}, {x: 0.645, y: 0.775}],
   anchors: [
     {x: 0.36, y: 0.17, tags: ['counter', 'bar']},
     {x: 0.21, y: 0.33, tags: ['stall', 'market']},
