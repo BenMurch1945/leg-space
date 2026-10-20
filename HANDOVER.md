@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 393-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 395-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,14 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### Wrong Address fixes and Erina's work (20 Oct, morning)
+- **The script is said once** (Ben): `WA_LINES` is now 12 lines (54 s at 4.5 s each), said straight through; `WA_CLOCK_MS` = its length. When the last line has hung for one beat, the porter draws if the crew watched more than they missed (`seenT >= unseenT || waSeen()`), otherwise `waWalked()`. No repeats, no separate minute clock.
+- **The crate rides with its carrier**: the survivor sets `crate.holder = name` instead of deleting the prop; `waCrateCarryTick()` (done state) moves it with the civ, drops it at the body when they die or are KO'd (`wa.crate = 'floor'`, so the crew can carry it to Erina), and removes it if they leave through an arch (`'gone'`). Test `WA4`.
+- **Erina's work (phase 2)**: `ERINA_LEVEL` "A Live One" (fee 240, par 12, at gateway, `issuer: 'erina'`, `erina: true`, `always: true` so it never lapses, world 2100x1320, the service warren: rock pillars, rubble, one `glasshound` top centre and four `arachne`). `erinaIdx()` registers it lazily; `contractsAt` lists it only when `ship.erinaJobs` (saved/loaded/reset). Erina offers it from her counter (ASK ABOUT THE WORK, or from the crate-return thank-you) → `ship.erinaJobs = true`, the job appears on the ship's board at the Cross.
+- **The quarry is the package**: archetype `glasshound` (`quarry: true`, hp 34, melee 9, moveRange 150, the restless roamer AI; dossier in `ARCH_DOSSIERS`). `layout()` sets `s.pkg = {live: true, quarry, x: -9999}` for a level with `L.quarry`; `checkWin` therefore waits for the extraction. In the frame pkg block: hound `ko` and alive → `pkg.live = false`, pkg at its position, hound removed, banner DOWN AND BREATHING · BAG IT; hound dead → `s.pkg = null`, `s.quarryDead = true`, banner, and the contract then resolves the ordinary way (kill the crawlers). Pick-up is gated on `!pkg.live`. Objective text names the hound. **Pay** (`win()`): LIVE STOCK BONUS +50% of fee when delivered breathing; LIVE STOCK CLAUSE: DEAD ON ARRIVAL −75% when it died. `ISSUERS.erina` texts.
+- Next for this strand (not built): more quarries and warrens (one level per creature), Erina's shelves carrying armour and strange gear (needs non-weapon shelf cards and pack items), the creature in the Wrong Address crate (phase 3).
+- Test `ER1`.
 
 ### Wrong Address (19 Oct, night) and Erina's Exotics
 - **Situation `wrongaddress`** (ambient, weight 2, cast Erina Jones; Cross only). `waTrigger()` 20-40 s after the crew is on the open floor of the Cross: two named civs from `WA_CAST` (Hollis Brand, bonded porter, `cv.wa='porter'`; Mira Fenn, the recipient, `cv.wa='recipient'`; both with sheets so `makeNamedFoe` can field them, aim 2, health 22-24) 320-600 px from the crew on clear ground, a crate prop `{kind:'crate', wa:true}` between them. `spotlightOn(porter, {label:'A CRATE, TWO CLAIMS'})`.

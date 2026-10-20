@@ -1598,6 +1598,14 @@ const ARCHETYPES = {
     idealRange: 0, melee: 16,
     weights: {los: 0.8, cover: 0, range: 0, close: 1.6, flank: 0.2},
   },
+  glasshound: {
+    label: 'Glass Hound', color: '#9fe0d8', quarry: true,
+    hp: 34, bravery: 99, fearless: 1,
+    burst: 0, burstGap: 0.1, pen: 0, vision: 300, awareness: 1.2, bodyR: 14,
+    moveRange: 150, dmg: 0, spread: 0, pellets: 0, shotSpeed: 0, shotLife: 0,
+    idealRange: 0, melee: 9,
+    weights: {los: 0.7, cover: 0, range: 0, close: 1.6, flank: 0.4},
+  },
   breaker: {
     label:'Breaker', hp:60, bravery:20, fearless:1, burst:2, burstGap:0.09, pen:1.5, vision:317, awareness:0.5, color:'#b06ae0', bodyR:16,
     moveRange:88, dmg:2, spread:11, pellets:8, shotSpeed:640, shotLife:0.55,
@@ -3450,6 +3458,7 @@ function unequipToPack(c, slotId){
   return true;
 }
 const ARCH_DOSSIERS = {
+  glasshound: 'A warren hunter the size of a big dog, hide like frosted glass, quiet on any floor. It closes fast and bites to hold. Erina wants it breathing: darts, the goad, the screamer, anything but lead. Dead, it is a rug, and she does not pay for rugs.',
   constable: 'Port law in a pressed uniform. Drilled for crowds, paid to stand still, and slower to draw than a mercenary, but the paper behind them never misses.',
   soldier: 'Line infantry of whoever is paying this month. Drilled, steady, and incurious. They hold ground because nobody told them to think.',
   runner: 'Fast movers who close before the nerve does. Contract muscle of the cheap and eager sort. They die young and arrive early.',
@@ -4234,6 +4243,10 @@ function layout(){
     s.pkg = {x: pick.x * W, y: pick.y * H, carried: null, delivered: false};
     s.pkgSites = pkgCands.map(c => ({x: c.x * W, y: c.y * H}));
     s.pkgFound = pkgCands.length === 1;   // a single known site needs no search
+  }else if(L.quarry){
+    // the package is alive and has teeth: it is carried once it is down, and worthless dead
+    s.pkg = {x: -9999, y: -9999, carried: null, delivered: false, live: true, quarry: L.quarry};
+    s.pkgSites = null; s.pkgFound = true; s.quarryDead = false;
   }else{
     s.pkg = null; s.pkgSites = null; s.pkgFound = false;
   }
@@ -4994,8 +5007,11 @@ function renderObjectives(){
   const s = state;
   let primary;
   if(s.pkg){
-    primary = s.pkg.delivered ? '<span class="ok">✓ Package delivered</span>'
-            : s.pkg.carried   ? '◈ Deliver the package to extraction'
+    const qLabel = s.pkg.quarry ? (ARCHETYPES[s.pkg.quarry] || {}).label || 'the quarry' : null;
+    primary = s.pkg.delivered ? '<span class="ok">✓ ' + (qLabel ? qLabel + ' delivered, breathing' : 'Package delivered') + '</span>'
+            : s.pkg.live      ? '◈ Bring the ' + qLabel + ' down alive (darts, goad, screamer, fists)'
+            : s.pkg.carried   ? '◈ Carry the ' + (qLabel || 'package') + ' to the hatch'
+            : qLabel          ? '◈ Pick up the ' + qLabel + ' before it wakes'
             : s.pkgFound      ? '◈ Retrieve the package'
             : '◈ Locate the cache, ' + (s.pkgSites ? s.pkgSites.length : 0) + ' possible sites';
   }else{
@@ -5113,6 +5129,8 @@ const ISSUERS = {
                  flawless: 'Hask pays triple for work that leaves no story.', solid: 'Hask is satisfied, which is rarer than it sounds.', standard: 'Paid in cash, counted twice.', invoice: true, title: 'Settled'},
   tradersguild: {head: 'TRADERS\u2019 GUILD \u00B7 CONTRACT OF SERVICE', aar: 'GUILD ASSESSMENT', assess: 'Guild assessment', settle: 'SETTLEMENT \u00B7 TRADERS\u2019 GUILD CLEARING HOUSE',
                  flawless: 'Exemplary. The Guild notes it in ink.', solid: 'Satisfactory. The Guild notes it in pencil.', standard: 'Fee remitted per the schedule.', invoice: true, title: 'Contract Complete'},
+  erina:        {head: 'ERINA\u2019S EXOTICS \u00B7 RETRIEVAL', aar: 'ERINA\u2019S LEDGER', assess: 'Erina\u2019s count', settle: 'SETTLEMENT \u00B7 ERINA\u2019S EXOTICS, THE CROSS',
+                 flawless: 'Alive, unmarked, and she pays like it.', solid: 'Alive. That was the job.', standard: 'Paid at the agreed rate. She looked at the stock a long time.', invoice: true, title: 'Stock Retrieved'},
   constabulary: {head: 'PORT CONSTABULARY \u00B7 WARRANT WORK', aar: 'CONSTABULARY DEBRIEF', assess: 'Constabulary debrief', settle: 'SETTLEMENT \u00B7 RING OFFICE DISBURSEMENTS',
                  flawless: 'By the book, and the book pays.', solid: 'Adequate. Filed.', standard: 'Standard warrant fee.', invoice: true, title: 'Warrant Served'},
 };
@@ -5999,7 +6017,12 @@ function mapPick(ev){
 }
 function contractsAt(nodeId){
   const out = [];
-  for(let i = 0; i < LEVELS.length; i++) if(LEVELS[i].at === nodeId && !LEVELS[i].hidden) out.push(i);
+  if(ship && ship.erinaJobs) erinaIdx();   // her work sits on the board once she has offered it
+  for(let i = 0; i < LEVELS.length; i++){
+    if(LEVELS[i].at !== nodeId || LEVELS[i].hidden) continue;
+    if(LEVELS[i].erina && !(ship && ship.erinaJobs)) continue;
+    out.push(i);
+  }
   return out;
 }
 function mapSidePanel(){
@@ -9963,7 +9986,7 @@ const POSTING_CYCLES = [
 function postingCycle(i){ return POSTING_CYCLES[i % POSTING_CYCLES.length]; }
 function postingOpen(i, day){
   const L = LEVELS[i];
-  if(!L || !L.at) return true;                 // work aboard ship never lapses
+  if(!L || !L.at || L.always) return true;     // work aboard ship never lapses; nor does Erina's
   { const pp = bz() && bz().ffPaper; if(pp && pp.level === i && day - pp.day <= 10) return true; }   // a stranger's paper holds it open
   const c = postingCycle(i);
   return ((day + c.off) % (c.open + c.closed)) < c.open;
@@ -10447,6 +10470,52 @@ const DEN_LEVEL = {
   issuer: 'none',
 };
 function denIdx(){ let i = LEVELS.indexOf(DEN_LEVEL); if(i < 0){ LEVELS.push(DEN_LEVEL); i = LEVELS.length - 1; } return i; }
+// ---- Erina's work: catch and retrieve. The warren under the freight quarter, and the thing that lives in it ----
+const ERINA_LEVEL = {
+  name: 'A Live One', fee: 240, par: 12, at: 'gateway', crew: 4, erina: true, always: true,
+  world: {w: 2100, h: 1320},
+  client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
+  location: 'The Cross \u00B7 the old service warren', time: 'Now',
+  brief: 'A Glass Hound has gone to ground in the service warren under the freight quarter. Erina wants it on her floor and breathing.<br><br>Put it down with the dart rifle, the goad, the screamer, your fists if you must. Then carry it back to the hatch you came in by. The warren has crawlers; those you may kill.',
+  objective: 'Bring the Glass Hound down alive \u00B7 carry it to the hatch',
+  player: {x: 0.5, y: 0.84},
+  extract: {x: 0.5, y: 0.86, r: 0.07},
+  quarry: 'glasshound',
+  walls: [
+    // the rock around the warren
+    {x: 0.000, y: 0.000, w: 1.000, h: 0.10, high: true},
+    {x: 0.000, y: 0.93, w: 1.000, h: 0.07, high: true},
+    {x: 0.000, y: 0.000, w: 0.12, h: 1.000, high: true},
+    {x: 0.88, y: 0.000, w: 0.12, h: 1.000, high: true},
+    // pillars and spurs of rock: the warren is a maze of sightlines, not corridors
+    {x: 0.26, y: 0.22, w: 0.08, h: 0.12, high: true},
+    {x: 0.62, y: 0.18, w: 0.10, h: 0.09, high: true},
+    {x: 0.44, y: 0.40, w: 0.12, h: 0.07, high: true},
+    {x: 0.20, y: 0.55, w: 0.07, h: 0.16, high: true},
+    {x: 0.70, y: 0.50, w: 0.09, h: 0.14, high: true},
+    {x: 0.36, y: 0.66, w: 0.10, h: 0.06, high: true},
+    {x: 0.58, y: 0.70, w: 0.07, h: 0.09, high: true},
+    // rubble: low cover
+    {x: 0.33, y: 0.36, w: 0.05, h: 0.02},
+    {x: 0.56, y: 0.30, w: 0.05, h: 0.02},
+    {x: 0.28, y: 0.48, w: 0.04, h: 0.02},
+    {x: 0.64, y: 0.42, w: 0.05, h: 0.02},
+    {x: 0.47, y: 0.56, w: 0.06, h: 0.02},
+    {x: 0.30, y: 0.78, w: 0.05, h: 0.02},
+    {x: 0.66, y: 0.80, w: 0.05, h: 0.02},
+    {x: 0.50, y: 0.26, w: 0.04, h: 0.02},
+  ],
+  enemies: [
+    {x: 0.50, y: 0.17, type: 'glasshound'},
+    {x: 0.22, y: 0.40, type: 'arachne'},
+    {x: 0.78, y: 0.33, type: 'arachne'},
+    {x: 0.30, y: 0.60, type: 'arachne'},
+    {x: 0.74, y: 0.70, type: 'arachne'},
+  ],
+  civilians: 0,
+  issuer: 'erina',
+};
+function erinaIdx(){ let i = LEVELS.indexOf(ERINA_LEVEL); if(i < 0){ LEVELS.push(ERINA_LEVEL); i = LEVELS.length - 1; } return i; }
 function denEnter(){
   const dn = denFacts(); if(!dn || !dn.open || dn.done || !state.portDock) return false;
   gangRegister();
@@ -10494,19 +10563,24 @@ const WA_CAST = {
     stats: {health: 22, move: 195, strength: 7, aim: 2, bravery: 13, luck: 11, vision: 380, agility: 11, armor: 0, fearless: 0},
     bio: 'Signed for it, so it is hers. That is how signing works, she will tell you, at length.', brave: 13},
 };
+// the argument, start to finish. It is said once; when the last line lands, so does the iron.
 const WA_LINES = [
   ['porter', 'That crate is bonded. Wrong door. Hand it back.'],
   ['recipient', 'It came to MY door. I signed. It is mine.'],
   ['porter', 'You signed for a mistake. Erina Jones is waiting on it.'],
   ['recipient', 'Then Erina Jones can come and ask me herself.'],
-  ['porter', 'I lose this crate, I lose the bond. Do not make me.'],
+  ['porter', 'She will not come. She will send the despatch office, and they send me.'],
+  ['recipient', 'Then you have had a wasted walk.'],
+  ['porter', 'I lose this crate, I lose the bond. Four years. Do not make me.'],
   ['recipient', 'Make you what? Say it. Say it in front of all these people.'],
+  ['porter', 'I am asking nicely. I will not ask nicely again.'],
+  ['recipient', 'You are asking a woman on her own doorstep to hand over her own post.'],
   ['porter', 'Last time. Step away from the crate.'],
   ['recipient', 'Or what, porter?'],
 ];
 const WA_LINE_MS = 4500;
-const WA_CLOCK_MS = 60000;      // a minute in view of the crew and the irons come out
-const WA_UNSEEN_MS = 120000;    // two minutes with nobody watching and the porter wins the argument on his own
+const WA_CLOCK_MS = WA_LINES.length * WA_LINE_MS;   // the words run their course (54 s) and the irons come out
+const WA_UNSEEN_MS = WA_CLOCK_MS;                   // said to nobody, the porter wins the argument the old way
 function waFacts(){ const b = bz(); return (b && b.wa) || null; }
 function waSet(patch){ const b = bz(); if(!b) return; bzSet({wa: Object.assign({}, b.wa || {}, patch)}); }
 function waCivs(){
@@ -10566,15 +10640,20 @@ function waTick(dt){
     const {porter, recipient} = waCivs();
     if(!porter || !recipient){ waResolve('broken', 'One of them is down before a shot was fired. The crate sits where it was.'); return; }
     if(performance.now() < Math.max(porter.held || 0, recipient.held || 0)) return;   // the spotlight is still on them
-    // the script: one line each, slow enough to read, round and round
-    if(now - wa.lineT >= WA_LINE_MS){
-      const [who, txt] = WA_LINES[wa.line % WA_LINES.length];
-      sayLine(who === 'porter' ? porter : recipient, txt, WA_LINE_MS / 1000 - 0.3);
-      wa.line++; wa.lineT = now;
-    }
     if(state.deckCombat) return;   // somebody else's fight: the argument waits
-    if(waSeen()){ wa.seenT += dt * 1000; if(wa.seenT >= WA_CLOCK_MS) waDraw(Math.random() < 0.5 ? 'porter' : 'recipient'); }
-    else{ wa.unseenT += dt * 1000; if(wa.unseenT >= WA_UNSEEN_MS) waWalked(); }
+    // the script: one line each, slow enough to read, once through
+    if(wa.line < WA_LINES.length){
+      if(now - wa.lineT >= WA_LINE_MS){
+        const [who, txt] = WA_LINES[wa.line];
+        sayLine(who === 'porter' ? porter : recipient, txt, WA_LINE_MS / 1000 - 0.3);
+        wa.line++; wa.lineT = now;
+      }
+      if(waSeen()) wa.seenT += dt * 1000; else wa.unseenT += dt * 1000;
+      return;
+    }
+    // the last word has been said: if the crew watched it happen, the porter draws; if not, it ends the quiet way
+    if(now - wa.lineT < WA_LINE_MS) return;
+    if(wa.seenT >= wa.unseenT || waSeen()) waDraw('porter'); else waWalked();
     return;
   }
   if(wa.state === 'drawn'){
@@ -10592,7 +10671,7 @@ function waTick(dt){
     return;
   }
   if(wa.state === 'shooting'){ waDuelCheck(); return; }
-  if(wa.state === 'done') waAfterTick(dt);
+  if(wa.state === 'done'){ waCrateCarryTick(); waAfterTick(dt); }
 }
 // "RIGHT, THAT'S IT!!": the camera comes over, the words land, and two seconds later so does the lead
 function waDraw(role){
@@ -10715,13 +10794,28 @@ function waAfterTick(dt){
   const crate = waCrate();
   if(crate && !crate.holder){
     if(Math.hypot(crate.x - surv.x, crate.y - surv.y) > 22){ civTravel(surv, crate.x, crate.y, civSpd(surv), dt); return; }
-    state.props = state.props.filter(p => p !== crate);
+    crate.holder = surv.name;   // carried, not vanished: it drops where they drop
     waSet({crate: surv.wa, outcome: wa.outcome + '_took'});
     addPopup(surv.x, surv.y - surv.r - 14, 'TOOK THE CRATE', '#e0a33e');
     chronicle('event', surv.name + ' picked the crate up off the Cross and walked off with it. Nobody argued.');
   }
   surv.leaving = true;
   waLeave(surv);
+}
+// a crate in a civilian's arms rides with them, falls with them, and leaves with them through an arch
+function waCrateCarryTick(){
+  const crate = waCrate();
+  if(!crate || !crate.holder) return;
+  if((state.squad || []).some(c => c.name === crate.holder)) return;   // the crew's carry is handled with the crew
+  const cv = (state.civs || []).find(c => c.name === crate.holder);
+  if(!cv || cv.gone){ state.props = state.props.filter(p => p !== crate); waSet({crate: 'gone'}); return; }
+  if(!cv.alive || cv.ko){
+    crate.holder = null; crate.x = cv.x; crate.y = cv.y + 14;
+    waSet({crate: 'floor'});
+    addPopup(crate.x, crate.y - 18, 'THE CRATE', '#e0a33e');
+    return;
+  }
+  crate.x = cv.x; crate.y = cv.y - cv.r - 12;
 }
 function waLeave(cv){
   cv.errand = {kind: 'cross', path: [], leg: 0, waitT: 0};
@@ -12314,7 +12408,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '19 Oct \u00B7 CRATE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '20 Oct \u00B7 HOUND';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -13415,12 +13509,27 @@ function portTalk(cv){
         'She reads the label without touching it. \u201CThat is mine. It was meant for my floor this morning and instead it went on a tour.\u201D She looks at the crew properly for the first time. \u201CBring it in. ' + WA_ERINA_PAY + ' credits for the carriage, and I pay better than that for people who go out and fetch.\u201D',
         [{label: 'RETURN THE CRATE \u00B7 ' + WA_ERINA_PAY + ' CR', cb: waReturnToErina}].concat(close));
     }
-    if(wa && wa.crate === 'erina'){
+    if(wa && wa.crate === 'erina' && !ship.erinaJobs){
       return showEventModal('ERINA JONES',
-        '\u201CThe crate arrived, thanks to you. There is always something that needs bringing back, and always somewhere nobody sane goes to get it. When I have one worth your time, you will hear.\u201D', close);
+        '\u201CThe crate arrived, thanks to you. There is always something that needs bringing back, and always somewhere nobody sane goes to get it.\u201D',
+        [{label: 'ASK ABOUT THE WORK', cb: () => {
+          ship.erinaJobs = true; erinaIdx(); shipSave();
+          showEventModal('ERINA JONES \u00B7 THE WORK',
+            '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing. Darts, the goad, the screamer. Not lead. The job is on the board under my name.\u201D',
+            [{label: 'UNDERSTOOD'}]);
+          chronicle('event', 'Erina Jones offered the crew retrieval work: a Glass Hound from the warren, alive. The contract is on the board.');
+        }}].concat(close));
     }
+    const offer = {label: ship.erinaJobs ? 'ABOUT THE WORK' : 'ASK ABOUT THE WORK', cb: () => {
+      ship.erinaJobs = true; erinaIdx(); shipSave();
+      showEventModal('ERINA JONES \u00B7 THE WORK',
+        '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing.\u201D She slides a dart rifle an inch along the counter. \u201CDarts, the goad, the screamer. Not lead. Lead makes a rug, and I do not pay for rugs. The job is on the board under my name. Take it from the ship when you are ready.\u201D',
+        [{label: 'UNDERSTOOD'}]);
+      chronicle('event', 'Erina Jones offered the crew retrieval work: a Glass Hound from the warren, alive. The contract is on the board.');
+    }};
     return showEventModal('ERINA JONES',
-      '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D', close);
+      '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D',
+      [offer].concat(close));
   }
   if(cv.name === 'Hask'){
     if(waCarrier()){
@@ -13594,6 +13703,7 @@ function shipSave(){
       roster, career: CAREER, missionsWon: missionsWon,
       where: ship.where || null, district: ship.district || null,
       missions: ship.missions || {},
+      erinaJobs: !!ship.erinaJobs,
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -13614,6 +13724,7 @@ function shipLoad(){
     ship.cargoProps = Array.isArray(d.cargoProps) ? d.cargoProps : [];
     ship.where = d.where || null; ship.district = d.district || null;
     ship.missions = (d.missions && typeof d.missions === 'object') ? d.missions : {};
+    ship.erinaJobs = !!d.erinaJobs;
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -13633,6 +13744,7 @@ function doShipReset(){
   ship.at = 'gateway'; ship.day = 0;
   ship.district = shipDistrictOf('gateway');   // the dev reset boards you where the Orrix stands
   ship.missions = {};
+  ship.erinaJobs = false;
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
@@ -14013,6 +14125,9 @@ function win(){
   const inv = state.invoiceSnap || state.invoice || {noise: 0, civPanics: 0, cruelty: 0, wallHits: 0};
   const items = [];
   if(iss.invoice) items.push(['CONTRACT FEE, STANDARD SCHEDULE', fee]);
+  if(L.quarry) items.push(state.quarryDead
+    ? ['LIVE STOCK CLAUSE: DEAD ON ARRIVAL', -Math.round(fee * 0.75)]
+    : ['LIVE STOCK BONUS: BREATHING ON DELIVERY', Math.round(fee * 0.5)]);
   if(t <= L.par) items.push(['EXPEDITION COMMENDATION (PAR MET)', fee * 2]);
   if(L.secondaries){
     for(const sec of L.secondaries){
@@ -15811,8 +15926,23 @@ function frame(now){
         }
       }
     }
+    if(s.pkg.live){
+      const q = s.enemies.find(e => ARCHETYPES[e.type] && ARCHETYPES[e.type].quarry);
+      if(q && q.alive && q.ko){
+        s.pkg.live = false; s.pkg.x = q.x; s.pkg.y = q.y;
+        s.enemies = s.enemies.filter(e => e !== q);
+        addPopup(q.x, q.y - 20, 'DOWN AND BREATHING', '#9fe0d8');
+        showBanner('DOWN AND BREATHING \u00B7 BAG IT', '#9fe0d8');
+        chronicle('combat', 'The ' + (ARCHETYPES[q.type].label || 'quarry') + ' went down alive. Now it has to be carried.');
+      }else if(!q || !q.alive){
+        s.pkg = null; s.quarryDead = true;
+        showBanner('THE QUARRY IS DEAD \u00B7 SHE WANTED IT ALIVE', '#e0483e');
+        chronicle('combat', 'The quarry died in the warren. Erina pays for stock, not pelts.');
+        return;
+      }
+    }
     if(!s.pkg.carried){
-      if(s.pkgFound) for(const c of aliveChars()){
+      if(s.pkgFound && !s.pkg.live) for(const c of aliveChars()){
         if(c.ko) continue;
         if(Math.hypot(c.x - s.pkg.x, c.y - s.pkg.y) < c.r + 12){
           s.pkg.carried = c;
