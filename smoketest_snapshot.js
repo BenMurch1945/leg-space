@@ -60,7 +60,7 @@ const hooked = script.replace('})();',
   'addStress, updateMorale, moraleThresholds, tryRally, decayStress, grazeCheck, updateDetection, updateVisibility, ' +
   'noiseAt, targetHuggingBlocker, enemyDecide, enemyFireAt, allyInLine, raycast, activateAbility, ramEnemy, aimSteadiness, aimBreathSpeed, losHigh, losHighPeek, shooterExemptions, charConcealed, inVisionOf, TUNE, ARCHETYPES, ' +
   'commitWatch, checkOverwatch, inWatchWedge, watchRange, hiddenBehindLow, renameSquad, SQUAD_DEFS, placeScan, ' +
-  'muzzleFlash, enemyDecide, chunksOf, wallAliveFrac, damageChunk, canShootFrom, impactDamage, isFearless, conePolyAt, alertEnemy, memWrite, memTarget, refreshMemory, canPerceive, allyInLine, WEAPONS, pushNoiseRing, sedCap, sedState, addSed, checkWin, renderObjectives, LEVELS, busy, dismissBrief, explainState, STATE_EXPLAINED, hugsCoverAt, showMoveHint, sedMoveMul, maxMoveDist, heroStateLines, stressPop, grazeStressOf, pinStressOf, flushStressPops, setSysPause, dismissSys, WPN_DESC, RACE_INFO, CLASS_INFO, STAT_TIPS, STATE_TIPS, cycleLoadout, SQUAD_DEFS, WPN_SLOTS, wpnFor, commitWatch, RACE_LORE, rosterSelection, toggleSelect, CHAR_BIOS, SERVICE_RECORDS, bark, BARKS, PAIR_TALK, pairTalk, queueBark, careerOf, fmtRecVal, win, showBrief, LEVELS, currentLevel, startRange, exitRange, checkWin, setToggleMode, RANGE_LEVEL, defLocked, contractsAvailable, renderRoster, renderContractPicker, setMissionsWon, cycleContract, setAdvisoryClock, showNextSys, ARCHETYPES, panicCivs, enemyDecide, fail, LEVEL_OPENERS, kill, layout, hitEnemy, unstickFromWalls, addStress, buildMoveGraph, maybeAdviseWatch, setContractsPlayed, W, H, canPerceive, refreshMemory, inVisionOf, enemyVisionRange, hiddenBehindLow, startEnemyTurn, enemyMelee, loadIntoEditor, customLevel: () => customLevel, rosterSel: () => rosterSelection, ship, hireRecruit, buyWeapon, sellWeapon, buySlot, RECRUIT_POOL, recruitAvailable, livingRoster, weaponAllowed, standUp, charDown, charDie, applyInjuries, INJURIES, WPN_PRICE, SLOT_PRICE, shipSave, shipLoad, shipShowPane, endEnemyTurn, squadWipe, setTeamView, buildRosterCard, WPN_META, GROUP_LABELS, CLASS_WEAPON_ACCESS, classAllows, slotLegal, SLOT_LABELS, SLOT_GROUPS, equipWeapon, gridCandidates, openWeaponGrid, closeWeaponGrid, reloadWeapon, clipOf, WPN_CLIP, WPN_AMMO, GROUP_ICONS, bluntSlam, bluntPulseR, isBluntKey, WPN_CALLSIGNS, doShipReset, GALAXY, galaxyNode, daysBetween, travelTo, contractsAt, LEVELS, postingOpen, postingClosesIn, postingReopensIn, boardState, stockAt, RUMOURS, RECRUIT_POOL, deployContract, showPlanet, PORT_DESCS, PORT_AREAS, AREA_LABELS, portGo, SHIP_LEVEL, SHIP_STATIONS, enterShipDeck, leaveShipDeck, deckStation, deckDown, computeMovePreview, commitMove, beginFlight, flightTick, SEC_PER_DAY, deckSeparate, deckMaskGet, beginBoarding, enterDeckCombat, resolveBoarding, exitDeckCombat, startEnemyTurn, endEnemyTurn, checkWin, cam, camClamp, camReset, toLocal, dims: () => ({W, H}), followRun, win, openMedPod, maxMoveDist, ARMOUR_SETS, ISSUE_STOCK, gridCandidates, canUseTile, slotForKey, equipFromBag, tileColor, SLOT_TINTS, openCharSheet, unequipToBag, WEAPONS, nearestHighWallPoint, STATION_LABELS, enterPort, undockToDeck, startPortFight, buildMercyPort, afterActionReturn, LEVELS, deployContract, embedShipInPort, PORT_LEVELS, chronicle, shipLoad, bz, bzSet, worldEnsure, bzCrate, bzPickup, carriedThing, carryAttach, dropCarried, throwCarried, tickProps, syncCargo, lootOf, lootStash, lootTake, lootEquip, lootLeave, lootSpent, packTotal, sellSalvage, carryCardHtml, syncWeaponButtons, bzBuyFromJune, bzReturnToVarric, bzVarricMood, bzConfront, startConstableFight, npcAttitude, enemyFireAt, bzSellToHask, bzGiveBackToJune, portTalk, hireRecruit, buyWeapon, RECRUIT_POOL, checkWin, carveDoorF, checkWin, outfitOf, protMax, applyDamage, openArmourLocker, priceMulAt, buyPrice, sellHeatMul, bzRecruitLocked, bzHaskPrice, bzLawless, BZ_SUCCESSOR, bzCastOf, FACTIONS, facRepOf, facRepAdd, crimeSeen, witnessNerve, CRATE_CRIME, bzSellBackToVarric, stakeSettle, resolveBoarding, beginBoarding, freeRoam, deckDown, draw, ironsToggle, squadMoveToggle, copCamFlush, CROSSPORT_PORT, errandNew, errandTick, crowdTick, crowdSpawn, witnessRun, openGround, inShipZone, civSpd, civStep, BZ_RESERVES, lootOf: lootOf, respRouteBuild, outOfShipZone, nearestRouteIdx, armKey, armFind, provOf, provSet, crewContraband, rapsOf, rapAdd, rapClear, rapsAnyMajor, contrabandOfOp, bzConfiscate, bzSearch, bzFrisk, bzSearchResults, bzSearchAccept, bzArrest, bzArrestComply, bzCrimeWitness, worldSeed, portFacts, orgOf, crimeStage, bzNpcCrimeAct, crimeStepIn, crimeTip, facRepCross, renderStore, renderRecruit, simPauseStart, simResume, tickProps, civTravel, civLineClear, civPathTo, portFightBreakOff, npcAttitude: npcAttitude, canPerceive, memTarget, packEquip, unequipToPack, shopOf, shelfItem, shopBuy, shopSend, shopSteal, shopSeed, eqCardOpen, shelfCompareLines, shopKeeperCiv, castPlacements, placeAt, placeBeside, rngFor, SITUATIONS, situationsTick, situationPick, situationLive, situationOpen, lawStrength, civStruck, squadUnstack, bladeDash, FACES, FACE_NAMES, faceTrigger, faceArrive, faceResolve, faceTick, faceAssassinFight, cleanupCall, bodiesOnFloor, BZ_CLEANUP, makeBoarder, sitDealAll, cnavBuild, cnavDirty, cnavFreeNear, civLineClearR, civBlocked, CNAV, OPERATOR_PRESETS, newGameStart, opPick, opPickCycle, opPickGo, opApply, continueGame, titleShow, saveExists, CROSS_PORT, DISTRICTS, PORT_HOME, CROSS_CAST, districtGo, districtPark, districtWake, districtDoorTick, districtDef, portCast, packGive, packDrop, nearOperators, cacheAt, camFocusCrew, FACE_CAST, namedArchetype, makeNamedFoe, CUBES, cubeItem, cubeOpen, MISSIONS, missionStart, missionEnd, missionsOpen, waypointHere, denFacts, denOpen, denBuy, denLookoutDraw, denEnter, denReturn, denKeyHeld, denDoorWalls, DEN_CAST, DEN_LEVEL, denIdx, afterActionReturn, contractsAt, contrabandOfOp, GANG_CAST, gangRegister, ISSUERS, issuerOf, ARCH_DOSSIERS, shooterExemptions, wallBlocksShot, visionPolyAt, charVisionRange, showBannerLater, flushBanners, showMissionBanner, doorStatus, circleRect, sightMulSet, sightMul: () => SIGHT_MUL, portAnchors, segClearHigh, wpnRoll, wpnView, wpnItemMods, provMods, wpnModsOf, clipOfC, wpnCompareRows, wpnTableHtml, provFields, armEntry, armModsAt, wpnStatList, WPN_SPREAD, spotlightOn, spotHoldSet, spot: () => spot, camGlide, doorInspect, poiVerb, poiLive, drawSpotlight, squadFollow, waTrigger, waTick, waFacts, waSet, waCivs, waCrate, waDraw, waFight, waBack, waBuy, waDuelCheck, waReturnToErina, waSellToHask, waHandTo, waCarrier, feudTarget, WA_CAST, WA_LINES, erinaSeed, waWalked, WA_CLOCK_MS, WA_UNSEEN_MS, ERINA_LEVEL, erinaIdx, ISSUERS}; })();');
+  'muzzleFlash, enemyDecide, chunksOf, wallAliveFrac, damageChunk, canShootFrom, impactDamage, isFearless, conePolyAt, alertEnemy, memWrite, memTarget, refreshMemory, canPerceive, allyInLine, WEAPONS, pushNoiseRing, sedCap, sedState, addSed, checkWin, renderObjectives, LEVELS, busy, dismissBrief, explainState, STATE_EXPLAINED, hugsCoverAt, showMoveHint, sedMoveMul, maxMoveDist, heroStateLines, stressPop, grazeStressOf, pinStressOf, flushStressPops, setSysPause, dismissSys, WPN_DESC, RACE_INFO, CLASS_INFO, STAT_TIPS, STATE_TIPS, cycleLoadout, SQUAD_DEFS, WPN_SLOTS, wpnFor, commitWatch, RACE_LORE, rosterSelection, toggleSelect, CHAR_BIOS, SERVICE_RECORDS, bark, BARKS, PAIR_TALK, pairTalk, queueBark, careerOf, fmtRecVal, win, showBrief, LEVELS, currentLevel, startRange, exitRange, checkWin, setToggleMode, RANGE_LEVEL, defLocked, contractsAvailable, renderRoster, renderContractPicker, setMissionsWon, cycleContract, setAdvisoryClock, showNextSys, ARCHETYPES, panicCivs, enemyDecide, fail, LEVEL_OPENERS, kill, layout, hitEnemy, unstickFromWalls, addStress, buildMoveGraph, maybeAdviseWatch, setContractsPlayed, W, H, canPerceive, refreshMemory, inVisionOf, enemyVisionRange, hiddenBehindLow, startEnemyTurn, enemyMelee, loadIntoEditor, customLevel: () => customLevel, rosterSel: () => rosterSelection, ship, hireRecruit, buyWeapon, sellWeapon, buySlot, RECRUIT_POOL, recruitAvailable, livingRoster, weaponAllowed, standUp, charDown, charDie, applyInjuries, INJURIES, WPN_PRICE, SLOT_PRICE, shipSave, shipLoad, shipShowPane, endEnemyTurn, squadWipe, setTeamView, buildRosterCard, WPN_META, GROUP_LABELS, CLASS_WEAPON_ACCESS, classAllows, slotLegal, SLOT_LABELS, SLOT_GROUPS, equipWeapon, gridCandidates, openWeaponGrid, closeWeaponGrid, reloadWeapon, clipOf, WPN_CLIP, WPN_AMMO, GROUP_ICONS, bluntSlam, bluntPulseR, isBluntKey, WPN_CALLSIGNS, doShipReset, GALAXY, galaxyNode, daysBetween, travelTo, contractsAt, LEVELS, postingOpen, postingClosesIn, postingReopensIn, boardState, stockAt, RUMOURS, RECRUIT_POOL, deployContract, showPlanet, PORT_DESCS, PORT_AREAS, AREA_LABELS, portGo, SHIP_LEVEL, SHIP_STATIONS, enterShipDeck, leaveShipDeck, deckStation, deckDown, computeMovePreview, commitMove, beginFlight, flightTick, SEC_PER_DAY, deckSeparate, deckMaskGet, beginBoarding, enterDeckCombat, resolveBoarding, exitDeckCombat, startEnemyTurn, endEnemyTurn, checkWin, cam, camClamp, camReset, toLocal, dims: () => ({W, H}), followRun, win, openMedPod, maxMoveDist, ARMOUR_SETS, ISSUE_STOCK, gridCandidates, canUseTile, slotForKey, equipFromBag, tileColor, SLOT_TINTS, openCharSheet, unequipToBag, WEAPONS, nearestHighWallPoint, STATION_LABELS, enterPort, undockToDeck, startPortFight, buildMercyPort, afterActionReturn, LEVELS, deployContract, embedShipInPort, PORT_LEVELS, chronicle, shipLoad, bz, bzSet, worldEnsure, bzCrate, bzPickup, carriedThing, carryAttach, dropCarried, throwCarried, tickProps, syncCargo, lootOf, lootStash, lootTake, lootEquip, lootLeave, lootSpent, packTotal, sellSalvage, carryCardHtml, syncWeaponButtons, bzBuyFromJune, bzReturnToVarric, bzVarricMood, bzConfront, startConstableFight, npcAttitude, enemyFireAt, bzSellToHask, bzGiveBackToJune, portTalk, hireRecruit, buyWeapon, RECRUIT_POOL, checkWin, carveDoorF, checkWin, outfitOf, protMax, applyDamage, openArmourLocker, priceMulAt, buyPrice, sellHeatMul, bzRecruitLocked, bzHaskPrice, bzLawless, BZ_SUCCESSOR, bzCastOf, FACTIONS, facRepOf, facRepAdd, crimeSeen, witnessNerve, CRATE_CRIME, bzSellBackToVarric, stakeSettle, resolveBoarding, beginBoarding, freeRoam, deckDown, draw, ironsToggle, squadMoveToggle, copCamFlush, CROSSPORT_PORT, errandNew, errandTick, crowdTick, crowdSpawn, witnessRun, openGround, inShipZone, civSpd, civStep, BZ_RESERVES, lootOf: lootOf, respRouteBuild, outOfShipZone, nearestRouteIdx, armKey, armFind, provOf, provSet, crewContraband, rapsOf, rapAdd, rapClear, rapsAnyMajor, contrabandOfOp, bzConfiscate, bzSearch, bzFrisk, bzSearchResults, bzSearchAccept, bzArrest, bzArrestComply, bzCrimeWitness, worldSeed, portFacts, orgOf, crimeStage, bzNpcCrimeAct, crimeStepIn, crimeTip, facRepCross, renderStore, renderRecruit, simPauseStart, simResume, tickProps, civTravel, civLineClear, civPathTo, portFightBreakOff, npcAttitude: npcAttitude, canPerceive, memTarget, packEquip, unequipToPack, shopOf, shelfItem, shopBuy, shopSend, shopSteal, shopSeed, eqCardOpen, shelfCompareLines, shopKeeperCiv, castPlacements, placeAt, placeBeside, rngFor, SITUATIONS, situationsTick, situationPick, situationLive, situationOpen, lawStrength, civStruck, squadUnstack, bladeDash, FACES, FACE_NAMES, faceTrigger, faceArrive, faceResolve, faceTick, faceAssassinFight, cleanupCall, bodiesOnFloor, BZ_CLEANUP, makeBoarder, sitDealAll, cnavBuild, cnavDirty, cnavFreeNear, civLineClearR, civBlocked, CNAV, OPERATOR_PRESETS, newGameStart, opPick, opPickCycle, opPickGo, opApply, continueGame, titleShow, saveExists, CROSS_PORT, DISTRICTS, PORT_HOME, CROSS_CAST, districtGo, districtPark, districtWake, districtDoorTick, districtDef, portCast, packGive, packDrop, nearOperators, cacheAt, camFocusCrew, FACE_CAST, namedArchetype, makeNamedFoe, CUBES, cubeItem, cubeOpen, MISSIONS, missionStart, missionEnd, missionsOpen, waypointHere, denFacts, denOpen, denBuy, denLookoutDraw, denEnter, denReturn, denKeyHeld, denDoorWalls, DEN_CAST, DEN_LEVEL, denIdx, afterActionReturn, contractsAt, contrabandOfOp, GANG_CAST, gangRegister, ISSUERS, issuerOf, ARCH_DOSSIERS, shooterExemptions, wallBlocksShot, visionPolyAt, charVisionRange, showBannerLater, flushBanners, showMissionBanner, doorStatus, circleRect, sightMulSet, sightMul: () => SIGHT_MUL, portAnchors, segClearHigh, wpnRoll, wpnView, wpnItemMods, provMods, wpnModsOf, clipOfC, wpnCompareRows, wpnTableHtml, provFields, armEntry, armModsAt, wpnStatList, WPN_SPREAD, spotlightOn, spotHoldSet, spot: () => spot, camGlide, doorInspect, poiVerb, poiLive, drawSpotlight, squadFollow, waTrigger, waTick, waFacts, waSet, waCivs, waCrate, waDraw, waFight, waBack, waBuy, waDuelCheck, waReturnToErina, waSellToHask, waHandTo, waCarrier, feudTarget, WA_CAST, WA_LINES, erinaSeed, waWalked, WA_CLOCK_MS, WA_UNSEEN_MS, ERINA_LEVEL, erinaIdx, ISSUERS, erinaAccept, hatchFacts, hatchEnter, hatchReturn, houndProp, houndCarrier, erinaSettle, camTouring, camTour}; })();');
 eval(hooked);
 const G = global.window.__G;
 G.restart(); G.dismissBrief();   // step off the boot-time firing range before testing
@@ -6102,58 +6102,88 @@ console.log('WA4 said once, ends in iron; the crate falls with its carrier:', wa
 
 
 // ---- ER: Erina's work ----
-// ER1 the job is hidden until Erina offers it; the hound is the package: down alive it is carried, dead it costs
+// ER1 the job is a hatch, not a posting: accept at the counter, walk, go down together, come up carrying, get paid at the counter
 const er1 = (() => {
-  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT; G.doShipReset(); G.enterPort();
-  const before = !G.contractsAt('gateway').some(i => G.LEVELS[i].erina);
-  G.ship.erinaJobs = true;
-  const idx = G.erinaIdx();
-  const listed = G.contractsAt('gateway').includes(idx) && G.postingOpen(idx, 40) && G.ISSUERS.erina && G.LEVELS[idx].issuer === 'erina';
-  G.shipSave(); G.shipLoad();
-  const kept = G.ship.erinaJobs === true;
-  // deploy: the warren, the hound up, the package not yet a package
-  const alive = G.SQUAD_DEFS.map((d, k) => d.dead ? -1 : k).filter(k => k >= 0).slice(0, 2);
-  const went = G.deployContract(idx, alive) === true;
-  G.dismissBrief();
-  pump(3, 16);
+  const {crew} = dnSetup();
+  const c = crew[0];
+  const hatch = G.state.doors.find(d => d.den === 'warren');
+  const offBoard = !G.contractsAt('gateway').some(i => G.LEVELS[i].erina);
+  const shut0 = !!hatch && !G.hatchFacts().open && G.doorStatus(hatch).line === 'SHUT';
+  c.def.pack = [];
+  const cr0 = G.ship.credits;
+  const cam0 = {x: G.cam.cx, y: G.cam.cy};
+  const took = G.erinaAccept(c) === true && G.ship.erinaJob && G.ship.erinaJob.state === 'open';
+  const rifle = c.def.pack.some(it => it.kind === 'weapon' && it.key === 'dart' && it.mods);
+  const open = G.hatchFacts().open && G.doorStatus(hatch).line === 'OPEN' && (G.ship.missions.liveone || {}).state === 'open';
+  const banner = (document.getElementById('mbKind') || {textContent: ''}).textContent === 'CONTRACT STARTED';
+  // the camera goes to the hatch, holds, and comes back; clicks are refused while it does
+  const touring = G.camTouring();
+  pump(70, 16);
+  const there = Math.hypot(G.cam.cx - hatch.x, G.cam.cy - hatch.y) < Math.hypot(cam0.x - hatch.x, cam0.y - hatch.y) * 0.5;   // clamped near the edge, but well on its way
+  pump(300, 16);
+  const home = !G.camTouring() && Math.hypot(G.cam.cx - hatch.x, G.cam.cy - hatch.y) > 200;
+  // the walk: one at the hatch is not enough; all of them is
+  for(const cc of crew){ cc.x = hatch.x + 400; cc.y = hatch.y - 300; }
+  pump(2, 16);
+  crew[0].x = hatch.x; crew[0].y = hatch.y - 20;
+  pump(2, 16);
+  const notAlone = !!G.state.portDock;
+  for(const cc of crew){ cc.x = hatch.x; cc.y = hatch.y - 20; }
+  pump(2, 16);
+  const down = !!G.state._hatchRun && !G.state.portDock && G.currentLevel().name === 'A Live One' && G.state.pkg && G.state.pkg.live;
+  // the warren: darts, bag, carry, hatch
   const hound = G.state.enemies.find(e => e.type === 'glasshound');
-  const set = !!hound && G.state.pkg && G.state.pkg.live && G.state.pkg.quarry === 'glasshound' && !!G.state.extract;
-  // the crew stands on the package site: nothing to pick up while it is on its feet
-  const c = G.state.squad[0];
-  c.x = hound.x; c.y = hound.y + 30;
+  const c2 = G.state.squad[0];
+  G.addSed(hound, 99, c2);
   pump(2, 16);
-  const notYet = !G.state.pkg.carried;
-  // darts: down and breathing, and the hound is a bag on the floor
-  G.addSed(hound, 99, c);
+  c2.x = G.state.pkg.x; c2.y = G.state.pkg.y;
   pump(2, 16);
-  const bagged = hound.ko && !G.state.enemies.includes(hound) && !G.state.pkg.live && Math.hypot(G.state.pkg.x - hound.x, G.state.pkg.y - hound.y) < 2;
-  // picked up, and delivered at the hatch
-  c.x = G.state.pkg.x; c.y = G.state.pkg.y;
+  for(const e of G.state.enemies) if(e.alive) G.kill(e, {team: 'player', owner: c2, dmg: 99});
+  c2.x = G.state.extract.x; c2.y = G.state.extract.y;
   pump(2, 16);
-  const carried = G.state.pkg.carried === c;
-  for(const e of G.state.enemies) if(e.alive) G.kill(e, {team: 'player', owner: c, dmg: 99});   // the crawlers
-  c.x = G.state.extract.x; c.y = G.state.extract.y;
-  pump(2, 16);
-  const delivered = !!G.state.pkg.delivered && G.state.winReady;
+  const delivered = !!G.state.pkg.delivered && G.state.pkg.carried === c2;
+  const cr1 = G.ship.credits;
   G.win();
-  const paid = (document.getElementById('ovBody') || {textContent: ''}).textContent.indexOf('LIVE STOCK BONUS') >= 0 ||
-    G.ship.chronicle.some(en => en.text.indexOf('went down alive') >= 0);
+  const unpaid = G.ship.credits === cr1 && G.ship.erinaJob.due > 200 && G.state.invoiceItems.some(it => it[0].indexOf('COUNTER') >= 0);
   G.afterActionReturn();
-  const home = !!G.state.portDock;
-  // the dead way: lead, and the clause bites
-  const went2 = G.deployContract(idx, alive) === true;
-  G.dismissBrief(); pump(3, 16);
-  const h2 = G.state.enemies.find(e => e.type === 'glasshound');
-  G.kill(h2, {team: 'player', owner: G.state.squad[0], dmg: 99});
+  const up = !!G.state.portDock && G.ship.erinaJob.state === 'carrying' && !!G.houndProp() && G.houndCarrier() && G.houndCarrier().name === c2.name;
+  const shutAgain = G.doorStatus(hatch).line === 'SHUT' && !G.hatchFacts().open;
+  // across the Cross to the counter
+  const due = G.ship.erinaJob.due;
+  const paid = G.erinaSettle() && G.ship.credits === cr1 + due && G.ship.erinaJob.state === 'paid' && !G.houndProp() &&
+    (G.ship.missions.liveone || {}).state === 'done';
+  G.shipSave(); G.shipLoad();
+  const kept = G.ship.erinaJob && G.ship.erinaJob.state === 'paid';
+  G.undockToDeck(); G.doShipReset();
+  const reset = !G.ship.erinaJob;
+  return {ok: offBoard && shut0 && took && rifle && open && banner && touring && there && home && notAlone && down && delivered && unpaid && up && shutAgain && paid && kept && reset,
+    offBoard, shut0, took, rifle, open, banner, touring, there, home, notAlone, down, delivered, unpaid, up, shutAgain, paid, kept, reset};
+})();
+console.log('ER1 a hatch, not a posting; paid at the counter:', er1.ok ? 'PASS' : 'FAIL',
+  `(off board ${er1.offBoard}, shut ${er1.shut0}, took ${er1.took}, rifle ${er1.rifle}, open ${er1.open}, banner ${er1.banner}, touring ${er1.touring}, there ${er1.there}, home ${er1.home}, not alone ${er1.notAlone}, down ${er1.down}, delivered ${er1.delivered}, unpaid ${er1.unpaid}, up carrying ${er1.up}, shut again ${er1.shutAgain}, paid ${er1.paid}, kept ${er1.kept}, reset ${er1.reset})`);
+
+// ER2 the dead way: the hound in a bag of lead is still a walk back to the counter, for less
+const er2 = (() => {
+  const {crew} = dnSetup();
+  G.erinaAccept(crew[0]);
+  pump(400, 16);
+  const hatch = G.state.doors.find(d => d.den === 'warren');
+  for(const cc of crew){ cc.x = hatch.x; cc.y = hatch.y - 20; }
   pump(2, 16);
-  const dead = G.state.pkg === null && G.state.quarryDead === true;
+  const down = !!G.state._hatchRun;
+  const hound = G.state.enemies.find(e => e.type === 'glasshound');
+  G.kill(hound, {team: 'player', owner: G.state.squad[0], dmg: 99});
+  pump(2, 16);
   for(const e of G.state.enemies) if(e.alive) G.kill(e, {team: 'player', owner: G.state.squad[0], dmg: 99});
   G.checkWin();
-  const over = G.state.winReady || G.state.over;
+  const cr1 = G.ship.credits;
+  G.win();
+  const docked = G.ship.erinaJob.due < 120 && G.ship.credits === cr1;
   G.afterActionReturn();
+  const dead = G.ship.erinaJob.state === 'dead' && !G.houndProp();
+  const due = G.ship.erinaJob.due;
+  const paid = G.erinaSettle() && G.ship.credits === cr1 + due && G.ship.erinaJob.state === 'paid';
   G.undockToDeck(); G.doShipReset();
-  return {ok: before && listed && kept && went && set && notYet && bagged && carried && delivered && paid && home && went2 && dead && over,
-    before, listed, kept, went, set, notYet, bagged, carried, delivered, paid, home, went2, dead, over};
+  return {ok: down && docked && dead && paid, down, docked, dead, paid, due};
 })();
-console.log('ER1 the hound is the package, alive or it is a rug:', er1.ok ? 'PASS' : 'FAIL',
-  `(hidden ${er1.before}, listed ${er1.listed}, saved ${er1.kept}, went ${er1.went}, set ${er1.set}, not yet ${er1.notYet}, bagged ${er1.bagged}, carried ${er1.carried}, delivered ${er1.delivered}, paid ${er1.paid}, home ${er1.home}, again ${er1.went2}, dead ${er1.dead}, over ${er1.over})`);
+console.log('ER2 a rug is still a walk back:', er2.ok ? 'PASS' : 'FAIL', `(down ${er2.down}, docked ${er2.docked}, dead ${er2.dead}, paid ${er2.paid} ${er2.due} CR)`);

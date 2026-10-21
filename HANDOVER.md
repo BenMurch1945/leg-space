@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 395-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 396-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,16 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### Local work is a door (21 Oct)
+- **Rule (Ben, agreed 21 Oct)**: contracts offered by someone in a port are reached on foot through a door in the world and paid in person at the holder; the ship's board is only for work that needs the ship. No teleporting via the board for local jobs.
+- **Erina's job**: `ship.erinaJob = {state: open|carrying|dead|paid, due, items, day}` (saved/loaded, cleared by reset). `erinaAccept(c)` (TAKE THE JOB at her counter, also from the crate-return thank-you): a dart rifle (`wpnRoll('dart', 1)`, no provenance so the law does not read it as stolen) into the talking operator's pack or the ship's rack if full; `missionStart('liveone')` (MISSIONS entries now take `kind: 'CONTRACT'` so the banner reads CONTRACT STARTED / COMPLETE; waypoint THE SERVICE HATCH at 0.875/0.845 on the Cross); `camTour(hatch, 2600)`.
+- **`camTour(x, y, holdMs)`**: glide to the point (900 ms), hold, glide back to the crew centroid (900 ms); `camTouring()` is true throughout and `onDown` refuses clicks while it is; a middle-mouse grab cancels it.
+- **The hatch**: `CROSS_PORT` door `{den: 'warren', label: 'SERVICE HATCH'}`. `hatchFacts()` = {open: job open, done: job past open}; `doorFacts(dr)` picks den vs hatch facts; `doorStatus`, `doorInspect` (GO DOWN / WALK TO THE HATCH), `districtDoorTick` (whole crew within `DOOR_NEAR` → `hatchEnter()`), and the door colour all branch on `dr.den === 'warren'`. `hatchEnter()` mirrors `denEnter` (portReturn/portReturnPos, `levelIdx = erinaIdx()`, `restart()`, `state._hatchRun`). `ERINA_LEVEL` is `hidden: true` and `payAt: 'erina'`; `contractsAt` no longer lists it.
+- **Coming back up**: `afterActionReturn` calls `hatchReturn()` before `enterPort()` (reads `state.pkg.delivered/carried` → job `carrying` and remembers the carrier; `quarryDead` + win → `dead`; a run abandoned with the hound alive leaves the hatch open) and `hatchPlace()` after it (a `{kind: 'hound', erina: true}` prop in the carrier's arms; drawn as a glass ellipse, label GLASS HOUND · OUT COLD on the floor). The hound prop is an ordinary carry: drop it, pick it up, it crosses arches.
+- **Paid at the counter**: `win()` for a `payAt: 'erina'` level itemises as usual, adds PAYABLE AT ERINA'S COUNTER, ON DELIVERY, stores the total in `erinaJob.due`, and does NOT add credits. `erinaSettle()` pays `due` when the crew hands over the hound (`houndCarrier()`) or when the state is `dead` (the rug settlement), sets `paid`, `missionEnd('liveone')`. Erina's talk covers every state (open: directions; carrying without the hound: "so where is it?"; paid: "things keep getting loose").
+- Not built: the hound waking up during the walk back (Ben liked the idea; needs a timer on the prop and a re-spawn as a foe); more quarries; the Freight Quarter as the natural home for more hatches. Erina's shelves spaced out (labels overlapped).
+- Tests `ER1` (the whole loop: off the board, shut, accept, rifle, banner, tour, together at the hatch, down, bag, up carrying, shut again, paid, saved, reset) and `ER2` (dead on arrival).
 
 ### Wrong Address fixes and Erina's work (20 Oct, morning)
 - **The script is said once** (Ben): `WA_LINES` is now 12 lines (54 s at 4.5 s each), said straight through; `WA_CLOCK_MS` = its length. When the last line has hung for one beat, the porter draws if the crew watched more than they missed (`seenT >= unseenT || waSeen()`), otherwise `waWalked()`. No repeats, no separate minute clock.

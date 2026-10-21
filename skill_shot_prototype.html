@@ -6017,10 +6017,8 @@ function mapPick(ev){
 }
 function contractsAt(nodeId){
   const out = [];
-  if(ship && ship.erinaJobs) erinaIdx();   // her work sits on the board once she has offered it
   for(let i = 0; i < LEVELS.length; i++){
-    if(LEVELS[i].at !== nodeId || LEVELS[i].hidden) continue;
-    if(LEVELS[i].erina && !(ship && ship.erinaJobs)) continue;
+    if(LEVELS[i].at !== nodeId || LEVELS[i].hidden) continue;   // Erina's work is behind a hatch, not on a board
     out.push(i);
   }
   return out;
@@ -7052,10 +7050,23 @@ function camReset(){ cam.zoom = 1; cam.cx = W / 2; cam.cy = H / 2; cam.pan = nul
 function camGlide(x, y, ms){
   cam.glide = {x0: cam.cx, y0: cam.cy, x1: x, y1: y, t0: performance.now(), ms: ms || 800};
 }
+// the camera shows a place, holds, and comes home to the crew; then the player has the hands again
+function camTour(x, y, holdMs){
+  const live = (state.squad || []).filter(c => c.alive);
+  const back = live.length ? {x: live.reduce((a, c) => a + c.x, 0) / live.length, y: live.reduce((a, c) => a + c.y, 0) / live.length} : {x: cam.cx, y: cam.cy};
+  camGlide(x, y, 900);
+  cam.tour = {back, at: performance.now() + 900 + (holdMs || 2000)};
+  state.camTourUntil = cam.tour.at + 900;
+}
+function camTouring(){ return !!(state.camTourUntil && performance.now() < state.camTourUntil); }
 function camGlideTick(){
+  if(cam.tour && !cam.glide && performance.now() >= cam.tour.at){
+    camGlide(cam.tour.back.x, cam.tour.back.y, 900);
+    cam.tour = null;
+  }
   const g = cam.glide;
   if(!g) return;
-  if(cam.pan){ cam.glide = null; return; }
+  if(cam.pan){ cam.glide = null; cam.tour = null; state.camTourUntil = 0; return; }
   const k = Math.min(1, (performance.now() - g.t0) / g.ms);
   const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
   cam.cx = g.x0 + (g.x1 - g.x0) * e;
@@ -7131,6 +7142,7 @@ function onDown(e){
     return;
   }
   if(briefOpen || sysOpen || askPending) return;        // read first, decide first
+  if(camTouring()){ e.preventDefault(); return; }       // the camera is showing you something: watch
   if(editorOn){ edDown(toLocal(e)); e.preventDefault(); return; }
   hideInspect();
   if(state.shipDeck && !state.deckCombat){ deckDown(toLocal(e)); e.preventDefault(); return; }
@@ -10219,6 +10231,12 @@ function districtGo(to){
 }
 // what a door would say if you asked it: title, state, and what it takes
 function doorStatus(dr){
+  if(dr.den === 'warren'){
+    const hf = hatchFacts();
+    if(hf.open) return {title: dr.label, line: 'OPEN', tint: '#9fe0d8', note: 'Erina\u2019s warren. The crew goes down together. Stand everyone at the hatch.'};
+    if(hf.done) return {title: dr.label, line: 'SHUT', tint: 'rgba(232,224,204,.6)', note: 'Bolted from above. Nothing down there you have been asked to fetch.'};
+    return {title: dr.label, line: 'SHUT', tint: 'rgba(232,224,204,.6)', note: 'A service hatch into the old warren. Erina Jones has the key, and the reasons.'};
+  }
   if(dr.den){
     const dn = denFacts();
     if(!dn || dn.done) return {title: dr.label, line: 'SHUT FOR GOOD', tint: '#e0483e', note: 'Whatever was in there is finished.'};
@@ -10247,7 +10265,13 @@ function doorInspect(dr){
   };
   const headcount = near.length + ' of ' + crew.length + ' operators are at the ';
   let title = dr.label.toUpperCase(), body, btns = [];
-  if(dr.den){
+  if(dr.den === 'warren'){
+    const hf = hatchFacts();
+    if(hf.open){
+      body = 'The hatch is up. ' + (all ? 'The crew is at the ladder. Go down?' : headcount + 'hatch. Everyone goes down together, so bring the rest.');
+      btns = all ? [{label: 'GO DOWN', cb: () => { hatchEnter(); }}] : [{label: 'WALK TO THE HATCH', cb: walkUp}];
+    }else body = st.note;
+  }else if(dr.den){
     const dn = denFacts();
     if(!dn || dn.done){
       body = 'The door on Tallow Street is shut for good. ' + st.note;
@@ -10302,6 +10326,11 @@ function districtDoorTick(){
     if(!near.length){ dr.armed = true; continue; }
     if(dr.armed === false) continue;   // the arch you just came through waits until you have stepped clear
     // the door explains itself on hover (doorStatus); here it only acts
+    if(dr.den === 'warren'){
+      if(!hatchFacts().open) continue;
+      if(near.length === crew.length){ hatchEnter(); return; }
+      continue;
+    }
     if(dr.den){
       const dn = denFacts();
       if(!dn || dn.done) continue;
@@ -10472,7 +10501,7 @@ const DEN_LEVEL = {
 function denIdx(){ let i = LEVELS.indexOf(DEN_LEVEL); if(i < 0){ LEVELS.push(DEN_LEVEL); i = LEVELS.length - 1; } return i; }
 // ---- Erina's work: catch and retrieve. The warren under the freight quarter, and the thing that lives in it ----
 const ERINA_LEVEL = {
-  name: 'A Live One', fee: 240, par: 12, at: 'gateway', crew: 4, erina: true, always: true,
+  name: 'A Live One', fee: 240, par: 0, at: 'gateway', crew: 4, erina: true, always: true, hidden: true, payAt: 'erina',
   world: {w: 2100, h: 1320},
   client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
   location: 'The Cross \u00B7 the old service warren', time: 'Now',
@@ -10516,6 +10545,96 @@ const ERINA_LEVEL = {
   issuer: 'erina',
 };
 function erinaIdx(){ let i = LEVELS.indexOf(ERINA_LEVEL); if(i < 0){ LEVELS.push(ERINA_LEVEL); i = LEVELS.length - 1; } return i; }
+// the Erina job lives in ship.erinaJob: {state: open|carrying|dead|paid, due, items}. The hatch reads it.
+function hatchFacts(){
+  const j = ship.erinaJob;
+  return {open: !!j && j.state === 'open', done: !!j && j.state !== 'open', job: j || null};
+}
+function doorFacts(dr){ return dr.den === 'warren' ? hatchFacts() : denFacts(); }
+// accepting the work: a dart rifle across the counter, a waypoint, the banner, and the camera shows the way
+function erinaAccept(c){
+  if(ship.erinaJob) return false;
+  ship.erinaJobs = true;
+  ship.erinaJob = {state: 'open', day: ship.day || 0};
+  erinaIdx();
+  // the rifle: into a pocket if there is one, else to the ship's rack
+  const op = c || pc();
+  const gift = {kind: 'weapon', key: 'dart', mods: wpnRoll('dart', 1)};
+  if(op && op.def){
+    if(!Array.isArray(op.def.pack)) op.def.pack = [];
+    if(op.def.pack.length < 4){ op.def.pack.push(gift); addPopup(op.x, op.y - op.r - 14, 'DART RIFLE \u00B7 FROM ERINA', '#9fe0d8'); }
+    else{ ship.armoury.push(armEntry('dart', gift)); addPopup(op.x, op.y - op.r - 14, 'DART RIFLE \u00B7 SENT TO THE SHIP', '#9fe0d8'); }
+  }
+  missionStart('liveone');
+  chronicle('event', 'Erina Jones put a dart rifle on the counter and the crew\u2019s name against a Glass Hound. The service hatch is on the freight side of the Cross.');
+  shipSave();
+  // the camera: over to the hatch, the banner lands, back to the crew, then the hands are theirs again
+  const dr = (state.doors || []).find(d => d.den === 'warren');
+  if(dr) camTour(dr.x, dr.y, 2600);
+  return true;
+}
+function hatchEnter(){
+  const hf = hatchFacts(); if(!hf.open || !state.portDock) return false;
+  const i = erinaIdx();
+  portReturn = state.portDock || null;
+  portReturnPos = {};
+  for(const c of state.squad) portReturnPos[c.name] = {x: c.x / W, y: c.y / H};
+  const alive = SQUAD_DEFS.map((d, k) => d.dead ? -1 : k).filter(k => k >= 0);
+  leaveShipDeck();
+  rosterSelection = alive.slice(0, 4);
+  levelIdx = i; usingCustom = false;
+  rosterDeployed = true;
+  const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden');
+  restart();
+  state._hatchRun = true;
+  chronicle('event', 'Down the service hatch. The warren smells of wet rock and something that eats.');
+  return true;
+}
+// back up the hatch: whatever came out alive is still in somebody's arms, and the job moves on
+let hatchPending = null;
+function hatchReturn(){
+  if(!state._hatchRun) return false;
+  state._hatchRun = null;
+  const j = ship.erinaJob; if(!j) return false;
+  const pk = state.pkg;
+  const carrier = pk && pk.delivered && pk.carried ? pk.carried.name : null;
+  if(carrier){ j.state = 'carrying'; hatchPending = carrier; }
+  else if(state.quarryDead && (state.winReady || state.over)){ j.state = 'dead'; }
+  // else: the warren was left with the hound still in it; the hatch stays open
+  shipSave();
+  return true;
+}
+function hatchPlace(){
+  if(!hatchPending) return;
+  const dr = (state.doors || []).find(d => d.den === 'warren') || {x: W * 0.875, y: H * 0.845};
+  state.props = state.props || [];
+  state.props.push({kind: 'hound', erina: true, x: dr.x, y: dr.y - 30, holder: hatchPending});
+  const c = (state.squad || []).find(c2 => c2.name === hatchPending);
+  if(c) addPopup(c.x, c.y - c.r - 14, 'THE HOUND \u00B7 STILL UNDER', '#9fe0d8');
+  hatchPending = null;
+  refreshDropBtn && refreshDropBtn();
+}
+function houndProp(){ return (state.props || []).find(p => p.kind === 'hound' && p.erina) || null; }
+function houndCarrier(){ const p = houndProp(); return p && p.holder ? (state.squad || []).find(c => c.name === p.holder) || null : null; }
+// the counter pays: the hound on her floor, or the bad news in person
+function erinaSettle(){
+  const j = ship.erinaJob; if(!j || (j.state !== 'carrying' && j.state !== 'dead')) return false;
+  if(j.state === 'carrying'){
+    if(!houndCarrier()) return false;
+    state.props = state.props.filter(p => !(p.kind === 'hound' && p.erina));
+  }
+  const due = j.due != null ? j.due : 25;
+  ship.credits += due;
+  j.state = 'paid'; j.paidDay = ship.day || 0;
+  missionEnd('liveone', 'done');
+  chronicle('trade', j.state === 'paid' && due > 100
+    ? 'The Glass Hound went into Erina\u2019s back room breathing. ' + due + ' CR across the counter, and she did not haggle.'
+    : 'Erina paid ' + due + ' CR for what came back. She did not say thank you.');
+  refreshDropBtn && refreshDropBtn();
+  shipCreditsRefresh && shipCreditsRefresh();
+  shipSave();
+  return true;
+}
 function denEnter(){
   const dn = denFacts(); if(!dn || !dn.open || dn.done || !state.portDock) return false;
   gangRegister();
@@ -11857,6 +11976,7 @@ function cubeOpen(it){
 }
 // ---- missions: the longer stories. Planted by situations, opened by things in hand, advanced by contracts ----
 const MISSIONS = {
+  liveone: {name: 'A Live One', kind: 'CONTRACT', waypoint: {port: 'gateway', district: 'cross', x: 0.875, y: 0.845, label: 'THE SERVICE HATCH'}},
   whyme: {name: 'Why Me', waypoint: {port: 'gateway', district: 'cross', x: 0.76, y: 0.855, label: 'TALLOW STREET'}},
   cleanup: {name: 'Cleanup on Tallow Street', waypoint: null},
 };
@@ -11865,15 +11985,15 @@ function missionStart(id, extra){
   ship.missions = ship.missions || {};
   if(ship.missions[id]) return false;
   ship.missions[id] = Object.assign({state: 'open', day: ship.day || 0, waypoint: m.waypoint ? Object.assign({}, m.waypoint) : null}, extra || {});
-  showBannerLater('MISSION STARTED', m.name, false, 4500);
-  chronicle('event', 'Mission started: ' + m.name + '.' + (m.waypoint ? ' A waypoint is set for ' + m.waypoint.label + '.' : ''));
+  showBannerLater((m.kind || 'MISSION') + ' STARTED', m.name, false, 4500);
+  chronicle('event', (m.kind === 'CONTRACT' ? 'Contract' : 'Mission') + ' started: ' + m.name + '.' + (m.waypoint ? ' A waypoint is set for ' + m.waypoint.label + '.' : ''));
   shipSave();
   return true;
 }
 function missionEnd(id, how){
   const ms = ship.missions && ship.missions[id]; if(!ms || ms.state !== 'open') return false;
   ms.state = how || 'done'; ms.waypoint = null;
-  showBannerLater('MISSION COMPLETE', MISSIONS[id].name, true, 4500);
+  showBannerLater((MISSIONS[id].kind || 'MISSION') + ' COMPLETE', MISSIONS[id].name, true, 4500);
   chronicle('event', 'Mission complete: ' + MISSIONS[id].name + '.');
   shipSave();
   return true;
@@ -12408,7 +12528,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '20 Oct \u00B7 HOUND';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '21 Oct \u00B7 HATCH';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -13504,6 +13624,26 @@ function portTalk(cv){
   if(cv.name === 'Erina Jones'){
     const wa = waFacts();
     const carrier = waCarrier();
+    const j = ship.erinaJob;
+    if(j && j.state === 'carrying' && houndCarrier()){
+      return showEventModal('ERINA JONES',
+        'She is round the counter before you have set it down, one hand on its flank, counting breaths. \u201CUnder, and whole. You have done this before, or you are lucky, and I pay the same for either.\u201D',
+        [{label: 'HAND IT OVER \u00B7 ' + (j.due != null ? j.due : 25) + ' CR', cb: erinaSettle}].concat(close));
+    }
+    if(j && j.state === 'carrying'){
+      return showEventModal('ERINA JONES', '\u201CYou came up the hatch with it. So where is it?\u201D The hound is somewhere on the Cross, and it will not stay under forever.', close);
+    }
+    if(j && j.state === 'dead'){
+      return showEventModal('ERINA JONES',
+        'She reads it in your faces before anyone speaks. \u201CA rug, then.\u201D She pays what the paper says and not a credit over.',
+        [{label: 'TAKE THE SETTLEMENT \u00B7 ' + (j.due != null ? j.due : 25) + ' CR', cb: erinaSettle}].concat(close));
+    }
+    if(j && j.state === 'open'){
+      return showEventModal('ERINA JONES', '\u201CThe hatch is on the freight side, by the east arch. Darts, not lead. Come back with it breathing.\u201D', close);
+    }
+    if(j && j.state === 'paid'){
+      return showEventModal('ERINA JONES', '\u201CNothing on my ledger for you today. There will be. Things keep getting loose.\u201D', close);
+    }
     if(carrier){
       return showEventModal('ERINA JONES',
         'She reads the label without touching it. \u201CThat is mine. It was meant for my floor this morning and instead it went on a tour.\u201D She looks at the crew properly for the first time. \u201CBring it in. ' + WA_ERINA_PAY + ' credits for the carriage, and I pay better than that for people who go out and fetch.\u201D',
@@ -13513,19 +13653,17 @@ function portTalk(cv){
       return showEventModal('ERINA JONES',
         '\u201CThe crate arrived, thanks to you. There is always something that needs bringing back, and always somewhere nobody sane goes to get it.\u201D',
         [{label: 'ASK ABOUT THE WORK', cb: () => {
-          ship.erinaJobs = true; erinaIdx(); shipSave();
+          const opE2 = pc();
           showEventModal('ERINA JONES \u00B7 THE WORK',
-            '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing. Darts, the goad, the screamer. Not lead. The job is on the board under my name.\u201D',
-            [{label: 'UNDERSTOOD'}]);
-          chronicle('event', 'Erina Jones offered the crew retrieval work: a Glass Hound from the warren, alive. The contract is on the board.');
+            '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing. Darts, the goad, the screamer. Not lead.\u201D She slides a dart rifle across the counter. \u201CThe hatch is on the freight side; I will have it unbolted. Bring it back here, to me.\u201D',
+            [{label: 'TAKE THE JOB', cb: () => erinaAccept(opE2)}, {label: 'NOT TODAY'}]);
         }}].concat(close));
     }
-    const offer = {label: ship.erinaJobs ? 'ABOUT THE WORK' : 'ASK ABOUT THE WORK', cb: () => {
-      ship.erinaJobs = true; erinaIdx(); shipSave();
+    const opE = pc();
+    const offer = {label: 'ASK ABOUT THE WORK', cb: () => {
       showEventModal('ERINA JONES \u00B7 THE WORK',
-        '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing.\u201D She slides a dart rifle an inch along the counter. \u201CDarts, the goad, the screamer. Not lead. Lead makes a rug, and I do not pay for rugs. The job is on the board under my name. Take it from the ship when you are ready.\u201D',
-        [{label: 'UNDERSTOOD'}]);
-      chronicle('event', 'Erina Jones offered the crew retrieval work: a Glass Hound from the warren, alive. The contract is on the board.');
+        '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing.\u201D She slides a dart rifle across the counter. \u201CDarts, the goad, the screamer. Not lead. Lead makes a rug, and I do not pay for rugs. The service hatch is on the freight side of the Cross; I will have it unbolted by the time you get there. Bring it back here, to me.\u201D',
+        [{label: 'TAKE THE JOB', cb: () => erinaAccept(opE)}, {label: 'NOT TODAY'}]);
     }};
     return showEventModal('ERINA JONES',
       '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D',
@@ -13704,6 +13842,7 @@ function shipSave(){
       where: ship.where || null, district: ship.district || null,
       missions: ship.missions || {},
       erinaJobs: !!ship.erinaJobs,
+      erinaJob: ship.erinaJob || null,
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -13725,6 +13864,7 @@ function shipLoad(){
     ship.where = d.where || null; ship.district = d.district || null;
     ship.missions = (d.missions && typeof d.missions === 'object') ? d.missions : {};
     ship.erinaJobs = !!d.erinaJobs;
+    ship.erinaJob = (d.erinaJob && typeof d.erinaJob === 'object') ? d.erinaJob : null;
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -13744,7 +13884,7 @@ function doShipReset(){
   ship.at = 'gateway'; ship.day = 0;
   ship.district = shipDistrictOf('gateway');   // the dev reset boards you where the Orrix stands
   ship.missions = {};
-  ship.erinaJobs = false;
+  ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null;
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
@@ -14151,8 +14291,12 @@ function win(){
   if(!iss.invoice) items.length = 0;   // nobody is billing anybody
   let paid = items.reduce((a, [, v]) => a + v, 0);
   if(iss.invoice && paid < 25){ items.push(['ADMINISTRATIVE MINIMUM, APPLIED', 25 - paid]); paid = 25; }
+  if(L.payAt === 'erina' && ship.erinaJob){
+    items.push(['PAYABLE AT ERINA\u2019S COUNTER, ON DELIVERY', 0]);
+    ship.erinaJob.due = paid; ship.erinaJob.items = items.slice();
+  }
   state.invoiceItems = items;
-  ship.credits += paid;
+  if(!(L.payAt === 'erina')) ship.credits += paid;
   state.lastPaid = paid;
   {
     const chL = currentLevel();
@@ -16011,10 +16155,12 @@ function restart(){
   if(!state.range) showBrief();
 }
 function afterActionReturn(){
+  hatchReturn();                             // what came up the hatch is read before any floor is rebuilt
   enterShipDeck();                           // home is the deck in orbit over the dock
   if(portReturn && portReturn === ship.at){
     denReturn();                             // a door on Tallow Street shuts behind you, before the street is rebuilt
     enterPort();                             // …or the pad you launched from
+    hatchPlace();                            // the hound, if it came up, is in the arms that carried it
     if(portReturnPos){                       // everyone back where they stood: mid-word, mid-errand
       const onDeck3 = (x, y) => deckMask && deckMask.int.some(r2 =>
         x >= r2.x && x <= r2.x + r2.w && y >= r2.y && y <= r2.y + r2.h);
@@ -16245,6 +16391,19 @@ function draw(){
 
   // props: sealed crates and their kin, on the floor, in hands, or mid-air
   if(s.props) for(const pcr of s.props){
+    if(pcr.kind === 'hound'){
+      ctx.fillStyle = 'rgba(159,224,216,.55)';
+      ctx.strokeStyle = 'rgba(159,224,216,.95)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(pcr.x, pcr.y, 15, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      if(!pcr.holder && s.shipDeck && !s.deckCombat){
+        ctx.fillStyle = 'rgba(159,224,216,.85)';
+        ctx.font = "700 8.5px 'Space Grotesk',sans-serif";
+        ctx.textAlign = 'center';
+        ctx.fillText('GLASS HOUND \u00B7 OUT COLD', pcr.x, pcr.y + 20);
+      }
+      continue;
+    }
     ctx.fillStyle = pcr.vol ? '#6e3a24' : '#5a4a2e';
     ctx.fillRect(pcr.x - 9, pcr.y - 8, 18, 15);
     ctx.strokeStyle = pcr.vol ? 'rgba(224,122,62,.9)' : 'rgba(212,168,67,.9)';
@@ -16653,8 +16812,8 @@ function draw(){
       ctx.strokeStyle = 'rgba(111,214,255,.18)';
       ctx.beginPath(); ctx.moveTo(dr.x - 15, dr.y); ctx.lineTo(dr.x + 15, dr.y); ctx.stroke();
       if(dr.label){
-        const dnD = dr.den ? denFacts() : null;
-        ctx.fillStyle = dr.den ? (dnD && dnD.open && !dnD.done ? 'rgba(159,224,142,.8)' : 'rgba(224,72,62,.55)') : (dr.to ? 'rgba(111,214,255,.75)' : 'rgba(232,224,204,.35)');
+        const dnD = dr.den ? doorFacts(dr) : null;
+        ctx.fillStyle = dr.den ? (dnD && dnD.open && !dnD.done ? 'rgba(159,224,142,.8)' : dr.den === 'warren' ? 'rgba(159,224,216,.45)' : 'rgba(224,72,62,.55)') : (dr.to ? 'rgba(111,214,255,.75)' : 'rgba(232,224,204,.35)');
         ctx.font = "700 11px 'Space Grotesk',sans-serif";
         ctx.textAlign = 'center';
         const below = dr.y < H * 0.5;
@@ -18196,6 +18355,7 @@ const CROSS_PORT = {
     {x: 0.942, y: 0.45, to: null, label: 'SHIPYARD'},
     {x: 0.942, y: 0.755, to: null, label: 'FREIGHT QUARTER'},
     {x: 0.760, y: 0.855, to: null, den: 'whyme', label: 'TALLOW STREET UNIT'},
+    {x: 0.875, y: 0.845, to: null, den: 'warren', label: 'SERVICE HATCH'},
   ],
   spots: [
     {x: 0.36, y: 0.17, kind: 'bar', label: 'THE BEACON'},
@@ -18213,7 +18373,7 @@ const CROSS_PORT = {
     {x: 0.21, y: 0.33, kind: 'shop', label: 'STALLS'},
   ],
   npcs: [],
-  shelves: [{x: 0.585, y: 0.775}, {x: 0.605, y: 0.785}, {x: 0.625, y: 0.785}, {x: 0.645, y: 0.775}],
+  shelves: [{x: 0.565, y: 0.775}, {x: 0.595, y: 0.79}, {x: 0.625, y: 0.79}, {x: 0.655, y: 0.775}],
   anchors: [
     {x: 0.36, y: 0.17, tags: ['counter', 'bar']},
     {x: 0.21, y: 0.33, tags: ['stall', 'market']},
