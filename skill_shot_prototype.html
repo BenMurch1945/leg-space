@@ -1665,6 +1665,7 @@ function addSed(u, amt, author){
   u.sed = (u.sed || 0) + amt;
   if(u.sed >= sedCap(u)){
     u.ko = true;
+    if(u.loose) houndReBag(u);   // the Erina hound, under again: cargo before the fight can resolve it away
     if(!u.stats && author && author.stats){
       bark(author, 'sedKO');
       if(state.aar && state.aar.perHero[author.name]) state.aar.perHero[author.name].subdued++;
@@ -2632,6 +2633,7 @@ function copCamFlush(){
   for(const r of q) if(r.by) rapAdd(r.by, 'major', 'the killing of Constable ' + r.cop);
 }
 function exitDeckCombat(){
+  for(const e of (state.enemies || [])) if(e.loose && e.alive && e.ko) houndReBag(e);   // a stunned hound is cargo, not a casualty
   state.walls = state.walls.filter(w2 => !w2._prop);
   state.deckCombat = false;
   state.boarding = null;
@@ -4804,6 +4806,18 @@ function carryCardHtml(c){
   const vol = held && held.type === 'prop' && held.prop.vol;
   const str = (c.stats && c.stats.strength) || 8;
   const range = Math.round(70 + str * 13);
+  if(held && held.type === 'prop' && held.prop.kind === 'hound'){
+    const wk = Math.max(0, Math.round(held.prop.wake != null ? held.prop.wake : HOUND_WAKE_S));
+    return '<div class="wcname" style="color:#9fe0d8">GLASS HOUND</div>' +
+      '<div class="wcgroup">CARRIED \u00B7 BOTH HANDS \u00B7 BREATHING</div>' +
+      '<div class="wcstats">' +
+        '<div><span>WEIGHT</span><b>LADEN \u00B7 STRIDE \u00D70.8</b></div>' +
+        '<div><span>STIRS IN</span><b style="color:' + (wk <= 45 ? '#e0a33e' : 'var(--bone)') + '">' + Math.floor(wk / 60) + ':' + String(wk % 60).padStart(2, '0') + '</b></div>' +
+        '<div><span>THROW</span><b style="color:#e0483e">DO NOT</b></div>' +
+      '</div>' +
+      '<div class="wcgroup" style="margin-top:6px">ERINA\u2019S COUNTER, AND QUICKLY</div>' +
+      '<button class="wcbtn" id="ccdrop">\u2B07 SET IT DOWN</button>';
+  }
   const name = isPkg ? 'THE PACKAGE' : (held && held.prop.bz ? 'SEALED CRATE' : 'CARGO CRATE');
   return '<div class="wcname" style="color:var(--brass)">' + name + '</div>' +
     '<div class="wcgroup">CARRIED \u00B7 BOTH HANDS</div>' +
@@ -5129,7 +5143,7 @@ const ISSUERS = {
                  flawless: 'Hask pays triple for work that leaves no story.', solid: 'Hask is satisfied, which is rarer than it sounds.', standard: 'Paid in cash, counted twice.', invoice: true, title: 'Settled'},
   tradersguild: {head: 'TRADERS\u2019 GUILD \u00B7 CONTRACT OF SERVICE', aar: 'GUILD ASSESSMENT', assess: 'Guild assessment', settle: 'SETTLEMENT \u00B7 TRADERS\u2019 GUILD CLEARING HOUSE',
                  flawless: 'Exemplary. The Guild notes it in ink.', solid: 'Satisfactory. The Guild notes it in pencil.', standard: 'Fee remitted per the schedule.', invoice: true, title: 'Contract Complete'},
-  erina:        {head: 'ERINA\u2019S EXOTICS \u00B7 RETRIEVAL', aar: 'ERINA\u2019S LEDGER', assess: 'Erina\u2019s count', settle: 'SETTLEMENT \u00B7 ERINA\u2019S EXOTICS, THE CROSS',
+  erina:        {head: 'ERINA\u2019S EXOTICS \u00B7 RETRIEVAL', aar: 'ERINA\u2019S LEDGER', assess: 'Erina\u2019s count', settle: 'READOUT ONLY \u00B7 NOTHING IS PAID HERE \u00B7 SETTLE AT ERINA\u2019S COUNTER ON THE CROSS',
                  flawless: 'Alive, unmarked, and she pays like it.', solid: 'Alive. That was the job.', standard: 'Paid at the agreed rate. She looked at the stock a long time.', invoice: true, title: 'Stock Retrieved'},
   constabulary: {head: 'PORT CONSTABULARY \u00B7 WARRANT WORK', aar: 'CONSTABULARY DEBRIEF', assess: 'Constabulary debrief', settle: 'SETTLEMENT \u00B7 RING OFFICE DISBURSEMENTS',
                  flawless: 'By the book, and the book pays.', solid: 'Adequate. Filed.', standard: 'Standard warrant fee.', invoice: true, title: 'Warrant Served'},
@@ -7059,6 +7073,9 @@ function camTour(x, y, holdMs){
   state.camTourUntil = cam.tour.at + 900;
 }
 function camTouring(){ return !!(state.camTourUntil && performance.now() < state.camTourUntil); }
+// a hush on the port and its own events: after a contract is taken or handed back, nothing new breaks cover for a while
+function quietFor(ms){ state.quietUntil = Math.max(state.quietUntil || 0, performance.now() + ms); }
+function pingsQuiet(){ return !!(state.quietUntil && performance.now() < state.quietUntil) || camTouring(); }
 function camGlideTick(){
   if(cam.tour && !cam.glide && performance.now() >= cam.tour.at){
     camGlide(cam.tour.back.x, cam.tour.back.y, 900);
@@ -10566,6 +10583,7 @@ function erinaAccept(c){
     else{ ship.armoury.push(armEntry('dart', gift)); addPopup(op.x, op.y - op.r - 14, 'DART RIFLE \u00B7 SENT TO THE SHIP', '#9fe0d8'); }
   }
   missionStart('liveone');
+  quietFor(15000);
   chronicle('event', 'Erina Jones put a dart rifle on the counter and the crew\u2019s name against a Glass Hound. The service hatch is on the freight side of the Cross.');
   shipSave();
   // the camera: over to the hatch, the banner lands, back to the crew, then the hands are theirs again
@@ -10604,15 +10622,93 @@ function hatchReturn(){
   shipSave();
   return true;
 }
+const HOUND_WAKE_S = 150;   // how long a darted hound stays under on the walk back
+function erinaCounterPoint(){ const e = CROSS_CAST.find(p => p.name === 'Erina Jones'); return {x: e.x, y: e.y + 0.02}; }
+// the waypoint moves to the counter and the player is shown the way; situations hold their tongue for a while
+function hatchShowTheWay(kind, name){
+  const ms = ship.missions && ship.missions.liveone;
+  const pt = erinaCounterPoint();
+  if(ms && ms.state === 'open') ms.waypoint = {port: 'gateway', district: 'cross', x: pt.x, y: pt.y, label: 'ERINA\u2019S COUNTER', t0: performance.now()};
+  showMissionBanner(kind, name, false, 4500);
+  camTour(pt.x * W, pt.y * H, 2600);
+  quietFor(15000);
+}
 function hatchPlace(){
+  const j = ship.erinaJob;
+  if(j && j.state === 'dead' && !j.told){
+    j.told = true;
+    hatchShowTheWay('REPORT TO ERINA', 'SHE WILL WANT TO HEAR IT');
+    shipSave();
+  }
   if(!hatchPending) return;
   const dr = (state.doors || []).find(d => d.den === 'warren') || {x: W * 0.875, y: H * 0.845};
   state.props = state.props || [];
-  state.props.push({kind: 'hound', erina: true, x: dr.x, y: dr.y - 30, holder: hatchPending});
+  state.props.push({kind: 'hound', erina: true, x: dr.x, y: dr.y - 30, holder: hatchPending, wake: HOUND_WAKE_S, warned: false});
   const c = (state.squad || []).find(c2 => c2.name === hatchPending);
   if(c) addPopup(c.x, c.y - c.r - 14, 'THE HOUND \u00B7 STILL UNDER', '#9fe0d8');
   hatchPending = null;
   refreshDropBtn && refreshDropBtn();
+  hatchShowTheWay('RETURN THE PRODUCT', 'BEFORE IT WAKES');
+}
+// the clock: a darted hound comes round. On its feet it is a fight; darted again it is cargo again; shot, it is a rug.
+function houndTick(dt){
+  if(!state.portDock) return;
+  const j = ship.erinaJob;
+  const p = houndProp();
+  if(p && j && j.state === 'carrying' && !state.deckCombat){
+    if(p.wake == null) p.wake = HOUND_WAKE_S;
+    p.wake -= dt;
+    if(!p.warned && p.wake <= 45){
+      p.warned = true;
+      showBanner('THE HOUND IS STIRRING', '#e0a33e');
+      addPopup(p.x, p.y - 22, 'IT TWITCHED', '#e0a33e');
+      chronicle('event', 'The hound twitched in its sleep. Whoever is carrying it walked faster.');
+    }
+    if(p.wake <= 0) houndWake(p);
+    return;
+  }
+  const e = (state.enemies || []).find(en => en.loose);
+  if(!e) return;
+  if(e.alive && e.ko){ houndReBag(e); }
+  else if(!e.alive){
+    e.loose = false;
+    if(j && j.state === 'carrying'){
+      j.state = 'dead';
+      j.due = Math.max(25, (j.due || 0) - Math.round(ERINA_LEVEL.fee * 1.25));   // the live bonus goes, the dead clause comes
+      const ms = ship.missions && ship.missions.liveone;
+      if(ms && ms.state === 'open') ms.waypoint = Object.assign({}, ms.waypoint || {}, {label: 'ERINA\u2019S COUNTER', t0: performance.now()});
+      chronicle('combat', 'The hound died on the Cross, awake and fighting. Erina will pay the rug rate, and not kindly.');
+      shipSave();
+    }
+  }
+}
+// darted again: cargo again, with less time on the clock (called the moment it goes under, before the fight resolves)
+function houndReBag(e){
+  if(!e || !e.loose || !e.alive || !e.ko) return false;
+  e.loose = false;
+  state.enemies = state.enemies.filter(x => x !== e);
+  state.props = state.props || [];
+  state.props.push({kind: 'hound', erina: true, x: e.x, y: e.y, holder: null, wake: 90, warned: false});
+  addPopup(e.x, e.y - 22, 'UNDER AGAIN \u00B7 BAG IT', '#9fe0d8');
+  chronicle('combat', 'The hound went down a second time, breathing. It will not stay down as long.');
+  return true;
+}
+function houndWake(p){
+  const j = ship.erinaJob;
+  state.props = state.props.filter(x => x !== p);
+  const e = makeBoarder('glasshound', p.x, p.y);
+  e.defence = true; e.loose = true; e.wasCiv = true; e.alert = 'alerted';
+  const tg = (state.squad || []).find(c => c.alive) || {x: p.x, y: p.y};
+  e.lastKnown = {x: tg.x, y: tg.y};
+  state.enemies.push(e);
+  state.portFight = true;
+  if(!state.deckCombat) enterDeckCombat();
+  showBanner('THE HOUND IS AWAKE', '#e0483e');
+  chronicle('combat', 'The Glass Hound came round on the Cross, in somebody\u2019s arms, and took exception. Darts, not lead, if Erina is still to be paid.');
+  refreshDropBtn && refreshDropBtn();
+  startEnemyTurn();
+  void j;
+  return e;
 }
 function houndProp(){ return (state.props || []).find(p => p.kind === 'hound' && p.erina) || null; }
 function houndCarrier(){ const p = houndProp(); return p && p.holder ? (state.squad || []).find(c => c.name === p.holder) || null : null; }
@@ -11491,7 +11587,7 @@ function tickProps(dt){
       for(const cvL of (state.civs || [])) if(cvL.kind === 'lookout' && cvL.alive && !cvL.ko) denLookoutTick(cvL);
       { const dw = denDoorWalls(); if(dw.length && dw.every(w => wallAliveFrac(w) < 0.3)) denOpen('smashed'); }
       // a familiar face: a few seconds on the open floor, and somebody knows you
-      if(situationLive('familiarface') && !state.deckCombat && !state.portFight){
+      if(situationLive('familiarface') && !state.deckCombat && !state.portFight && !pingsQuiet()){
         const bF = bz();
         const outF = (state.squad || []).some(c2 => c2.alive && !c2.downed && !inShipZone(c2.x, c2.y));
         if(bF && bF.visit && !(bF.ff && bF.ff.n === bF.visit.n) && outF){
@@ -11500,7 +11596,7 @@ function tickProps(dt){
         }
       }
       // wrong address: a crate and two claims, a little later than the face, and only on the Cross
-      if(situationLive('wrongaddress') && !state.deckCombat && !state.portFight && ship.district === 'cross'){
+      if(situationLive('wrongaddress') && !state.deckCombat && !state.portFight && ship.district === 'cross' && !pingsQuiet()){
         const bW = bz();
         const outW = (state.squad || []).some(c2 => c2.alive && !c2.downed && !inShipZone(c2.x, c2.y));
         if(bW && bW.visit && !(bW.wa && bW.wa.n === bW.visit.n) && outW){
@@ -11511,7 +11607,7 @@ function tickProps(dt){
       // Varric reads the concourse for new faces, and comes over when he finds one
       {
         const bV = bz();
-        if(bV && bV.crateHolder === 'june' && !bV.varricAsked && !bV.resolved && !state.deckCombat && situationLive('crate')){
+        if(bV && bV.crateHolder === 'june' && !bV.varricAsked && !bV.resolved && !state.deckCombat && situationLive('crate') && !pingsQuiet()){
           const vr = (state.civs || []).find(cv => cv.name === 'Varric' && cv.alive && !cv.ko);
           const out = (state.squad || []).some(c2 => c2.alive && !c2.downed && !inShipZone(c2.x, c2.y));
           if(vr && out && !vr.errand){
@@ -11788,7 +11884,7 @@ function tickProps(dt){
       }
       // the tide's own sins: now and then, a hand finds a stranger's pocket
       if(!state.crimeT) state.crimeT = performance.now() + 15000 + Math.random() * 20000;
-      if(performance.now() > state.crimeT && !state.deckCombat && !state.respT && situationLive('lightfingers') &&
+      if(performance.now() > state.crimeT && !state.deckCombat && !state.respT && situationLive('lightfingers') && !pingsQuiet() &&
          !(state.civs || []).some(cv => cv.crook)){
         state.crimeT = performance.now() + 30000 + Math.random() * 30000;
         crimeStage();
@@ -11984,7 +12080,7 @@ function missionStart(id, extra){
   const m = MISSIONS[id]; if(!m) return false;
   ship.missions = ship.missions || {};
   if(ship.missions[id]) return false;
-  ship.missions[id] = Object.assign({state: 'open', day: ship.day || 0, waypoint: m.waypoint ? Object.assign({}, m.waypoint) : null}, extra || {});
+  ship.missions[id] = Object.assign({state: 'open', day: ship.day || 0, waypoint: m.waypoint ? Object.assign({t0: performance.now()}, m.waypoint) : null}, extra || {});
   showBannerLater((m.kind || 'MISSION') + ' STARTED', m.name, false, 4500);
   chronicle('event', (m.kind === 'CONTRACT' ? 'Contract' : 'Mission') + ' started: ' + m.name + '.' + (m.waypoint ? ' A waypoint is set for ' + m.waypoint.label + '.' : ''));
   shipSave();
@@ -12004,7 +12100,7 @@ function waypointHere(){
   const out = [];
   for(const id of missionsOpen()){
     const wp = ship.missions[id].waypoint; if(!wp || wp.port !== ship.at || !state.portDock) continue;
-    if(!wp.district || wp.district === ship.district) out.push({id, x: wp.x * W, y: wp.y * H, label: wp.label, here: true});
+    if(!wp.district || wp.district === ship.district) out.push({id, x: wp.x * W, y: wp.y * H, label: wp.label, here: true, t0: wp.t0});
     else{
       const dr = (state.doors || []).find(d => d.to === wp.district);
       if(dr) out.push({id, x: dr.x, y: dr.y, label: wp.label + ' \u00B7 THROUGH THE ARCH', here: false});
@@ -12018,6 +12114,23 @@ function drawWaypoints(){
   for(const wp of waypointHere()){
     const pulse = 0.55 + 0.35 * Math.sin(t * 2.4);
     ctx.save();
+    // the arrival: a ring drops in from wide, lands, and pings three times so the eye finds it
+    const age = (wp.t0 && wp.t0 <= performance.now()) ? (performance.now() - wp.t0) / 1000 : 99;
+    if(age < 3.2){
+      const k = Math.min(1, age / 0.7);
+      const ease = 1 - Math.pow(1 - k, 3);
+      const rr = 240 - (240 - 34) * ease;
+      ctx.strokeStyle = 'rgba(212,168,67,' + (0.25 + 0.6 * ease).toFixed(2) + ')';
+      ctx.lineWidth = 3 - 1.5 * ease;
+      ctx.beginPath(); ctx.arc(wp.x, wp.y, rr, 0, Math.PI * 2); ctx.stroke();
+      for(const at of [0.8, 1.6, 2.4]){
+        if(age < at) continue;
+        const kp = Math.min(1, (age - at) / 0.7);
+        ctx.strokeStyle = 'rgba(212,168,67,' + (0.7 * (1 - kp)).toFixed(2) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(wp.x, wp.y, 34 + 90 * kp, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
     ctx.strokeStyle = 'rgba(212,168,67,' + pulse.toFixed(2) + ')';
     ctx.fillStyle = 'rgba(212,168,67,.18)';
     ctx.lineWidth = 2;
@@ -12528,7 +12641,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '21 Oct \u00B7 HATCH';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '22 Oct \u00B7 WAKE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14258,7 +14371,7 @@ function win(){
       assess += `  ${met ? '✓' : '✗'} ${sec.label}`;
     }
   }
-  document.getElementById('ovTitle').textContent = iss.title;
+  document.getElementById('ovTitle').textContent = L.payAt ? 'Readout \u00B7 Pay at the Counter' : iss.title;
   missionsWon++;
   // the settlement: every clause itemised, bureaucratically, with a total beneath; no employer, no clauses
   const fee = iss.invoice ? (L.fee || 300) : 0;
@@ -14369,7 +14482,7 @@ function win(){
           '" data-delay="' + (0.55 + ri * 0.22) + '">0</i></b></div>'
         ).join('') +
         '<div class="aiRow aiTotal aiLive" style="animation-delay:' +
-          (0.75 + (state.invoiceItems || []).length * 0.22) + 's"><span>' + (iss.invoice ? 'TOTAL REMITTED TO THE ORRIX' : 'REMITTED: NOTHING. LOOTED: SEE PACKS.') + '</span><i></i><b>' +
+          (0.75 + (state.invoiceItems || []).length * 0.22) + 's"><span>' + (L.payAt ? 'DUE AT THE COUNTER \u00B7 NOTHING REMITTED YET' : iss.invoice ? 'TOTAL REMITTED TO THE ORRIX' : 'REMITTED: NOTHING. LOOTED: SEE PACKS.') + '</span><i></i><b>' +
           '<i class="aiTick aiTickTotal" data-final="' + (state.lastPaid || 0) +
           '" data-delay="' + (0.75 + (state.invoiceItems || []).length * 0.22) + '">0</i> CR</b></div>' +
       '</div>' +
@@ -15663,7 +15776,7 @@ function frame(now){
   if(state && state.simPause && state.shipDeck && !state.deckCombat) realDt = 0;   // a popup holds the world
   if(state && state.shipDeck && state.squad) deckSeparate();
   camGlideTick(); spotlightTick();
-  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)) waTick(realDt);
+  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ waTick(realDt); houndTick(realDt); }
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();
   if(state && state.squad && !editorOn){
@@ -16082,10 +16195,9 @@ function frame(now){
         s.pkg = null; s.quarryDead = true;
         showBanner('THE QUARRY IS DEAD \u00B7 SHE WANTED IT ALIVE', '#e0483e');
         chronicle('combat', 'The quarry died in the warren. Erina pays for stock, not pelts.');
-        return;
       }
     }
-    if(!s.pkg.carried){
+    if(s.pkg && !s.pkg.carried){
       if(s.pkgFound && !s.pkg.live) for(const c of aliveChars()){
         if(c.ko) continue;
         if(Math.hypot(c.x - s.pkg.x, c.y - s.pkg.y) < c.r + 12){
@@ -16097,7 +16209,7 @@ function frame(now){
           break;
         }
       }
-    }else{
+    }else if(s.pkg){
       const carrier = s.pkg.carried;
       if(!carrier.alive || carrier.ko){
         s.pkg.carried = null;             // it falls where they fell
@@ -16400,7 +16512,8 @@ function draw(){
         ctx.fillStyle = 'rgba(159,224,216,.85)';
         ctx.font = "700 8.5px 'Space Grotesk',sans-serif";
         ctx.textAlign = 'center';
-        ctx.fillText('GLASS HOUND \u00B7 OUT COLD', pcr.x, pcr.y + 20);
+        const wk = Math.max(0, Math.round(pcr.wake != null ? pcr.wake : HOUND_WAKE_S));
+        ctx.fillText('GLASS HOUND \u00B7 STIRS IN ' + Math.floor(wk / 60) + ':' + String(wk % 60).padStart(2, '0'), pcr.x, pcr.y + 20);
       }
       continue;
     }

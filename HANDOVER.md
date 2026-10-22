@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 396-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 397-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,15 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### The way back, the hush, the hound that wakes (22 Oct)
+- **Bug fixed**: the quarry-dead branch in the frame loop's pkg block did `return` out of `frame()` without re-arming requestAnimationFrame, so killing the hound in the warren froze the game (shipped in HATCH). Now guarded with `if(s.pkg ...)` instead. ER3 caught it.
+- **Readout, not payment**: for a `payAt` level `win()` titles the overlay "Readout · Pay at the Counter", the settle line says READOUT ONLY · NOTHING IS PAID HERE, and the total row reads DUE AT THE COUNTER · NOTHING REMITTED YET. Credits only move in `erinaSettle()`.
+- **Coming up the hatch**: `hatchPlace()` → `hatchShowTheWay(kind, name)`: the `liveone` waypoint moves to Erina's counter (`erinaCounterPoint()`, with `t0`), banner RETURN THE PRODUCT / BEFORE IT WAKES (or REPORT TO ERINA / SHE WILL WANT TO HEAR IT when it died, once, `job.told`), `camTour` to the counter, `quietFor(15000)`.
+- **The hound wakes**: prop `wake` (seconds, `HOUND_WAKE_S` = 150) counts down in `houndTick(dt)` (frame loop, free roam only, state `carrying`); at 45 s a banner THE HOUND IS STIRRING; at 0 `houndWake(p)`: a `glasshound` foe (`loose`, `defence`, `wasCiv`) at the spot, port fight, enemy turn first. Darted/stunned again → `houndReBag(e)` (called from `addSed` the moment it goes under, from `exitDeckCombat` as a safety net, and from `houndTick`): cargo again with `wake` 90. Shot dead → job `dead`, `due` loses the live bonus and gains the dead clause (`- fee * 1.25`, floor 25), waypoint stays on the counter. Floor label GLASS HOUND · STIRS IN m:ss; the carry card (`carryCardHtml`) has a hound variant (STIRS IN, THROW: DO NOT, SET IT DOWN); the card only refreshes on sync, so the figure is not live.
+- **Waypoint arrival**: mission waypoints carry `t0`; `drawWaypoints` plays a 3.2 s drop-in (a ring shrinking from 240 px to the marker, then three expanding pings at 0.8/1.6/2.4 s). `waypointHere` passes `t0`; a stale `t0` from a save (greater than now) is ignored.
+- **The hush**: `quietFor(ms)` / `pingsQuiet()` (also true while `camTouring()`). Set for 15 s on `erinaAccept` and on coming up the hatch. Gated: the Familiar Face clock, Wrong Address, Varric's approach, the cutpurse `crimeStage`. Talking already holds the world (event modals `simPauseStart`).
+- Test `ER3`.
 
 ### Local work is a door (21 Oct)
 - **Rule (Ben, agreed 21 Oct)**: contracts offered by someone in a port are reached on foot through a door in the world and paid in person at the holder; the ship's board is only for work that needs the ship. No teleporting via the board for local jobs.
