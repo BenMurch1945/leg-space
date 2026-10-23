@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 397-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 398-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,11 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### One situation at a time (23 Oct, evening)
+- **Rule (Ben)**: a situation cannot break cover within 20 s of another landing or of the player closing a popup. `SIT_GAP_MS` = 20000. `quietFor(SIT_GAP_MS)` is called by `spotlightOn` (so a face or the crate pair sets it, plus the hold), by the cutpurse `crimeStage` and Varric's approach, and by EVERY event-modal button (`showEventModal` click handler), so the clock restarts when the player finishes reading. `pingsQuiet()` gates the four triggers (face, Wrong Address, Varric, cutpurse); live situations keep running regardless. Contract acceptance and coming up the hatch still set 15 s on top.
+- Test `ER4`.
+- **(same evening)** `camGlide(x, y, ms, zoom)` interpolates zoom; `camTour` glides at `TOUR_ZOOM` (2.4) both ways, so the return-to-Erina pan is readable even when the port came back at zoom 1 (it did: that is why Ben did not see it). The hound stirring is now a mission banner (THE HOUND IS STIRRING / FORTY-FIVE SECONDS, MAYBE LESS); waking shows the banner THE HOUND IS AWAKE / DART IT AGAIN, glides the camera to it, and opens a popup (DART IT) before the enemy turn starts (headless: starts at once).
 
 ### The threshold asks (23 Oct)
 - **Rule (Ben)**: a click on an open contract door walks the crew there with no popup; when the whole crew stands at it, ONE popup says what contract is about to start and asks. `doorAsk(dr)`: titles TALLOW STREET UNIT · WHY ME / CLEANUP or THE SERVICE HATCH · A LIVE ONE, body says what starts and that the door shuts behind you, buttons GO IN / GO DOWN and NOT YET. NOT YET disarms the door (`dr.armed = false`) and clears `dr.asked` so it asks again only after the crew steps clear and comes back. Headless (no modal) enters at once, so the DN/ER tests still flow.

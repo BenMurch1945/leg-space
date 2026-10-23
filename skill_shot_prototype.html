@@ -2575,7 +2575,7 @@ function showEventModal(title, body, buttons, opts){
   for(const btn of buttons){
     const b = document.createElement('button');
     b.textContent = btn.label;
-    b.addEventListener('click', () => { ov.style.display = 'none'; simResume(); if(btn.cb) btn.cb(); });
+    b.addEventListener('click', () => { ov.style.display = 'none'; simResume(); quietFor(SIT_GAP_MS); if(btn.cb) btn.cb(); });   // a popup closed is a situation read: the port waits before the next
     row.appendChild(b);
   }
   ov.style.display = 'flex';
@@ -7064,24 +7064,26 @@ function camClamp(){
 function camReset(){ cam.zoom = 1; cam.cx = W / 2; cam.cy = H / 2; cam.pan = null; }
 // close on the crew: a new player should see two people and a street, not a whole port
 // the camera slides to a point over a few hundred ms; a middle-mouse grab cancels it
-function camGlide(x, y, ms){
-  cam.glide = {x0: cam.cx, y0: cam.cy, x1: x, y1: y, t0: performance.now(), ms: ms || 800};
+function camGlide(x, y, ms, zoom){
+  cam.glide = {x0: cam.cx, y0: cam.cy, x1: x, y1: y, z0: cam.zoom, z1: zoom || cam.zoom, t0: performance.now(), ms: ms || 800};
 }
 // the camera shows a place, holds, and comes home to the crew; then the player has the hands again
+const TOUR_ZOOM = 2.4;
 function camTour(x, y, holdMs){
   const live = (state.squad || []).filter(c => c.alive);
   const back = live.length ? {x: live.reduce((a, c) => a + c.x, 0) / live.length, y: live.reduce((a, c) => a + c.y, 0) / live.length} : {x: cam.cx, y: cam.cy};
-  camGlide(x, y, 900);
+  camGlide(x, y, 900, TOUR_ZOOM);   // close enough to read the place, wherever the camera was before
   cam.tour = {back, at: performance.now() + 900 + (holdMs || 2000)};
   state.camTourUntil = cam.tour.at + 900;
 }
 function camTouring(){ return !!(state.camTourUntil && performance.now() < state.camTourUntil); }
 // a hush on the port and its own events: after a contract is taken or handed back, nothing new breaks cover for a while
+const SIT_GAP_MS = 20000;   // (Ben, 23 Oct) one situation at a time: twenty seconds between one landing and the next breaking cover
 function quietFor(ms){ state.quietUntil = Math.max(state.quietUntil || 0, performance.now() + ms); }
 function pingsQuiet(){ return !!(state.quietUntil && performance.now() < state.quietUntil) || camTouring(); }
 function camGlideTick(){
   if(cam.tour && !cam.glide && performance.now() >= cam.tour.at){
-    camGlide(cam.tour.back.x, cam.tour.back.y, 900);
+    camGlide(cam.tour.back.x, cam.tour.back.y, 900, TOUR_ZOOM);
     cam.tour = null;
   }
   const g = cam.glide;
@@ -7091,6 +7093,7 @@ function camGlideTick(){
   const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
   cam.cx = g.x0 + (g.x1 - g.x0) * e;
   cam.cy = g.y0 + (g.y1 - g.y0) * e;
+  cam.zoom = g.z0 + (g.z1 - g.z0) * e;
   camClamp();
   if(k >= 1) cam.glide = null;
 }
@@ -7103,6 +7106,7 @@ function spotlightOn(cv, opts){
   const hold = opts.hold != null ? opts.hold : SPOT_HOLD_MS;
   const now = performance.now();
   spot = {cv, t0: now, hold};
+  quietFor(SIT_GAP_MS + hold);                            // nothing else breaks cover while this one is being read
   cv.held = now + hold;                                  // feet planted until the moment has landed
   if(hold > 0){
     camGlide(cv.x, cv.y, Math.min(900, hold / 2));
@@ -10690,7 +10694,7 @@ function houndTick(dt){
     p.wake -= dt;
     if(!p.warned && p.wake <= 45){
       p.warned = true;
-      showBanner('THE HOUND IS STIRRING', '#e0a33e');
+      showMissionBanner('THE HOUND IS STIRRING', 'FORTY-FIVE SECONDS, MAYBE LESS', false, 4500);
       addPopup(p.x, p.y - 22, 'IT TWITCHED', '#e0a33e');
       chronicle('event', 'The hound twitched in its sleep. Whoever is carrying it walked faster.');
     }
@@ -10733,10 +10737,14 @@ function houndWake(p){
   state.enemies.push(e);
   state.portFight = true;
   if(!state.deckCombat) enterDeckCombat();
-  showBanner('THE HOUND IS AWAKE', '#e0483e');
+  showMissionBanner('THE HOUND IS AWAKE', 'DART IT AGAIN', false, 4500);
   chronicle('combat', 'The Glass Hound came round on the Cross, in somebody\u2019s arms, and took exception. Darts, not lead, if Erina is still to be paid.');
   refreshDropBtn && refreshDropBtn();
-  startEnemyTurn();
+  camGlide(e.x, e.y, 600);
+  const shown = showEventModal('THE HOUND IS AWAKE',
+    'It comes round all at once: a twist, a snarl, and it is out of the arms that held it and on its feet on the Cross. Erina pays for it breathing. Dart it again, or the goad, or the screamer; put a round in it and you are carrying a rug to her counter.',
+    [{label: 'DART IT', cb: () => startEnemyTurn()}]);
+  if(shown === false) startEnemyTurn();   // headless: the fight starts regardless
   void j;
   return e;
 }
@@ -11644,6 +11652,7 @@ function tickProps(dt){
             if(!state.varricT) state.varricT = performance.now() + 6000 + Math.random() * 10000;
             else if(performance.now() > state.varricT){
               state.varricT = 0;
+              quietFor(SIT_GAP_MS);
               addPopup(vr.x, vr.y - vr.r - 14, 'A WORD, FRIEND', '#6fd6ff');
               vr.errand = {kind: 'approach', path: [], leg: 0, waitT: 0, then: (cvV, tg) => {
                 bzSet({varricAsked: true});
@@ -11918,6 +11927,7 @@ function tickProps(dt){
          !(state.civs || []).some(cv => cv.crook)){
         state.crimeT = performance.now() + 30000 + Math.random() * 30000;
         crimeStage();
+        quietFor(SIT_GAP_MS);
       }
       state._bzSeeT = (state._bzSeeT || 0) + dt;
       if(state._bzSeeT > 0.5){
@@ -12671,7 +12681,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '23 Oct \u00B7 BEGIN';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '23 Oct \u00B7 AWAKE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
