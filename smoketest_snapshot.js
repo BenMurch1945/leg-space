@@ -5899,7 +5899,7 @@ const ql3 = (() => {
   for(const cc of crew){ cc.x = door.x; cc.y = door.y - 20; }
   const arch = G.state.doors.find(d2 => d2.to === 'lanes');
   const way = G.doorInspect(arch);
-  const e = way.title.indexOf('TO ') === 0 && way.labels[0] === 'WALK TO THE ARCH';
+  const e = way.title.indexOf('TO ') === 0 && way.walked === true;
   const here = G.doorInspect(door);
   const d = here.asked === true && here.labels[0] === 'GO IN' && here.labels[1] === 'NOT YET' && !!G.state._denRun;   // headless: the ask is answered yes
   const dash = [shut, keyed, far, here, way].every(r => r.body.indexOf('—') < 0);

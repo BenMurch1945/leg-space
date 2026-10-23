@@ -657,6 +657,8 @@
     padding:26px 32px;max-width:470px;text-align:center;box-shadow:0 0 60px rgba(0,0,0,.7);}
   #eventTitle{font-family:'Cinzel',serif;font-size:21px;font-weight:800;color:#e0483e;
     letter-spacing:.2em;margin-bottom:12px;}
+  #eventSub{font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;letter-spacing:.3em;
+    color:var(--brass);margin:-6px 0 14px;}
   #eventBody{font-size:13px;color:rgba(232,224,204,.8);line-height:1.6;margin-bottom:18px;white-space:pre-line;text-align:left;}
   #eventBtns{display:flex;gap:12px;justify-content:center;}
   #eventBtns button{font:700 11.5px 'Space Grotesk',sans-serif;letter-spacing:.18em;
@@ -2556,7 +2558,7 @@ function simResume(){
   const bF = typeof bz === 'function' ? bz() : null;
   if(bF && bF.searchedT) bF.searchedT += dl;
 }
-function showEventModal(title, body, buttons){
+function showEventModal(title, body, buttons, opts){
   let ov = document.getElementById('eventModal');
   if(!ov){
     ov = document.createElement('div');
@@ -2565,8 +2567,9 @@ function showEventModal(title, body, buttons){
     document.body.appendChild(ov);
   }
   if(!ov.querySelector){ return false; }   // headless: callers drive the callbacks directly
-  ov.innerHTML = '<div id="eventBox"><div id="eventTitle"></div><div id="eventBody"></div><div id="eventBtns"></div></div>';
+  ov.innerHTML = '<div id="eventBox"><div id="eventTitle"></div>' + (opts && opts.sub ? '<div id="eventSub"></div>' : '') + '<div id="eventBody"></div><div id="eventBtns"></div></div>';
   ov.querySelector('#eventTitle').textContent = title;
+  if(opts && opts.sub) ov.querySelector('#eventSub').textContent = opts.sub;
   ov.querySelector('#eventBody').textContent = body;
   const row = ov.querySelector('#eventBtns');
   for(const btn of buttons){
@@ -10272,18 +10275,23 @@ function doorAsk(dr){
   if(dr.asked) return false;
   dr.asked = true;
   const notYet = () => { dr.armed = false; dr.asked = false; addPopup(dr.x, dr.y - 24, 'NOT YET', '#e0a33e'); };
-  let title, body, go, enter;
+  let title, sub, body, go, enter;
   if(dr.den === 'warren'){
-    title = 'THE SERVICE HATCH \u00B7 A LIVE ONE';
-    body = 'Going down starts Erina\u2019s contract: the warren, the Glass Hound, and whatever else lives down there. The crew goes down together and comes back up this ladder. Go?';
-    go = 'GO DOWN'; enter = hatchEnter;
-  }else{
+    title = 'BEGIN CONTRACT?'; sub = 'A LIVE ONE \u00B7 ERINA\u2019S EXOTICS';
+    body = 'Going down starts the contract: the warren, the Glass Hound, and whatever else lives down there. The crew goes down together and comes back up this ladder.';
+    go = 'START CONTRACT'; enter = hatchEnter;
+  }else if(dr.den){
     const whyme = ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open';
-    title = 'TALLOW STREET UNIT \u00B7 ' + (whyme ? 'WHY ME' : 'CLEANUP');
-    body = 'Going through starts the Tallow Street contract: the unit, the crew inside it, and the man in the back room. The door shuts behind you for good. Go in?';
-    go = 'GO IN'; enter = denEnter;
+    title = 'BEGIN CONTRACT?'; sub = whyme ? 'WHY ME \u00B7 TALLOW STREET UNIT' : 'CLEANUP ON TALLOW STREET';
+    body = 'Going through starts the contract: the unit, the crew inside it, and the man in the back room. The door shuts behind you for good.';
+    go = 'START CONTRACT'; enter = denEnter;
+  }else{
+    const dd = districtDef(ship.at, dr.to);
+    title = 'MOVE TO A NEW AREA?'; sub = (dd ? dd.name : dr.label).toUpperCase();
+    body = 'The arch to ' + (dd ? dd.name : dr.label) + '. The crew goes through together; time keeps moving on the floor you leave, and you can come back the same way.';
+    go = 'GO THROUGH'; enter = () => districtGo(dr.to);
   }
-  const shown = showEventModal(title, body, [{label: go, cb: () => { dr.asked = false; enter(); }}, {label: 'NOT YET', cb: notYet}]);
+  const shown = showEventModal(title, body, [{label: go, cb: () => { dr.asked = false; enter(); }}, {label: 'NOT YET', cb: notYet}], {sub});
   if(shown === false){ dr.asked = false; enter(); }   // headless: no hand to ask
   return true;
 }
@@ -10301,7 +10309,6 @@ function doorInspect(dr){
     if(state.movePreview && state.movePreview.valid){ commitMove(); squadFollow(dr.x, ty); }
     else addPopup(dr.x, dr.y - 24, 'NO PATH', '#e0a33e');
   };
-  const headcount = near.length + ' of ' + crew.length + ' operators are at the ';
   let title = dr.label.toUpperCase(), body, btns = [];
   if(dr.den === 'warren'){
     const hf = hatchFacts();
@@ -10332,10 +10339,10 @@ function doorInspect(dr){
   }else if(!dr.to){
     body = 'Closed for works. ' + st.note;
   }else{
-    const dd = districtDef(ship.at, dr.to);
     title = 'TO ' + title;
-    body = 'The arch to ' + (dd ? dd.name : dr.label) + '. ' + (all ? 'The crew is here. Step through together.' : headcount + 'arch. Everyone goes through together.');
-    btns = all ? [{label: 'GO THROUGH', cb: () => { districtGo(dr.to); }}] : [{label: 'WALK TO THE ARCH', cb: walkUp}];
+    if(all){ doorAsk(dr); return {title, body: 'asked', labels: ['GO THROUGH', 'NOT YET'], asked: true}; }
+    walkUp();
+    return {title, body: 'walking', labels: ['WALKED'], walked: true};
   }
   btns.push(leave);
   showEventModal(title, body, btns);
@@ -10380,7 +10387,7 @@ function districtDoorTick(){
       continue;
     }
     if(!dr.to) continue;
-    if(near.length === crew.length){ districtGo(dr.to); return; }
+    if(near.length === crew.length && !dr.asked){ doorAsk(dr); return; }
   }
   // whoever followed you through comes out of the arch a few strides behind
   if(state.arrivals && state.arrivals.length){
@@ -12664,7 +12671,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '23 Oct \u00B7 THRESHOLD';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '23 Oct \u00B7 BEGIN';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
