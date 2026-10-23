@@ -158,6 +158,11 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
 
+### The threshold asks (23 Oct)
+- **Rule (Ben)**: a click on an open contract door walks the crew there with no popup; when the whole crew stands at it, ONE popup says what contract is about to start and asks. `doorAsk(dr)`: titles TALLOW STREET UNIT · WHY ME / CLEANUP or THE SERVICE HATCH · A LIVE ONE, body says what starts and that the door shuts behind you, buttons GO IN / GO DOWN and NOT YET. NOT YET disarms the door (`dr.armed = false`) and clears `dr.asked` so it asks again only after the crew steps clear and comes back. Headless (no modal) enters at once, so the DN/ER tests still flow.
+- `districtDoorTick` calls `doorAsk` (guarded by `dr.asked`) instead of `denEnter`/`hatchEnter` directly; stepping clear resets `asked`. `doorInspect` on an open den/hatch (or a shut den with the key in a pocket) calls `walkUp()` directly and returns `{walked: true}`; with the crew already there it calls `doorAsk` and returns `{asked: true}`. Shut doors still open the hints popup. Arches unchanged (GO THROUGH / WALK TO THE ARCH).
+- Tests QL3/QL4 updated to the new returns.
+
 ### The way back, the hush, the hound that wakes (22 Oct)
 - **Bug fixed**: the quarry-dead branch in the frame loop's pkg block did `return` out of `frame()` without re-arming requestAnimationFrame, so killing the hound in the warren froze the game (shipped in HATCH). Now guarded with `if(s.pkg ...)` instead. ER3 caught it.
 - **Readout, not payment**: for a `payAt` level `win()` titles the overlay "Readout · Pay at the Counter", the settle line says READOUT ONLY · NOTHING IS PAID HERE, and the total row reads DUE AT THE COUNTER · NOTHING REMITTED YET. Credits only move in `erinaSettle()`.

@@ -10266,6 +10266,27 @@ function doorStatus(dr){
 }
 // the door, asked properly: its state, what it takes, and (when open) whether to go in
 const DOOR_NEAR = 90;   // a crew fanned out around the threshold still counts as at the door
+// a door into a contract: the crew is at it, and the game asks before the floor changes
+// (Ben, 23 Oct): no popup for the walk; one popup, at the threshold, that says what you are about to start
+function doorAsk(dr){
+  if(dr.asked) return false;
+  dr.asked = true;
+  const notYet = () => { dr.armed = false; dr.asked = false; addPopup(dr.x, dr.y - 24, 'NOT YET', '#e0a33e'); };
+  let title, body, go, enter;
+  if(dr.den === 'warren'){
+    title = 'THE SERVICE HATCH \u00B7 A LIVE ONE';
+    body = 'Going down starts Erina\u2019s contract: the warren, the Glass Hound, and whatever else lives down there. The crew goes down together and comes back up this ladder. Go?';
+    go = 'GO DOWN'; enter = hatchEnter;
+  }else{
+    const whyme = ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open';
+    title = 'TALLOW STREET UNIT \u00B7 ' + (whyme ? 'WHY ME' : 'CLEANUP');
+    body = 'Going through starts the Tallow Street contract: the unit, the crew inside it, and the man in the back room. The door shuts behind you for good. Go in?';
+    go = 'GO IN'; enter = denEnter;
+  }
+  const shown = showEventModal(title, body, [{label: go, cb: () => { dr.asked = false; enter(); }}, {label: 'NOT YET', cb: notYet}]);
+  if(shown === false){ dr.asked = false; enter(); }   // headless: no hand to ask
+  return true;
+}
 function doorInspect(dr){
   const st = doorStatus(dr);
   const leave = {label: 'LEAVE IT', cb: () => {}};
@@ -10285,16 +10306,18 @@ function doorInspect(dr){
   if(dr.den === 'warren'){
     const hf = hatchFacts();
     if(hf.open){
-      body = 'The hatch is up. ' + (all ? 'The crew is at the ladder. Go down?' : headcount + 'hatch. Everyone goes down together, so bring the rest.');
-      btns = all ? [{label: 'GO DOWN', cb: () => { hatchEnter(); }}] : [{label: 'WALK TO THE HATCH', cb: walkUp}];
+      if(all){ doorAsk(dr); return {title: dr.label, body: 'asked', labels: ['GO DOWN', 'NOT YET'], asked: true}; }
+      walkUp();
+      return {title: dr.label, body: 'walking', labels: ['WALKED'], walked: true};
     }else body = st.note;
   }else if(dr.den){
     const dn = denFacts();
     if(!dn || dn.done){
       body = 'The door on Tallow Street is shut for good. ' + st.note;
     }else if(dn.open){
-      body = 'The door stands open. ' + (all ? 'The crew is at the threshold. Go in?' : headcount + 'door. Everyone goes in together, so bring the rest.');
-      btns = all ? [{label: 'GO IN', cb: () => { denEnter(); }}] : [{label: 'WALK TO THE DOOR', cb: walkUp}];
+      if(all){ doorAsk(dr); return {title: dr.label, body: 'asked', labels: ['GO IN', 'NOT YET'], asked: true}; }
+      walkUp();
+      return {title: dr.label, body: 'walking', labels: ['WALKED'], walked: true};
     }else{
       const key = denKeyHeld();
       const lk = (state.civs || []).find(cv => cv.kind === 'lookout' && cv.alive && !cv.ko);
@@ -10304,7 +10327,7 @@ function doorInspect(dr){
           (lk ? 'the lookout outside has a key and a price (speak to him, buy him off for 150 CR, or take it from his body); '
               : 'the lookout is gone, and the key with him; ') +
           'the shutter is low cover, and a hard enough knock brings it down. A gun will do it, loudly.');
-      if(key) btns = [{label: 'WALK TO THE DOOR', cb: walkUp}];
+      if(key){ walkUp(); return {title, body, labels: ['WALKED'], walked: true}; }   // the key turns on arrival; no popup for a walk
     }
   }else if(!dr.to){
     body = 'Closed for works. ' + st.note;
@@ -10340,12 +10363,12 @@ function districtDoorTick(){
   for(const dr of (state.doors || [])){
     if(!dr.label) continue;
     const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < DOOR_NEAR);
-    if(!near.length){ dr.armed = true; continue; }
+    if(!near.length){ dr.armed = true; dr.asked = false; continue; }
     if(dr.armed === false) continue;   // the arch you just came through waits until you have stepped clear
-    // the door explains itself on hover (doorStatus); here it only acts
+    // the door explains itself on hover (doorStatus); here it only acts, and a contract door asks first
     if(dr.den === 'warren'){
       if(!hatchFacts().open) continue;
-      if(near.length === crew.length){ hatchEnter(); return; }
+      if(near.length === crew.length && !dr.asked){ doorAsk(dr); return; }
       continue;
     }
     if(dr.den){
@@ -10353,7 +10376,7 @@ function districtDoorTick(){
       if(!dn || dn.done) continue;
       if(!dn.open && denKeyHeld()){ denOpen('key'); continue; }
       if(!dn.open) continue;
-      if(near.length === crew.length){ denEnter(); return; }
+      if(near.length === crew.length && !dr.asked){ doorAsk(dr); return; }
       continue;
     }
     if(!dr.to) continue;
@@ -12641,7 +12664,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '22 Oct \u00B7 WAKE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '23 Oct \u00B7 THRESHOLD';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {

@@ -5891,18 +5891,20 @@ const ql3 = (() => {
   const a = shut.body.indexOf('Shut.') === 0 && shut.body.indexOf('150 CR') >= 0 && shut.labels.join() === 'LEAVE IT';
   crew[0].def.pack = [{kind: 'gear', label: 'key', keyFor: 'whyme'}];
   const keyed = G.doorInspect(door);
-  const b = keyed.body.indexOf('holding the key') >= 0 && keyed.labels[0] === 'WALK TO THE DOOR';
+  const b = keyed.body.indexOf('holding the key') >= 0 && keyed.walked === true;   // no popup for a walk
   crew[0].def.pack = [];
   G.ship.credits = 500; G.denBuy(crew[0]);
   const far = G.doorInspect(door);
-  const c = far.body.indexOf('open') >= 0 && far.body.indexOf('0 of ' + crew.length) >= 0 && far.labels[0] === 'WALK TO THE DOOR';
+  const c = far.walked === true && crew.some(cc => cc.run || cc.moving);
   for(const cc of crew){ cc.x = door.x; cc.y = door.y - 20; }
-  const here = G.doorInspect(door);
-  const d = here.body.indexOf('Go in?') >= 0 && here.labels[0] === 'GO IN';
   const arch = G.state.doors.find(d2 => d2.to === 'lanes');
   const way = G.doorInspect(arch);
   const e = way.title.indexOf('TO ') === 0 && way.labels[0] === 'WALK TO THE ARCH';
+  const here = G.doorInspect(door);
+  const d = here.asked === true && here.labels[0] === 'GO IN' && here.labels[1] === 'NOT YET' && !!G.state._denRun;   // headless: the ask is answered yes
   const dash = [shut, keyed, far, here, way].every(r => r.body.indexOf('—') < 0);
+  for(const en of G.state.enemies) if(en.alive) G.kill(en, {team: 'player', owner: G.state.squad[0], dmg: 99});
+  G.checkWin(); G.win(); G.afterActionReturn();
   G.undockToDeck(); G.doShipReset();
   return {ok: verb && live && a && b && c && d && e && dash, verb, live, a, b, c, d, e, dash};
 })();
@@ -5919,7 +5921,7 @@ const ql4 = (() => {
   G.doorInspect(door);         // shut, no key: no walk button; use the walk-up through a key
   crew[0].def.pack = [{kind: 'gear', label: 'key', keyFor: 'whyme'}];
   const r = G.doorInspect(door);
-  const walk = r.labels[0] === 'WALK TO THE DOOR';
+  const walk = r.walked === true;
   // headless modals do not click; call the move the button would make
   G.state.sel = 0;
   G.state.movePreview = G.computeMovePreview(door.x, door.y + 40);
