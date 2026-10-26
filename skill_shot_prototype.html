@@ -288,6 +288,23 @@
   #bnLog{font-size:10px;letter-spacing:.22em;color:rgba(212,168,67,.75);cursor:pointer;
     text-transform:uppercase;border-bottom:1px dotted rgba(212,168,67,.4);}
   #bnLog:hover{color:var(--brass);}
+  #bnJournal{font-size:10px;letter-spacing:.22em;color:rgba(212,168,67,.75);cursor:pointer;
+    text-transform:uppercase;border-bottom:1px dotted rgba(212,168,67,.4);margin-right:14px;}
+  #bnJournal:hover{color:var(--brass);}
+  #journalWin{position:fixed;inset:0;background:rgba(7,9,15,.72);z-index:86;display:none;align-items:center;justify-content:center;}
+  .jnHead{font-size:9px;letter-spacing:.3em;color:rgba(212,168,67,.7);padding:12px 16px 4px;}
+  .jnRow{cursor:pointer;}
+  .jnRow:hover{background:rgba(212,168,67,.06);}
+  .jnDone{cursor:default;opacity:.6;}
+  .jnName{font-family:'Cinzel',serif;font-size:14px;font-weight:800;letter-spacing:.1em;color:var(--bone);margin:2px 0 4px;}
+  .jnGo{font-size:8.5px;letter-spacing:.26em;color:rgba(111,214,255,.8);margin-top:6px;}
+  #nextStrip{position:fixed;right:18px;top:62px;z-index:60;display:none;max-width:340px;cursor:pointer;
+    background:rgba(11,14,26,.94);border:1.5px solid rgba(212,168,67,.45);padding:9px 12px 9px 12px;
+    box-shadow:0 4px 18px rgba(0,0,0,.6);}
+  #nextStrip span{display:block;font-size:8.5px;letter-spacing:.28em;color:var(--brass);margin-bottom:4px;}
+  #nextStrip b{display:block;font-size:11.5px;font-weight:600;color:rgba(232,224,204,.9);line-height:1.4;}
+  #nextStrip i{display:block;font-style:normal;font-size:8px;letter-spacing:.26em;color:rgba(111,214,255,.7);margin-top:6px;}
+  #nextStrip:hover{border-color:var(--brass);}
   #chronWin{position:fixed;inset:0;background:rgba(7,9,15,.72);z-index:86;
     display:none;align-items:center;justify-content:center;}
   .chBox{width:620px;max-height:84vh;display:flex;flex-direction:column;
@@ -1252,6 +1269,7 @@
       <span class="bnStat">CREW <b id="bnCrew">-</b></span>
       <span class="bnStat"><b id="shipCredits">0</b> CR</span>
       <span class="bnStat">DAY <b id="bnDay">0</b></span>
+      <span id="bnJournal">journal</span>
       <span id="bnLog">ship's log</span>
       <span id="bnNewGame">new game</span>
     </div>
@@ -5906,6 +5924,8 @@ if(document.addEventListener){
     if(ng) ng.addEventListener('click', () => { const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden'); titleShow(); });
     const lg = document.getElementById('bnLog');
     if(lg) lg.addEventListener('click', openChronicle);
+    const jn = document.getElementById('bnJournal');
+    if(jn) jn.addEventListener('click', openJournal);
     // the banner belongs to the whole ship: out of the menu, onto the glass
     const tb0 = document.getElementById('topBanner');
     if(tb0 && document.body && document.body.appendChild) document.body.appendChild(tb0);
@@ -10296,8 +10316,8 @@ function doorAsk(dr){
     go = 'START CONTRACT'; enter = hatchEnter;
   }else if(dr.den){
     const whyme = ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open';
-    title = 'BEGIN CONTRACT?'; sub = whyme ? 'WHY ME \u00B7 TALLOW STREET UNIT' : 'CLEANUP ON TALLOW STREET';
-    body = 'Going through starts the contract: the unit, the crew inside it, and the man in the back room. The door shuts behind you for good.';
+    title = 'BEGIN CONTRACT?'; sub = 'THE TALLOW STREET CREW';
+    body = 'Going through starts the contract: the unit, the crew inside it, and ' + (whyme ? 'the man who sent the knife' : 'the man who runs the street') + ' in the back room, with the ledger on him. The door shuts behind you for good.';
     go = 'START CONTRACT'; enter = denEnter;
   }else{
     const dd = districtDef(ship.at, dr.to);
@@ -10513,7 +10533,7 @@ const DEN_LEVEL = {
   client: 'Nobody', faction: 'THE TALLOW STREET CREW',
   location: 'The Cross \u00B7 Tallow Street', time: 'Now',
   brief: 'A front room, a corridor, and a back office with the man who sent the knife.<br><br>Whoever is in here already knows the door opened. Clear it.',
-  objective: 'Clear the unit \u00B7 the man in the back room is the point',
+  objective: 'Clear the unit \u00B7 take the ledger off Dace Mortlake',
   player: {x: 0.5, y: 0.78},
   walls: [
     // the mass of the block around the unit: solid building, not floor
@@ -10559,6 +10579,9 @@ const DEN_LEVEL = {
   civilians: 0,
   issuer: 'none',
 };
+function ledgerHeld(){
+  return (SQUAD_DEFS || []).some(d => !d.dead && (d.pack || []).some(it => it.kind === 'datacube' && it.cube === 'whyme_ledger'));
+}
 function denIdx(){ let i = LEVELS.indexOf(DEN_LEVEL); if(i < 0){ LEVELS.push(DEN_LEVEL); i = LEVELS.length - 1; } return i; }
 // ---- Erina's work: catch and retrieve. The warren under the freight quarter, and the thing that lives in it ----
 const ERINA_LEVEL = {
@@ -10792,13 +10815,19 @@ function denEnter(){
   levelIdx = i; usingCustom = false;
   rosterDeployed = true;
   const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden');
+  // the brief reads the facts: the knife only comes up if a knife was sent
+  const whyme = ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open';
+  DEN_LEVEL.brief = whyme
+    ? 'A front room, a corridor, and a back office with the man who sent the knife.<br><br>Whoever is in here already knows the door opened. Clear it, and take the ledger off him.'
+    : 'A front room, a corridor, and a back office with the man who runs the street.<br><br>Whoever is in here already knows the door opened. Clear it, and take the ledger off him.';
   restart();
   state._denRun = true;
   // the man in the back room carries the ledger, and the ledger carries the next stop
   const boss = state.enemies.find(e => e.type === 'named_dace_mortlake');
   if(boss) boss.loot = [{kind: 'weapon', key: 'sawnoff', own: 'Dace Mortlake'}, cubeItem('whyme_ledger', 'Dace Mortlake', null), {kind: 'credits', value: 120 + Math.floor(Math.random() * 80)}];
-  const whyme = ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open';
-  if(!whyme) missionStart('cleanup');
+  // the contract starts at the threshold, whichever way the door came open; the lead that pointed here is paid off
+  missionStart('tallow');
+  if(whyme){ missionEnd('whyme', 'done'); }
   chronicle('event', 'Through the door on Tallow Street. ' + (whyme ? 'The man who sent the knife is in here somewhere.' : 'Nobody invited you. Nobody is going to.'));
   return true;
 }
@@ -10808,8 +10837,14 @@ function denReturn(){
   state._denRun = null;
   const dn = denFacts();
   if(dn){ dn.done = true; dn.open = false; bzSet({den: dn}); }
+  if(ship.missions && ship.missions.tallow && ship.missions.tallow.state === 'open'){
+    const ledger = ledgerHeld();
+    ship.missions.tallow.ledger = ledger;
+    missionEnd('tallow', 'done');
+    chronicle('event', ledger ? 'The Tallow Street ledger left the unit in a crew pocket.' : 'The Tallow Street ledger stayed in the unit, on the floor with its owner.');
+  }
   if(ship.missions && ship.missions.whyme && ship.missions.whyme.state === 'open') missionEnd('whyme');
-  else if(ship.missions && ship.missions.cleanup && ship.missions.cleanup.state === 'open') missionEnd('cleanup');
+  if(ship.missions && ship.missions.cleanup && ship.missions.cleanup.state === 'open') missionEnd('cleanup');
   chronicle('event', 'Out onto Tallow Street. The door shut behind the crew and will not open again; whatever the unit was, it is finished.');
   return true;
 }
@@ -12122,9 +12157,12 @@ function cubeOpen(it){
 }
 // ---- missions: the longer stories. Planted by situations, opened by things in hand, advanced by contracts ----
 const MISSIONS = {
-  liveone: {name: 'A Live One', kind: 'CONTRACT', waypoint: {port: 'gateway', district: 'cross', x: 0.875, y: 0.845, label: 'THE SERVICE HATCH'}},
-  whyme: {name: 'Why Me', waypoint: {port: 'gateway', district: 'cross', x: 0.76, y: 0.855, label: 'TALLOW STREET'}},
-  cleanup: {name: 'Cleanup on Tallow Street', waypoint: null},
+  liveone: {name: 'A Live One', kind: 'CONTRACT', issuer: 'Erina Jones \u00B7 Erina\u2019s Exotics',
+    waypoint: {port: 'gateway', district: 'cross', x: 0.875, y: 0.845, label: 'THE SERVICE HATCH'}},
+  whyme: {name: 'Why Me', kind: 'LEAD', issuer: 'A letter with your name in it',
+    waypoint: {port: 'gateway', district: 'cross', x: 0.76, y: 0.855, label: 'TALLOW STREET'}},
+  tallow: {name: 'The Tallow Street Crew', kind: 'CONTRACT', issuer: 'No employer \u00B7 the ledger is the pay', waypoint: null},
+  cleanup: {name: 'Cleanup on Tallow Street', waypoint: null},   // retired 26 Oct; kept so old saves read
 };
 function missionStart(id, extra){
   const m = MISSIONS[id]; if(!m) return false;
@@ -12145,6 +12183,114 @@ function missionEnd(id, how){
   return true;
 }
 function missionsOpen(){ const o = ship.missions || {}; return Object.keys(o).filter(k => o[k].state === 'open'); }
+// the next step on a contract, read from the same facts the doors and the counters read
+function missionNext(id){
+  const ms = ship.missions && ship.missions[id]; if(!ms) return '';
+  const mm = (s) => Math.floor(s / 60) + ':' + String(Math.max(0, Math.round(s)) % 60).padStart(2, '0');
+  if(id === 'liveone'){
+    const j = ship.erinaJob || {};
+    if(ms.state !== 'open') return 'Done. Erina paid ' + (j.due != null ? j.due : '?') + ' CR at her counter.';
+    if(j.state === 'carrying'){
+      const p = houndProp();
+      const loose = (state.enemies || []).some(e => e.loose && e.alive);
+      if(loose) return 'The hound is awake on the Cross. Dart it again, then carry it to Erina\u2019s counter.';
+      if(p && !p.holder) return 'The hound is on the floor of the Cross, under for ' + mm(p.wake != null ? p.wake : HOUND_WAKE_S) + '. Pick it up and carry it to Erina\u2019s counter.';
+      return 'Carry the hound to Erina\u2019s counter before it wakes (' + mm(p && p.wake != null ? p.wake : HOUND_WAKE_S) + ').';
+    }
+    if(j.state === 'dead') return 'The hound is dead. Tell Erina Jones at her counter; she pays the rug rate.';
+    if(state._hatchRun) return 'In the warren: bring the Glass Hound down alive (darts, goad, screamer, fists) and carry it to the hatch.';
+    return 'Take the whole crew down the service hatch, freight side of the Cross, by the east arch.';
+  }
+  if(id === 'whyme'){
+    if(ms.state !== 'open') return 'The lead paid off: the unit on Tallow Street was the address.';
+    const dn = denFacts();
+    if(dn && dn.open) return 'The door on Tallow Street is open. Take the whole crew through to start the contract.';
+    return 'The address is the shuttered unit on Tallow Street, east side of the Cross. The door is shut: the lookout outside has a key and a price, or knock the shutter down.';
+  }
+  if(id === 'tallow'){
+    if(ms.state !== 'open') return 'Done. The unit is cleared' + (ms.ledger ? ' and the ledger is in a crew pocket. Read it.' : '; the ledger stayed behind.');
+    if(!state._denRun) return 'Go back through the door on Tallow Street.';
+    const left = (state.enemies || []).filter(e => e.alive && !e.ko && !e.cache).length;
+    if(left) return 'Clear the unit: ' + left + ' standing. Dace Mortlake in the back room is the point.';
+    if(!ledgerHeld()) return 'Take the ledger (a data cube) off Dace Mortlake\u2019s body before you leave.';
+    return 'The ledger is yours. Finish the contract and walk out; the door shuts behind you.';
+  }
+  if(id === 'cleanup') return ms.state === 'open' ? 'Clear the unit on Tallow Street.' : 'Done.';
+  return ms.state === 'open' ? 'Open.' : 'Done.';
+}
+function journalEntries(){
+  const o = ship.missions || {};
+  const ids = Object.keys(o).filter(k => MISSIONS[k]);
+  const open = ids.filter(k => o[k].state === 'open').sort((a, b) => (o[b].day || 0) - (o[a].day || 0));
+  const done = ids.filter(k => o[k].state !== 'open').sort((a, b) => (o[b].day || 0) - (o[a].day || 0)).slice(0, 6);
+  const mk = (id) => ({id, name: MISSIONS[id].name, kind: MISSIONS[id].kind || 'MISSION', issuer: MISSIONS[id].issuer || '', state: o[id].state, day: o[id].day || 0, next: missionNext(id), waypoint: o[id].waypoint || null});
+  return {open: open.map(mk), done: done.map(mk)};
+}
+// the top open contract, for the strip on the glass
+function journalTop(){ const j = journalEntries(); return j.open[0] || null; }
+function openJournal(){
+  if(!document.body || !document.body.appendChild) return false;
+  let ov = document.getElementById('journalWin');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'journalWin';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e) => { if(e.target === ov) closeJournal(); });
+  }
+  if(!ov.querySelector) return false;
+  const j = journalEntries();
+  const row = (en, dim) => '<div class="chRow jnRow' + (dim ? ' jnDone' : '') + '" data-id="' + en.id + '" style="border-left-color:' + (dim ? 'rgba(232,224,204,.35)' : 'var(--brass)') + '">' +
+    '<div class="chEyebrow">' + en.kind + ' \u00B7 ' + en.issuer.toUpperCase() + ' \u00B7 DAY ' + en.day + '</div>' +
+    '<div class="jnName">' + en.name.toUpperCase() + '</div>' +
+    '<div class="chText">' + en.next + '</div>' +
+    (!dim && en.waypoint ? '<div class="jnGo">CLICK TO SHOW THE WAY</div>' : '') +
+  '</div>';
+  ov.innerHTML =
+    '<div class="chBox">' +
+      '<div class="ppNameBand"><div class="ppName">Journal</div></div>' +
+      '<div class="chScroll">' +
+        '<div class="jnHead">OPEN</div>' +
+        (j.open.length ? j.open.map(en => row(en, false)).join('') : '<div class="chText" style="padding:12px 16px">Nothing owed. Talk to people; somebody always wants something fetched.</div>') +
+        (j.done.length ? '<div class="jnHead">RECENT</div>' + j.done.map(en => row(en, true)).join('') : '') +
+      '</div>' +
+      '<div class="ptFoot"><button class="ppTermsBtn ptClose2">CLOSE</button></div>' +
+    '</div>';
+  const cb = ov.querySelector('.ptClose2');
+  if(cb) cb.addEventListener('click', closeJournal);
+  for(const r of ov.querySelectorAll('.jnRow:not(.jnDone)')) r.addEventListener('click', () => { closeJournal(); journalShow(r.dataset.id); });
+  ov.style.display = 'flex';
+  simPauseStart();
+  return true;
+}
+function closeJournal(){
+  const ov = document.getElementById('journalWin');
+  if(ov && ov.style) ov.style.display = 'none';
+  simResume();
+}
+// the way to a contract: the camera goes to its waypoint on this floor (or the arch that leads to it) and the ping replays
+function journalShow(id){
+  const ms = ship.missions && ship.missions[id]; if(!ms || !ms.waypoint) return false;
+  const wp = waypointHere().find(w => w.id === id); if(!wp) return false;
+  ms.waypoint.t0 = performance.now();
+  camTour(wp.x, wp.y, 2200);
+  return true;
+}
+// the strip: one line on the glass, so the waypoint is never the only reminder
+function nextStripTick(){
+  if(typeof document.getElementById !== 'function') return;
+  let el = document.getElementById('nextStrip');
+  const show = state.shipDeck && state.portDock && !state.deckCombat && !briefOpen;
+  const top = show ? journalTop() : null;
+  if(!top){ if(el && el.style) el.style.display = 'none'; return; }
+  if(!el){
+    if(!document.body || !document.body.appendChild) return;
+    el = document.createElement('div'); el.id = 'nextStrip'; document.body.appendChild(el);
+    el.addEventListener('click', openJournal);
+  }
+  const html = '<span>NEXT \u00B7 ' + top.name.toUpperCase() + '</span><b>' + top.next + '</b><i>JOURNAL</i>';
+  if(el.innerHTML !== html) el.innerHTML = html;
+  el.style.display = 'block';
+}
 // the waypoint on the floor you stand on, or the arch that leads to its floor
 function waypointHere(){
   const out = [];
@@ -12691,7 +12837,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '26 Oct \u00B7 STEADY';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '26 Oct \u00B7 JOURNAL';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14047,7 +14193,7 @@ function doShipReset(){
   ship.at = 'gateway'; ship.day = 0;
   ship.district = shipDistrictOf('gateway');   // the dev reset boards you where the Orrix stands
   ship.missions = {};
-  ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null; state.quietUntil = 0; state.camTourUntil = 0;
+  ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null; state.quietUntil = 0; state.camTourUntil = 0; state._hatchRun = null; state._denRun = null;
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
@@ -15826,6 +15972,7 @@ function frame(now){
   if(state && state.simPause && state.shipDeck && !state.deckCombat) realDt = 0;   // a popup holds the world
   if(state && state.shipDeck && state.squad) deckSeparate();
   camGlideTick(); spotlightTick();
+  if(state && state.squad && !editorOn && ((state._stripT || 0) + 400 < performance.now())){ state._stripT = performance.now(); nextStripTick(); }
   if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ waTick(realDt); houndTick(realDt); }
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();

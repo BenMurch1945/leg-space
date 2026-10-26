@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 399-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 401-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,14 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### The journal, and Tallow Street as one contract (26 Oct, evening)
+- **Rule (Ben)**: a journal of contracts started and the next step on each; contracts only (no situations); every open waypoint still draws, labelled; a NEXT strip on the glass.
+- **Journal**: `missionNext(id)` computes the next-step line from live facts (hound: hatch / in the warren / carrying with the wake clock / on the floor / awake / dead / paid; Why Me: door shut with the ways in / door open / paid off; Tallow: clear the unit with a headcount / take the ledger / walk out / done with or without the ledger). `journalEntries()` → {open, done (last 6)}; `journalTop()`; `openJournal()/closeJournal()` (the Chronicle's window styling, `#journalWin`, pauses the world); clicking an open entry → `journalShow(id)`: camera tour to its waypoint on this floor and the arrival ping replays (`t0` reset). Top bar: JOURNAL beside SHIP'S LOG (`#bnJournal`). `MISSIONS[id]` now carries `kind` and `issuer`.
+- **NEXT strip**: `#nextStrip` (top right under the bar), `nextStripTick()` every 400 ms from `frame`, free-roam ports only; shows the top open contract and its next line; click opens the journal.
+- **Tallow Street restructured (Ben)**: `whyme` is a LEAD (the letter points at the address) and closes when the contract starts; `tallow` ("The Tallow Street Crew", CONTRACT, no employer) starts in `denEnter()` whichever way the door came open (bought, key, alarm, smashed) and ends in `denReturn()` with `ms.ledger = ledgerHeld()`. `cleanup` is retired (kept in MISSIONS so old saves read). The brief and the BEGIN CONTRACT? popup only mention the knife when a knife was actually sent; the objective is "clear the unit, take the ledger off Dace Mortlake". `ledgerHeld()` checks crew packs for the `whyme_ledger` cube.
+- `doShipReset` clears `_hatchRun`/`_denRun` (a test that ended inside a contract map leaked them).
+- Tests `JN1`, `JN2`; DN1/DN2 updated to the one-contract shape.
 
 ### Two bad bugs (26 Oct)
 - **The frozen throw** (Ben: "Bram charges with the package and the game breaks"). A drag with full hands is a throw, not a charge; the thrown PACKAGE (`state.pkg`) landed via `state.pkg.flying = null; propLand(state.pkg, true)`, and `propLand` reads `obj.flying` first, so it threw on null inside `frame()` and the loop died: a frozen game. Fixed: `propLand` alone clears the flight. Also: CHARGE with full hands is refused at the button (HANDS FULL · SET IT DOWN TO CHARGE) and a charge-armed drag with full hands cancels the charge instead of throwing the cargo. Test `BG1`.
