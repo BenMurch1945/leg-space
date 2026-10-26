@@ -4961,6 +4961,7 @@ function activateAbility(c){
   }
   bark(c, 'special', true);
   if(c.kind === 'minotaur'){
+    if(carriedThing(c)){ addPopup(c.x, c.y - c.r - 16, 'HANDS FULL \u00B7 SET IT DOWN TO CHARGE', '#e0a33e'); updateHud(); return; }
     c.chargeReady = true;
     addPopup(c.x, c.y - c.r - 16, 'AIM THE CHARGE', '#d4a843');
     showBanner('CHARGE: DRAG TO AIM', '#d4a843');
@@ -7311,7 +7312,10 @@ function onUp(){
     }else if(state.mode === 'shoot'){
       // the drag began on a hero: fire on a real pull, treat a still click as a tap
       if(moved >= 8 && carriedThing(pc())){
-        if(state.power >= MIN_POWER && pc().morale !== 'broken' && pc().morale !== 'panicked')
+        if(pc().chargeReady){   // a charge with full hands is not a throw: the bull stands down
+          pc().chargeReady = false;
+          addPopup(pc().x, pc().y - pc().r - 14, 'HANDS FULL \u00B7 NO CHARGE', '#e0a33e');
+        }else if(state.power >= MIN_POWER && pc().morale !== 'broken' && pc().morale !== 'panicked')
           throwCarried(pc(), Math.atan2(state.aimVec.y, state.aimVec.x), state.power);
       }else if(moved >= 8){
         const apNeed = pc().chargeReady ? (ABILITIES.minotaur.cost || 1) : (wpn().apCost || 1);
@@ -8740,15 +8744,21 @@ function civTravel(cv, tx, ty, speed, dt){
     lc.ok = false;   // the grid said clear, the body disagreed: path it
   }
   let nv = cv._nav;
-  if(!nv || Math.hypot(nv.tx - tx, nv.ty - ty) > 40 ||
-     performance.now() > nv.until || nv.i >= nv.pts.length)
-    nv = cv._nav = {tx, ty, pts: civPathTo(cv, tx, ty), i: 0, until: performance.now() + 1100, fails: 0};
+  // a plan is kept for its second even when it came back empty: an unreachable target must not
+  // cost an A* every frame (it did, and a corner full of stuck walkers took the frame rate with it)
+  if(!nv || Math.hypot(nv.tx - tx, nv.ty - ty) > 40 || performance.now() > nv.until){
+    const nf = cv._nf;   // a target that had no path two seconds ago is not asked about again yet
+    const pts = (nf && performance.now() < nf.until && Math.hypot(nf.tx - tx, nf.ty - ty) < 40) ? [] : civPathTo(cv, tx, ty);
+    if(!pts.length) cv._nf = {tx, ty, until: performance.now() + 2000};
+    nv = cv._nav = {tx, ty, pts, i: 0, until: performance.now() + 1100, fails: 0};
+  }
   const wp = nv.pts[nv.i];
-  if(!wp){ cv._nav = null; return civStep(cv, tx, ty, speed, dt); }
+  if(!wp) return civStep(cv, tx, ty, speed, dt);   // no path, or the path is walked: lean toward the target until the next plan
   if(Math.hypot(wp.x - cv.x, wp.y - cv.y) < 10){ nv.i++; return true; }
   if(civStep(cv, wp.x, wp.y, speed, dt)){ nv.fails = 0; return true; }
-  // boxed in: replan, and after three failed steps stand the walker on the nearest clear cell
-  nv.until = 0;
+  // boxed in: replan soon (not next frame: forty jammed walkers replanning every frame ate the frame rate),
+  // and after three failed steps stand the walker on the nearest clear cell
+  nv.until = Math.min(nv.until, performance.now() + 250);
   nv.fails = (nv.fails || 0) + 1;
   if(nv.fails >= 3){
     const fc = cnavFreeNear(cv.x, cv.y, 6);
@@ -12068,7 +12078,7 @@ function tickProps(dt){
     const k = Math.min(1, f.t / f.dur);
     state.pkg.x = f.x0 + (f.tx - f.x0) * k;
     state.pkg.y = f.y0 + (f.ty - f.y0) * k - Math.sin(k * Math.PI) * 34;
-    if(k >= 1){ state.pkg.flying = null; propLand(state.pkg, true); }
+    if(k >= 1) propLand(state.pkg, true);   // propLand reads the flight before it clears it: never null it first (that froze the game)
   }
   if(state.props) state.props = state.props.filter(p => !p.spent);
 }
@@ -12681,7 +12691,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '23 Oct \u00B7 AWAKE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '26 Oct \u00B7 STEADY';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14037,7 +14047,7 @@ function doShipReset(){
   ship.at = 'gateway'; ship.day = 0;
   ship.district = shipDistrictOf('gateway');   // the dev reset boards you where the Orrix stands
   ship.missions = {};
-  ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null;
+  ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null; state.quietUntil = 0; state.camTourUntil = 0;
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();

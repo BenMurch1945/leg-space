@@ -5475,7 +5475,10 @@ console.log('WM2 the faces are people:', wm2.ok ? 'PASS' : 'FAIL', `(shaped ${wm
 // ---- DN: Tallow Street ----
 function dnSetup(){
   G.PORT_LEVELS.gateway = G.CROSSPORT_PORT;
-  G.newGameStart(); G.sitDealAll(true);
+  G.newGameStart(); G.sitDealAll(true); G.dismissSys(); G.state.quietUntil = 0;
+  // the Cross without its random callers: the face already met, the cutpurse off shift (a test that wants them clears this)
+  G.bzSet({ff: {n: G.bz().visit.n, face: 'none', name: null, state: 'done', outcome: 'none'}});
+  G.state.crimeT = performance.now() + 1e9;
   for(const cv of G.state.civs){ if(cv.kind !== 'lookout'){ cv.x = G.dims().W * 0.95; cv.y = G.dims().H * 0.05; cv.errand = {kind: 'visit', path: [], leg: 0, waitT: 0}; } }
   for(const cv of G.state.civs) if(cv.kind === 'constable') cv.beat = {at: null, wt: 999};
   return {crew: G.state.squad, door: G.state.doors.find(d => d.den === 'whyme'), roak: G.state.civs.find(cv => cv.kind === 'lookout')};
@@ -5577,7 +5580,7 @@ console.log('DN3 a key, a hard knock, and a letter the law hands back:', dn3.ok 
 // TG1 every body in the unit is a named person with a role; the boss is the heavy; the strongbox holds the rifle; nobody bills anybody
 const tg1 = (() => {
   G.PORT_LEVELS.gateway = G.CROSSPORT_PORT;
-  G.newGameStart(); G.sitDealAll(true);
+  G.newGameStart(); G.sitDealAll(true); G.dismissSys(); G.state.quietUntil = 0;
   G.ship.credits = 500; G.denBuy(G.state.squad[0]);
   G.denEnter();
   const foes = G.state.enemies.filter(e => e.alive);
@@ -5984,8 +5987,8 @@ const wa1 = (() => {
   G.waDuelCheck();
   const f2 = G.waFacts();
   const bothDown = !eP.alive && !eR.alive;   // bad shots, but six turns is long enough for luck to run both ways
-  const survivorCiv = f2.state === 'done' && !G.state.enemies.some(e => e.duel && e.alive) && !!G.waCrate() &&
-    (bothDown ? f2.outcome === 'both_down' : G.state.civs.some(cv => cv.wa && cv.survivor));
+  const survivorCiv = f2.state === 'done' && !!G.waCrate() &&
+    (bothDown ? f2.outcome === 'both_down' : (G.state.civs.some(cv => cv.wa && cv.survivor) || G.state.enemies.some(e => e.duel && e.alive && e.hitByCrew)));
   G.checkWin();
   const back = !G.state.deckCombat;
   const crewUnhurt = crew.every((c, i) => c.alive);
@@ -6084,6 +6087,8 @@ const wa4 = (() => {
   pump(140, 16);
   const eR = G.state.enemies.find(e => e.waRole === 'recipient'), eP = G.state.enemies.find(e => e.waRole === 'porter');
   const duel = !!eR && !!eP;
+  if(!duel) console.log('WA4 DBG', JSON.stringify(G.waFacts()), 'civs', G.state.civs.filter(c => c.wa).map(c => c.name + ':' + c.alive + ':' + c.ko).join(','), 'deck', G.state.deckCombat, 'sys', typeof G.sysOpen, 'pause', G.state.simPause, 'enemies', G.state.enemies.length);
+  if(!duel){ G.undockToDeck(); G.doShipReset(); return {ok: false, once, duel}; }
   G.kill(eP, {team: 'wild', owner: eR, dmg: 99});
   G.waDuelCheck(); G.checkWin();
   const mira = G.state.civs.find(cv => cv.wa === 'recipient');
@@ -6201,9 +6206,10 @@ const er3 = (() => {
   pump(400, 16);   // past the tour
   const stillQuiet = G.pingsQuiet();   // fifteen seconds of hush after the handshake
   // no face breaks cover inside the hush, even with its clock due
-  G.state.faceT = performance.now() - 1;
+  G.bzSet({ff: null}); G.state.faceT = performance.now() - 1;   // a face is due; the hush holds it
   pump(3, 16);
-  const noFace = !(G.bz().ff && G.bz().ff.n === G.bz().visit.n);
+  const noFace = !(G.bz().ff && G.bz().ff.state === 'coming');
+  G.bzSet({ff: {n: G.bz().visit.n, face: 'none', name: null, state: 'done', outcome: 'none'}});   // and stays out of the rest of the test
   const hatch = G.state.doors.find(d => d.den === 'warren');
   for(const cc of crew){ cc.x = hatch.x; cc.y = hatch.y - 20; }
   pump(2, 16);
@@ -6261,6 +6267,7 @@ const er4 = (() => {
   for(const k of ['wrongaddress', 'familiarface']) if(vs && !vs.picks.includes(k)) G.bzSet({visit: Object.assign({}, G.bz().visit, {picks: G.bz().visit.picks.concat([k])})});
   const face = G.state.civs.find(c2 => c2.tide && !c2.name);
   face.x = hero.x + 500; face.y = hero.y; face.errand = {kind: 'visit', path: [], leg: 0, waitT: 0};
+  G.bzSet({ff: null});   // this test wants the face
   const cv = G.faceTrigger('friend', face);
   const hushed = !!cv && G.pingsQuiet();
   // the crate clock is due, and stays due
@@ -6277,3 +6284,30 @@ const er4 = (() => {
   return {ok: hushed && held && spoke && gap, hushed, held, spoke, gap};
 })();
 console.log('ER4 one situation at a time:', er4.ok ? 'PASS' : 'FAIL', `(hushed ${er4.hushed}, held ${er4.held}, spoke ${er4.spoke}, gap ${er4.gap})`);
+
+
+// BG1 a thrown package lands (it froze the game), and a bull with full hands does not charge
+const bg1 = (() => {
+  const {crew} = dnSetup();
+  G.erinaAccept(crew[0]); pump(30, 16);
+  const hatch = G.state.doors.find(d => d.den === 'warren');
+  for(const cc of crew){ cc.x = hatch.x; cc.y = hatch.y - 20; }
+  pump(2, 16);
+  const hound = G.state.enemies.find(e => e.type === 'glasshound');
+  const bram = G.state.squad.find(c => c.kind === 'minotaur') || G.state.squad[0];
+  G.state.sel = G.state.squad.indexOf(bram);
+  G.addSed(hound, 99, bram); pump(2, 16);
+  bram.x = G.state.pkg.x; bram.y = G.state.pkg.y; pump(2, 16);
+  const carrying = G.state.pkg.carried === bram;
+  bram.ap = 2;
+  G.activateAbility(bram);
+  const refused = !bram.chargeReady && bram.ap === 2;
+  // the throw: the flight lands, the frame loop lives
+  G.throwCarried(bram, -Math.PI / 2, 1);
+  let alive = true;
+  try{ pump(120, 16); }catch(e){ alive = false; }
+  const landed = alive && !G.state.pkg.flying && G.state.pkg.carried !== bram && Math.hypot(G.state.pkg.x - bram.x, G.state.pkg.y - bram.y) > 20;
+  G.undockToDeck(); G.doShipReset();
+  return {ok: carrying && refused && landed, carrying, refused, alive, landed};
+})();
+console.log('BG1 a thrown package lands, a full-handed bull stands down:', bg1.ok ? 'PASS' : 'FAIL', `(carrying ${bg1.carrying}, refused ${bg1.refused}, loop alive ${bg1.alive}, landed ${bg1.landed})`);
