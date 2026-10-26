@@ -2393,6 +2393,46 @@ function exitRange(){
 
 // The Orrix, deck plan v1: a bird in negative space. Beak = bridge, spine corridor,
 // two wing pairs (armoury/med fore, berths/hold aft), engines at the tail.
+// the hired ship: GCAT registry CSV-7731 Provident Carriage, which nobody has ever called her. Hesper calls her the Gannet.
+const GANNET_NAME = 'the Gannet';
+const GANNET_REG = 'CSV-7731 PROVIDENT CARRIAGE';
+const GANNET_HULL = [   // fractions of her own 2100x1320 world: hold astern (left), bridge in the nose (right)
+  {x: 0.25, y: 0.30, w: 0.50, h: 0.012, high: true},
+  {x: 0.25, y: 0.688, w: 0.50, h: 0.012, high: true},
+  {x: 0.25, y: 0.30, w: 0.012, h: 0.40, high: true},
+  {x: 0.738, y: 0.30, w: 0.012, h: 0.40, high: true},
+  {x: 0.55, y: 0.30, w: 0.010, h: 0.15, high: true},   // the bulkhead, with a door in the middle
+  {x: 0.55, y: 0.55, w: 0.010, h: 0.15, high: true},
+  {x: 0.31, y: 0.44, w: 0.04, h: 0.025},                // hold: strapped cargo, low cover
+  {x: 0.42, y: 0.56, w: 0.04, h: 0.025},
+  {x: 0.62, y: 0.40, w: 0.03, h: 0.02},                 // bridge: the nav plinth
+];
+const GANNET_LEVEL = {
+  name: 'The Gannet', par: 0, brief: '',
+  player: {x: 0.45, y: 0.50},
+  world: {w: 2100, h: 1320},
+  ship: true, noFog: true, gannet: true,
+  breach: [
+    {b: {x: 0.45, y: 0.30}, inb: {x: 0.45, y: 0.36}},   // topside, through the hold ceiling
+    {b: {x: 0.65, y: 0.688}, inb: {x: 0.65, y: 0.63}},  // keel, under the bridge
+  ],
+  walls: GANNET_HULL,
+  stations: [{x: 0.69, y: 0.50, id: 'gannet'}],
+  posts: [{x: 0.45, y: 0.50}, {x: 0.40, y: 0.44}, {x: 0.40, y: 0.57}, {x: 0.48, y: 0.42}],
+  enemies: [],
+};
+// her hull drawn into another world: scale from her own fractions, centred on (cx, cy), hatch carved on the port side
+function gannetHullIn(PW, PH, cx, cy){
+  const sx = GANNET_LEVEL.world.w / PW, sy = GANNET_LEVEL.world.h / PH;
+  const ox = cx - 0.5 * sx, oy = cy - 0.5 * sy;
+  const hull = GANNET_HULL.map(w => ({...w, x: w.x * sx + ox, y: w.y * sy + oy, w: w.w * sx, h: w.h * sy}));
+  const hatch = {x: 0.256 * sx + ox, y: 0.50 * sy + oy};
+  carveDoorF(hull, hatch, PW, PH, 56);
+  const zone = {x0: 0.25 * sx + ox, y0: 0.30 * sy + oy, x1: 0.75 * sx + ox, y1: 0.70 * sy + oy};
+  const console = {x: 0.69 * sx + ox, y: 0.50 * sy + oy, id: 'gannet'};
+  const start = {x: 0.42 * sx + ox, y: 0.50 * sy + oy};
+  return {hull, hatch, zone, console, start};
+}
 const SHIP_LEVEL = {
   name: 'The Orrix', par: 0, brief: '',
   player: {x: 0.5, y: 0.52},
@@ -2677,7 +2717,7 @@ function exitDeckCombat(){
 function beginBoarding(){
   if(state.deckCombat || !state.shipDeck) return false;
   if(state.flight) state.flight.paused = true;
-  const pts = SHIP_LEVEL.breach || [];
+  const pts = (currentLevel().breach || SHIP_LEVEL.breach || []);
   const pick = pts[Math.floor(Math.random() * pts.length)] || {b: {x: 0.2, y: 0.5}, inb: {x: 0.25, y: 0.5}};
   const danger = state.flight ? Math.max(nodeDanger(ship.at), nodeDanger(state.flight.to)) : nodeDanger(ship.at);
   state.boarding = {
@@ -2811,6 +2851,7 @@ function enterPort(distId, opts){
   state.enemies.length = 0;
   ship.where = 'port';
   state.faceT = 0;   // a new landing starts the familiar-face clock afresh
+  if(ship.district === 'hangar' && charterSt() === 'cleared' && ship.missions && ship.missions.spindle) ship.missions.spindle.t0h = performance.now();   // the console waypoint lands as you walk in
   situationPick();
   situationsTick();
   {
@@ -2938,7 +2979,7 @@ function enterPort(distId, opts){
   // the port's own life: arches people arrive through, places worth standing at
   state.shipZone = lvl.shipZone ? {x0: lvl.shipZone.x0 * W, y0: lvl.shipZone.y0 * H,
     x1: lvl.shipZone.x1 * W, y1: lvl.shipZone.y1 * H} : null;
-  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null, den: d.den || null,
+  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null, den: d.den || null, needs: d.needs || null,
     armed: !(fromDist && d.to === fromDist)}));
   state.shelves = (lvl.shelves || []).map(p9 => ({x: p9.x * W, y: p9.y * H}));
   state.anchors = portAnchors(lvl);
@@ -4077,6 +4118,10 @@ function deckStation(st, who){
     addPopup(st.x, st.y - 22, 'WALK CLOSER', '#e0a33e');
     return false;
   }
+  if(st.id === 'gannet'){
+    charterConsole();
+    return true;
+  }
   if(st.id === 'bridge'){
     document.getElementById('roster').classList.remove('hidden');
     shipShowPane('paneMap');
@@ -5046,8 +5091,10 @@ function renderObjectives(){
     const qLabel = s.pkg.quarry ? (ARCHETYPES[s.pkg.quarry] || {}).label || 'the quarry' : null;
     primary = s.pkg.delivered ? '<span class="ok">✓ ' + (qLabel ? qLabel + ' delivered, breathing' : 'Package delivered') + '</span>'
             : s.pkg.live      ? '◈ Bring the ' + qLabel + ' down alive (darts, goad, screamer, fists)'
-            : s.pkg.carried   ? '◈ Carry the ' + (qLabel || 'package') + ' to the hatch'
+            : s.pkg.carried   ? (currentLevel().charter ? '◈ Carry Anselm aboard the Gannet, then press the console' : '◈ Carry the ' + (qLabel || 'package') + ' to the hatch')
             : qLabel          ? '◈ Pick up the ' + qLabel + ' before it wakes'
+            : currentLevel().pkgName && s.pkgFound ? '◈ Pick up Anselm; he cannot walk'
+            : currentLevel().pkgName ? '◈ Find Anselm in the caves, ' + (s.pkgSites ? s.pkgSites.filter(x => !x.cleared).length : 0) + ' possible sites'
             : s.pkgFound      ? '◈ Retrieve the package'
             : '◈ Locate the cache, ' + (s.pkgSites ? s.pkgSites.length : 0) + ' possible sites';
   }else{
@@ -5165,6 +5212,8 @@ const ISSUERS = {
                  flawless: 'Hask pays triple for work that leaves no story.', solid: 'Hask is satisfied, which is rarer than it sounds.', standard: 'Paid in cash, counted twice.', invoice: true, title: 'Settled'},
   tradersguild: {head: 'TRADERS\u2019 GUILD \u00B7 CONTRACT OF SERVICE', aar: 'GUILD ASSESSMENT', assess: 'Guild assessment', settle: 'SETTLEMENT \u00B7 TRADERS\u2019 GUILD CLEARING HOUSE',
                  flawless: 'Exemplary. The Guild notes it in ink.', solid: 'Satisfactory. The Guild notes it in pencil.', standard: 'Fee remitted per the schedule.', invoice: true, title: 'Contract Complete'},
+  oskar:        {head: 'PRIVATE CONTRACT \u00B7 OSKAR VENN', aar: 'WHAT CAME HOME', assess: 'The count', settle: 'READOUT ONLY \u00B7 OSKAR PAYS IN THE HANGAR, IN PERSON',
+                 flawless: 'Brother home, crew whole. He will tell this story for years.', solid: 'Brother home. That was the whole of it.', standard: 'Paid what was promised.', invoice: true, title: 'Brother Returned'},
   erina:        {head: 'ERINA\u2019S EXOTICS \u00B7 RETRIEVAL', aar: 'ERINA\u2019S LEDGER', assess: 'Erina\u2019s count', settle: 'READOUT ONLY \u00B7 NOTHING IS PAID HERE \u00B7 SETTLE AT ERINA\u2019S COUNTER ON THE CROSS',
                  flawless: 'Alive, unmarked, and she pays like it.', solid: 'Alive. That was the job.', standard: 'Paid at the agreed rate. She looked at the stock a long time.', invoice: true, title: 'Stock Retrieved'},
   constabulary: {head: 'PORT CONSTABULARY \u00B7 WARRANT WORK', aar: 'CONSTABULARY DEBRIEF', assess: 'Constabulary debrief', settle: 'SETTLEMENT \u00B7 RING OFFICE DISBURSEMENTS',
@@ -6418,7 +6467,20 @@ const FLIGHT_EVENTS = [
   {w: 4, boarding: true, run(){ beginBoarding(); }},
   {w: 3, run(){ state.shake = Math.max(state.shake || 0, 14);
      showBanner('DEBRIS STRIKE, HULL SCORED', '#e0a33e');
-     addPopup(W * 0.5, H * 0.08, 'CLANG', '#e0a33e'); }},
+     addPopup(W * 0.5, H * 0.08, 'CLANG', '#e0a33e');
+     if(state.flight && state.flight.charter){   // a small hull takes it personally: somebody meets a bulkhead
+       const live = (state.squad || []).filter(c => c.alive);
+       const c = live[Math.floor(Math.random() * live.length)];
+       if(c){
+         const dmg = 2 + Math.floor(Math.random() * 3);
+         c.hp = Math.max(1, c.hp - dmg); if(c.def) c.def.hp = c.hp;
+         addStress(c, 12); c.hitFlash = 1;
+         addPopup(c.x, c.y - c.r - 14, '-' + dmg + ' \u00B7 THROWN', '#e0483e');
+         showEventModal('HULL STRIKE', 'Something the size of a fist comes through the dark at a speed that does not care about hulls. The Gannet rings like a bell and ' + c.name + ' meets a bulkhead shoulder first. The hull holds. ' + c.name + ' is bleeding.', [{label: 'HOLD ON'}]);
+         chronicle('ship', 'Debris struck the Gannet underway. ' + c.name + ' was thrown against a bulkhead; the hull held.');
+         updateHud();
+       }
+     } }},
   {w: 2, run(){ showBanner('UNKNOWN CONTACT SHADOWING…', '#b06ae0');
      setTimeout(() => { if(state.flight) showBanner('…CONTACT BREAKS OFF', '#8fb08a'); }, 2600); }},
   {w: 2, run(){ showBanner('SCANNER: DERELICT LOGGED IN PASSING', '#6fd6ff'); }},
@@ -6472,7 +6534,7 @@ function flightTick(dt){
       if(fi) fi.style.display = 'none';
       const ft0 = document.getElementById('flightTimer');
       if(ft0) ft0.style.display = 'block';
-      showBanner('UNDERWAY: ' + galaxyNode(f.to).name.toUpperCase() + ' · ' + Math.round(f.total) + 'S OUT', '#d4a843', false, true);
+      showBanner('UNDERWAY: ' + (f.charter === 'back' ? 'THE CROSS' : galaxyNode(f.to).name.toUpperCase()) + ' · ' + Math.round(f.total) + 'S OUT', '#d4a843', false, true);
     }
     return;
   }
@@ -6492,9 +6554,11 @@ function flightTick(dt){
   if(ft) ft.textContent = Math.max(0, Math.ceil(f.left)) + 'S UNTIL ARRIVAL';
   if(f.left <= 0){
     const dest = f.to;
+    const charter = f.charter;
     state.flight = null;
     if(ft) ft.style.display = 'none';
-    travelTo(dest);
+    if(charter) charterArrive(charter);
+    else travelTo(dest);
     updateOrbitStatus();   // the orbit line is the door now
   }
 }
@@ -7194,6 +7258,15 @@ function onDown(e){
   if(freeRoam()){ deckDown(toLocal(e)); e.preventDefault(); return; }
   if(busy() || !pc().alive) return;
   const p = toLocal(e);
+  if(state.charterGround && state.stations){   // the Gannet console, on the moon: the way home
+    const st = state.stations.find(t => Math.hypot(t.x - p.x, t.y - p.y) < 26);
+    if(st){
+      if(Math.hypot(pc().x - st.x, pc().y - st.y) <= 85) charterConsole();
+      else addPopup(st.x, st.y - 22, 'WALK CLOSER', '#e0a33e');
+      e.preventDefault();
+      return;
+    }
+  }
   if(state.range){
     const onHero = unitAtPoint(state.squad, p.x, p.y, 14);
     const groundOpen = state.rangePhase === 'move' || state.rangePhase === 'play';
@@ -10298,6 +10371,7 @@ function doorStatus(dr){
     return {title: dr.label, line: 'SHUT', tint: '#e0a33e', note: denKeyHeld() ? 'You have the key. Bring the crew to the door.' : 'A lookout, a key, or a hard enough knock.'};
   }
   if(!dr.to) return {title: dr.label, line: 'CLOSED FOR WORKS', tint: 'rgba(232,224,204,.6)', note: 'This district is not open yet.'};
+  if(dr.needs && !doorNeedsMet(dr)) return {title: dr.label, line: 'LOCKED', tint: '#e0a33e', note: 'The Shippers\u2019 hangar. Hesper Dunmore opens it for paying passengers, or for a passage already paid.'};
   const dd = districtDef(ship.at, dr.to);
   return {title: 'TO ' + dr.label, line: 'ARCH', tint: '#6fd6ff', note: 'The crew goes through together. Stand everyone at the arch' + (dd ? ' to reach ' + dd.name : '') + '.'};
 }
@@ -10372,6 +10446,8 @@ function doorInspect(dr){
     }
   }else if(!dr.to){
     body = 'Closed for works. ' + st.note;
+  }else if(dr.needs && !doorNeedsMet(dr)){
+    body = 'Locked. ' + st.note;
   }else{
     title = 'TO ' + title;
     if(all){ doorAsk(dr); return {title, body: 'asked', labels: ['GO THROUGH', 'NOT YET'], asked: true}; }
@@ -10421,6 +10497,7 @@ function districtDoorTick(){
       continue;
     }
     if(!dr.to) continue;
+    if(dr.needs && !doorNeedsMet(dr)) continue;   // a locked arch: nobody goes through until the facts say so
     if(near.length === crew.length && !dr.asked){ doorAsk(dr); return; }
   }
   // whoever followed you through comes out of the arch a few strides behind
@@ -10629,12 +10706,280 @@ const ERINA_LEVEL = {
   issuer: 'erina',
 };
 function erinaIdx(){ let i = LEVELS.indexOf(ERINA_LEVEL); if(i < 0){ LEVELS.push(ERINA_LEVEL); i = LEVELS.length - 1; } return i; }
+// ---- Spindle: no port, no air worth the name, and a brother overdue in the caves ----
+function buildSpindleLevel(){
+  const PW = 2800, PH = 1760;
+  const g = gannetHullIn(PW, PH, 0.5, 0.80);
+  return {
+    name: 'A Brother on Spindle', fee: 850, par: 0, at: 'spindle', crew: 4, hidden: true, charter: true, payAt: 'oskar', issuer: 'oskar',
+    world: {w: PW, h: PH},
+    client: 'Oskar Venn', faction: 'PRIVATE \u00B7 A BROTHER',
+    location: 'Spindle, moon of the twin suns \u00B7 the silk caves', time: 'Both suns down',
+    theme: 'arachne',
+    brief: 'The Gannet is down on the white rock, hatch to the west. The caves start where the surface ends.<br><br>Anselm Venn\u2019s silk crew went in nine days ago. Find him, carry him, get him aboard, and press the console. Everything in there that moves is an Arachne.',
+    objective: 'Find Anselm Venn in the caves \u00B7 carry him aboard the Gannet \u00B7 the console takes you home',
+    pkgName: 'ANSELM',
+    player: {x: g.start.x, y: g.start.y},
+    walls: [
+      {x: 0.000, y: 0.000, w: 1.000, h: 0.030, high: true},
+      {x: 0.000, y: 0.970, w: 1.000, h: 0.030, high: true},
+      {x: 0.000, y: 0.000, w: 0.020, h: 1.000, high: true},
+      {x: 0.980, y: 0.000, w: 0.020, h: 1.000, high: true},
+      // the cave face across the moon, with two mouths
+      {x: 0.020, y: 0.56, w: 0.20, h: 0.06, high: true},
+      {x: 0.30, y: 0.56, w: 0.40, h: 0.06, high: true},
+      {x: 0.78, y: 0.56, w: 0.20, h: 0.06, high: true},
+      // the surface: boulders and silk-frame wreckage, low
+      {x: 0.12, y: 0.70, w: 0.05, h: 0.03},
+      {x: 0.22, y: 0.88, w: 0.05, h: 0.03},
+      {x: 0.78, y: 0.72, w: 0.05, h: 0.03},
+      {x: 0.86, y: 0.88, w: 0.05, h: 0.03},
+      {x: 0.26, y: 0.66, w: 0.04, h: 0.025},
+      {x: 0.72, y: 0.66, w: 0.04, h: 0.025},
+      // the caves: crystal pillars
+      {x: 0.10, y: 0.38, w: 0.09, h: 0.08, high: true},
+      {x: 0.28, y: 0.42, w: 0.10, h: 0.07, high: true},
+      {x: 0.48, y: 0.36, w: 0.08, h: 0.10, high: true},
+      {x: 0.66, y: 0.42, w: 0.10, h: 0.07, high: true},
+      {x: 0.84, y: 0.36, w: 0.08, h: 0.09, high: true},
+      {x: 0.20, y: 0.20, w: 0.10, h: 0.07, high: true},
+      {x: 0.40, y: 0.14, w: 0.08, h: 0.10, high: true},
+      {x: 0.58, y: 0.20, w: 0.10, h: 0.07, high: true},
+      {x: 0.76, y: 0.14, w: 0.08, h: 0.09, high: true},
+      {x: 0.06, y: 0.08, w: 0.06, h: 0.06, high: true},
+      // cave rubble, low
+      {x: 0.20, y: 0.50, w: 0.05, h: 0.028},
+      {x: 0.58, y: 0.50, w: 0.05, h: 0.028},
+      {x: 0.36, y: 0.30, w: 0.05, h: 0.028},
+      {x: 0.72, y: 0.30, w: 0.05, h: 0.028},
+      {x: 0.14, y: 0.28, w: 0.045, h: 0.026},
+      {x: 0.52, y: 0.08, w: 0.05, h: 0.028},
+      {x: 0.90, y: 0.26, w: 0.045, h: 0.026},
+      {x: 0.30, y: 0.08, w: 0.05, h: 0.028},
+    ].concat(g.hull),
+    burrows: [{x: 0.06, y: 0.48}, {x: 0.94, y: 0.48}, {x: 0.50, y: 0.06}, {x: 0.30, y: 0.30}],
+    calmEvery: 3, calmBrood: 2, alarmEvery: 1, alarmBrood: 3,
+    enemies: [
+      {x: 0.26, y: 0.50, type: 'arachne'},
+      {x: 0.74, y: 0.50, type: 'arachne'},
+      {x: 0.44, y: 0.30, type: 'arachne'},
+      {x: 0.16, y: 0.16, type: 'arachne'},
+      {x: 0.86, y: 0.22, type: 'arachne'},
+      {x: 0.62, y: 0.12, type: 'arachne'},
+      {x: 0.48, y: 0.08, type: 'queen'},
+    ],
+    package: [{x: 0.12, y: 0.12}, {x: 0.50, y: 0.27}, {x: 0.90, y: 0.10}],
+    extract: null,
+    stations: [g.console],
+    charterZone: g.zone,
+    civilians: 0,
+  };
+}
+const SPINDLE_LEVEL = buildSpindleLevel();
+// ship.charter = {state: ticket|cleared|out|spindle|back|done|grief|lost, day, due, rescued}
+function charterSt(){ return (ship.charter && ship.charter.state) || null; }
+// Oskar hands over the passage: a cube in a pocket, a contract in the journal
+function charterGive(tg, oskar){
+  if(ship.charter) return false;
+  const cube = cubeItem('passage', oskar ? oskar.name : 'Oskar Venn', null);
+  let holder = (state.squad || []).find(c => c.alive && c.def && (c.def.pack || []).length < 4) || null;
+  if(holder){ if(!Array.isArray(holder.def.pack)) holder.def.pack = []; holder.def.pack.push(cube); addPopup(holder.x, holder.y - holder.r - 14, 'PASSAGE CUBE \u00B7 PACKED', '#6fd6ff'); }
+  else{ const cc = cacheAt(tg.x, tg.y + 20); (cc.loot = cc.loot || []).push(cube); addPopup(tg.x, tg.y - 20, 'PASSAGE CUBE \u00B7 AT YOUR FEET', '#6fd6ff'); }
+  ship.charter = {state: 'ticket', day: ship.day || 0, due: 0, rescued: false};
+  missionStart('spindle', {target: tg.name});
+  quietFor(SIT_GAP_MS);
+  chronicle('event', 'Oskar Venn paid the Shippers for a hull to Spindle and back, and handed the crew the passage. His brother Anselm is nine days overdue in the silk caves.');
+  shipSave();
+  return true;
+}
+function passageHeld(){
+  return (SQUAD_DEFS || []).some(d => !d.dead && (d.pack || []).some(it => it.kind === 'datacube' && it.cube === 'passage'));
+}
+// Hesper reads the cube and unbolts the hangar door
+function charterClear(){
+  if(charterSt() !== 'ticket') return false;
+  ship.charter.state = 'cleared';
+  const ms = ship.missions && ship.missions.spindle;
+  if(ms && ms.state === 'open') ms.waypoint = {port: 'gateway', district: 'cross', x: 0.925, y: 0.335, label: 'THE HANGAR DOOR', t0: performance.now()};
+  chronicle('event', 'Hesper Dunmore read the passage, grunted, and unbolted the hangar door. Bay 3: ' + GANNET_REG + ', which she calls the Gannet.');
+  const dr = (state.doors || []).find(d => d.to === 'hangar');
+  if(dr) camTour(dr.x, dr.y, 2200);
+  quietFor(15000);
+  shipSave();
+  return true;
+}
+// the console: in the hangar it starts the contract; on Spindle it takes you home
+function charterConsole(){
+  const st = charterSt();
+  if(st === 'cleared' && state.portDock && ship.district === 'hangar'){
+    const shown = showEventModal('BEGIN CONTRACT?',
+      'The Gannet lifts the moment this is pressed: thirty seconds of hard burn to Spindle, whatever the dark holds on the way, and the white rock at the end of it. Everyone aboard is going. The Orrix stays docked.',
+      [{label: 'START CONTRACT', cb: charterLaunch}, {label: 'NOT YET'}], {sub: 'A BROTHER ON SPINDLE \u00B7 OSKAR VENN'});
+    if(shown === false) charterLaunch();
+    return true;
+  }
+  if(st === 'spindle' && state.charterGround){
+    const aboard = charterPkgAboard();
+    if(aboard){
+      const shown = showEventModal('THE GANNET \u00B7 BRIDGE', 'Anselm is aboard and breathing. The burn home is thirty seconds and the dark may have something to say about it. Lift?',
+        [{label: 'LIFT OFF', cb: () => charterDepart(true)}, {label: 'NOT YET'}]);
+      if(shown === false) charterDepart(true);
+    }else{
+      const shown = showEventModal('THE GANNET \u00B7 BRIDGE', state.pkg && state.pkg.carried
+        ? 'Whoever is carrying Anselm is still outside the hull. Get him through the hatch first.'
+        : 'Anselm Venn is not aboard. Lift without him and Oskar gets the news instead of his brother.',
+        (state.pkg && state.pkg.carried) ? [{label: 'UNDERSTOOD'}] : [{label: 'LIFT WITHOUT HIM', cb: () => charterDepart(false)}, {label: 'NOT YET'}]);
+      void shown;
+    }
+    return true;
+  }
+  if(st === 'done' || st === 'grief'){ addPopup(W * 0.5, H * 0.5, 'THE GANNET IS DONE FOR THE DAY', '#e0a33e'); return false; }
+  addPopup(W * 0.5, H * 0.5, 'HESPER HAS THE KEY', '#e0a33e');
+  return false;
+}
+function charterPkgAboard(){
+  const pk = state.pkg; const z = state.charterZone;
+  if(!pk || !z) return false;
+  const px = pk.carried ? pk.carried.x : pk.x, py = pk.carried ? pk.carried.y : pk.y;
+  return px >= z.x0 * W && px <= z.x1 * W && py >= z.y0 * H && py <= z.y1 * H;
+}
+// the Gannet deck for the flight: a half-Orrix, one console, the crew at their posts
+function enterGannetDeck(){
+  const alive = SQUAD_DEFS.map((d, i) => d.dead ? -1 : i).filter(i => i >= 0);
+  if(!alive.length) return false;
+  deckPrev = {usingCustom, customLevel, rosterSelection: rosterSelection.slice()};
+  usingCustom = true; customLevel = GANNET_LEVEL;
+  rosterSelection = alive;
+  rosterDeployed = true;
+  const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden');
+  restart();
+  state.shipDeck = true;
+  state.portDock = null;
+  state.enemies.length = 0;
+  if(typeof dismissBrief === 'function') dismissBrief();
+  if(typeof dismissSys === 'function') dismissSys();
+  state.stations = GANNET_LEVEL.stations.map(st => ({label: STATION_LABELS[st.id] || st.id, ...st, x: st.x * W, y: st.y * H}));
+  deckBuildMask();
+  const posts = GANNET_LEVEL.posts.map(p => ({x: p.x * W, y: p.y * H}));
+  state.squad.forEach((c, i) => {
+    const p = posts[i % posts.length];
+    c.x = p.x; c.y = p.y;
+    for(let tries = 0; tries < 24 && state.walls.some(w => circleRect(c.x, c.y, c.r + 2, w)); tries++){ c.x += (Math.random() - 0.5) * 50; c.y += (Math.random() - 0.5) * 50; }
+    c.ap = 9; c.facing = 0;
+  });
+  state.props = [];
+  refreshDropBtn && refreshDropBtn();
+  if(document.body && document.body.classList) document.body.classList.add('deck');
+  resize(); updateHud();
+  camFocusCrew(1.6);
+  return true;
+}
+const CHARTER_FLIGHT_S = 30;
+function charterFlight(dir){
+  const total = CHARTER_FLIGHT_S;
+  state.flight = {to: dir === 'out' ? 'spindle' : ship.at, days: 0, total, left: total,
+    events: [total * (0.3 + Math.random() * 0.45)], intro: 3.6, charter: dir};
+  const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden');
+  const fi = document.getElementById('flightIntro');
+  if(fi){
+    fi.style.display = 'block';
+    fi.innerHTML = '<div id="fiDest">THE GANNET \u00B7 LEAVING FOR ' + (dir === 'out' ? 'SPINDLE' : 'THE CROSS') + ' IN</div><div id="fiCount">3</div>';
+  }
+  return true;
+}
+function charterLaunch(){
+  if(charterSt() !== 'cleared') return false;
+  ship.charter.state = 'out';
+  const ms = ship.missions && ship.missions.spindle;
+  if(ms && ms.state === 'open') ms.waypoint = null;
+  chronicle('contract', 'The Gannet lifted out of Bay 3 with the whole crew aboard, bound for Spindle. The Orrix stayed on the pad.');
+  leaveShipDeck();
+  enterGannetDeck();
+  charterFlight('out');
+  shipSave();
+  return true;
+}
+function charterArrive(dir){
+  if(dir === 'out') return charterLandSpindle();
+  return charterHome();
+}
+function charterLandSpindle(){
+  ship.charter.state = 'spindle';
+  const alive = SQUAD_DEFS.map((d, k) => d.dead ? -1 : k).filter(k => k >= 0);
+  leaveShipDeck();
+  rosterSelection = alive.slice(0, 4);
+  levelIdx = spindleIdx(); usingCustom = false;
+  rosterDeployed = true;
+  const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden');
+  restart();
+  state.charterGround = true;
+  state.charterZone = SPINDLE_LEVEL.charterZone;
+  state.stations = SPINDLE_LEVEL.stations.map(st => ({label: STATION_LABELS[st.id] || st.id, ...st, x: st.x * W, y: st.y * H}));
+  chronicle('event', 'The Gannet put down on Spindle, white rock under a black sky, both suns gone. The caves begin where the light does.');
+  shipSave();
+  return true;
+}
+// lifting off Spindle: the ledger is written here (the readout), the pay waits for Oskar
+function charterDepart(withHim){
+  if(charterSt() !== 'spindle') return false;
+  ship.charter.rescued = !!withHim;
+  if(withHim && state.pkg){ state.pkg.delivered = true; }
+  if(!state.winReady && !state.over){ state.winReady = true; state.winTurn = state.turn; state.missionFree = true; state.invoiceSnap = JSON.parse(JSON.stringify(state.invoice || {})); }
+  win();   // the count: careers, injuries, the itemised readout; nothing is paid here
+  const ov = document.getElementById('overlay'); if(ov && ov.style) ov.style.display = 'none';
+  state.charterShow = true;
+  ship.charter.state = 'back';
+  state.charterGround = false; state.charterZone = null;
+  chronicle('contract', withHim ? 'Anselm Venn came up the Gannet\u2019s ramp in somebody\u2019s arms, and the ramp came up behind him.' : 'The Gannet lifted off Spindle with an empty berth. Anselm Venn stayed in the caves.');
+  enterGannetDeck();
+  charterFlight('back');
+  shipSave();
+  return true;
+}
+function charterHome(){
+  const ch = ship.charter;
+  ch.state = ch.rescued ? 'done' : 'grief';
+  leaveShipDeck();
+  enterPort('hangar');
+  // the crew comes down the ramp; Oskar is waiting by the bay, and his brother is on the ramp if he came home
+  const g = HANGAR_PORT.gannet;
+  const hx = g.hatch.x * W, hy = g.hatch.y * H;
+  state.squad.forEach((c, i) => { c.x = hx - 70 - i * 28; c.y = hy + (i % 2 ? 26 : -26); unstickFromWalls(c); c.facing = Math.PI; });
+  camFocusCrew(2.4);
+  const mk = (name, dx, dy, bio) => { const cv = {x: hx + dx, y: hy + dy, r: 8, alive: true, ko: false, panic: 0, tx: hx + dx, ty: hy + dy, pace: 22, bob: Math.random() * 6, hood: false,
+    kind: 'face', name, race: 'HUMAN', sex: 'MALE', faction: 'A FAMILY', bio, brave: 10, tide: false, gait: 1, errand: null, charter: true}; state.civs.push(cv); return cv; };
+  mk('Oskar Venn', -140, -40, 'Freight-line guard turned freelancer. Owes money in two ports and friendship in a third. Waited in the hangar the whole time.');
+  if(ch.rescued) mk('Anselm Venn', -60, 10, 'Silk crew foreman. Nine days in the caves and carried out of them. Will not go back.');
+  const due = ch.due || 0;
+  const body = ch.rescued
+    ? 'Oskar Venn is at the ramp before it is fully down. He does not speak until he has his hands on his brother, and then he does not stop. \u201CEight-fifty, as said. It is not enough and I know it is not enough. Thank you. Thank you.\u201D'
+    : 'Oskar Venn is at the ramp before it is fully down, and reads the empty berth before anyone says a word. He sits on a fuel bowser for a long time. \u201CYou went. That is more than anyone else did.\u201D There is no money in his hands and nobody asks for it.';
+  const after = () => {
+    if(ch.rescued){ ship.credits += due; shipCreditsRefresh && shipCreditsRefresh(); }
+    missionEnd('spindle', ch.rescued ? 'done' : 'grief');
+    chronicle(ch.rescued ? 'trade' : 'event', ch.rescued ? 'Oskar Venn paid ' + due + ' CR in the hangar and took his brother home.' : 'Oskar Venn went home alone. The Shippers\u2019 ledger records one passage, return, no cargo.');
+    for(const cv of state.civs) if(cv.charter){ cv.leaving = true; cv.errand = {kind: 'cross', path: [{x: (state.doors[0] || {x: cv.x}).x, y: (state.doors[0] || {y: cv.y}).y}], leg: 0, waitT: 0}; }
+    const ov = document.getElementById('overlay');
+    if(ov && ov.style && state.charterShow) ov.style.display = 'flex';
+    shipSave();
+  };
+  const shown = showEventModal('OSKAR VENN', body, [{label: ch.rescued ? 'TAKE THE FEE \u00B7 ' + due + ' CR' : 'LEAVE HIM TO IT', cb: after}]);
+  if(shown === false) after();
+  quietFor(SIT_GAP_MS);
+  shipSave();
+  return true;
+}
+function spindleIdx(){ let i = LEVELS.indexOf(SPINDLE_LEVEL); if(i < 0){ LEVELS.push(SPINDLE_LEVEL); i = LEVELS.length - 1; } return i; }
 // the Erina job lives in ship.erinaJob: {state: open|carrying|dead|paid, due, items}. The hatch reads it.
 function hatchFacts(){
   const j = ship.erinaJob;
   return {open: !!j && j.state === 'open', done: !!j && j.state !== 'open', job: j || null};
 }
 function doorFacts(dr){ return dr.den === 'warren' ? hatchFacts() : denFacts(); }
+function doorNeedsMet(dr){
+  if(dr.needs === 'charter') return !!(ship.charter && ship.charter.state && ship.charter.state !== 'ticket');
+  return true;
+}
 // accepting the work: a dart rifle across the counter, a waypoint, the banner, and the camera shows the way
 function erinaAccept(c){
   if(ship.erinaJob) return false;
@@ -11378,11 +11723,9 @@ function faceArrive(cv, tg){
     return;
   }
   if(cv.face === 'help'){
-    const li = LEVELS.findIndex(l => l.at === 'spindle');
     const take = () => {
-      bzSet({ffPaper: {level: li, day: ship.day || 0}});
-      chronicle('event', cv.name + '\u2019s paper is on the board: the Spindle expedition, posting held open for ten days on a stranger\u2019s word.');
-      faceResolve('paper', cv.name + ' pressed the paper into ' + tg.name + '\u2019s hands and went to find a berth outbound. The posting is open on the Spindle board for ten days, whatever the cycle says. Nobody else was asked.');
+      charterGive(tg, cv);
+      faceResolve('passage', cv.name + ' pressed a passage cube into ' + tg.name + '\u2019s hand and went to wait at the Shippers\u2019 hangar. Spindle and back, paid for. A brother to bring home.');
       cv.tide = true; cv.errand = {kind: 'cross', path: [{x: (state.doors[0] || {x: cv.x}).x, y: (state.doors[0] || {y: cv.y}).y}], leg: 0, waitT: 0};
     };
     const refuse = () => {
@@ -11391,8 +11734,8 @@ function faceArrive(cv, tg){
     };
     bzSet({ff: Object.assign({}, b.ff, {state: 'met'})});
     const shownH = showEventModal(FACES.help.title,
-      cv.name + ' has been crying and has stopped, which is worse. \u201CYou look like people who finish things. My brother\u2019s silk crew is nine days overdue on Spindle and the posting lapsed yesterday. I have the paper. I can hold it open, I just can\u2019t go.\u201D',
-      [{label: 'TAKE THE PAPER', cb: take}, {label: 'NOT OUR BUSINESS', cb: refuse}]);
+      cv.name + ' has been crying and has stopped, which is worse. \u201CYou look like people who finish things. My brother Anselm took a silk crew into the caves on Spindle nine days ago and nobody has come out. There is no port there, no law, nothing but the spiders and the rock. I have paid the Shippers for a hull there and back; it is yours if you will go. Bring him to me, or bring me what is left of him, and there is eight hundred and fifty on top.\u201D He holds out a data cube: the passage, and his name on it.',
+      [{label: 'TAKE THE PASSAGE', cb: take}, {label: 'NOT OUR BUSINESS', cb: refuse}]);
     if(shownH === false) take();
     return;
   }
@@ -12128,6 +12471,12 @@ const CUBES = {
       'Make an example. Bring me their tags and the street will know it is still mine. Payment on the usual terms at the shuttered unit on Tallow Street, off Transit Row. Come after dark. Do not come empty-handed.\n\n' +
       'D.M.',
   },
+  passage: {
+    title: 'Passage \u00B7 the Shippers',
+    mission: 'spindle',
+    text: () => 'PASSAGE PAID \u00B7 ONE HULL, ONE CREW, SPINDLE AND RETURN\nThe Shippers, east side of the Cross, by the shipyard arch. Ask for Hesper Dunmore. Show her this.\n\n' +
+      'Oskar Venn: \u201CHis name is Anselm. The silk crew went in by the north face nine days ago and nobody has come out. He will be hurt or he will be dead; bring me which. Eight hundred and fifty on your return, and whatever is left of my gratitude. I will be in the hangar when the Gannet comes back; the cube knows.\u201D',
+  },
   whyme_ledger: {
     title: 'Ledger, Tallow Street',
     mission: null,
@@ -12162,6 +12511,8 @@ const MISSIONS = {
   whyme: {name: 'Why Me', kind: 'LEAD', issuer: 'A letter with your name in it',
     waypoint: {port: 'gateway', district: 'cross', x: 0.76, y: 0.855, label: 'TALLOW STREET'}},
   tallow: {name: 'The Tallow Street Crew', kind: 'CONTRACT', issuer: 'No employer \u00B7 the ledger is the pay', waypoint: null},
+  spindle: {name: 'A Brother on Spindle', kind: 'CONTRACT', issuer: 'Oskar Venn \u00B7 a brother',
+    waypoint: {port: 'gateway', district: 'cross', x: 0.865, y: 0.335, label: 'THE SHIPPERS'}},
   cleanup: {name: 'Cleanup on Tallow Street', waypoint: null},   // retired 26 Oct; kept so old saves read
 };
 function missionStart(id, extra){
@@ -12214,6 +12565,23 @@ function missionNext(id){
     if(left) return 'Clear the unit: ' + left + ' standing. Dace Mortlake in the back room is the point.';
     if(!ledgerHeld()) return 'Take the ledger (a data cube) off Dace Mortlake\u2019s body before you leave.';
     return 'The ledger is yours. Finish the contract and walk out; the door shuts behind you.';
+  }
+  if(id === 'spindle'){
+    const ch = ship.charter || {};
+    if(ms.state !== 'open') return ch.state === 'done' ? 'Done. Anselm Venn came home; Oskar paid ' + (ch.due || 0) + ' CR in the hangar.'
+      : ch.state === 'grief' ? 'Over. The Gannet came back without Anselm. Oskar went home alone.' : 'Lost on Spindle.';
+    if(ch.state === 'ticket') return 'Take the passage cube to the Shippers, east side of the Cross by the shipyard arch. Hesper Dunmore has the hangar key.';
+    if(ch.state === 'cleared') return ship.district === 'hangar'
+      ? 'Everyone aboard the Gannet (Bay 3), then press the bridge console in her nose.'
+      : 'Through the hangar door behind the Shippers\u2019 counter. The Gannet is in Bay 3, fuelled.';
+    if(ch.state === 'out') return 'Underway to Spindle. Thirty seconds of burn; hold on to something.';
+    if(ch.state === 'spindle'){
+      if(state.pkg && state.pkg.carried) return charterPkgAboard() ? 'Anselm is aboard. Press the Gannet\u2019s console to go home.' : 'Anselm is in your arms. Get him through the Gannet\u2019s hatch, then the console.';
+      if(state.pkg && state.pkgFound) return 'Anselm is found and down. Pick him up and carry him to the Gannet.';
+      return 'Find Anselm Venn in the caves (' + ((state.pkgSites || []).filter(s2 => !s2.cleared).length || 3) + ' possible sites), carry him aboard the Gannet, press the console.';
+    }
+    if(ch.state === 'back') return 'Underway to the Cross. Oskar is waiting in the hangar.';
+    return 'Open.';
   }
   if(id === 'cleanup') return ms.state === 'open' ? 'Clear the unit on Tallow Street.' : 'Done.';
   return ms.state === 'open' ? 'Open.' : 'Done.';
@@ -12294,7 +12662,11 @@ function nextStripTick(){
 // the waypoint on the floor you stand on, or the arch that leads to its floor
 function waypointHere(){
   const out = [];
+  // the charter waypoint moves with its state inside the hangar: the console once you are through the door
+  if(charterSt() === 'cleared' && ship.district === 'hangar' && state.portDock && HANGAR_PORT.gannet)
+    out.push({id: 'spindle', x: HANGAR_PORT.gannet.console.x * W, y: HANGAR_PORT.gannet.console.y * H, label: 'THE GANNET \u00B7 BRIDGE CONSOLE', here: true, t0: (ship.missions.spindle || {}).t0h});
   for(const id of missionsOpen()){
+    if(id === 'spindle' && charterSt() === 'cleared' && ship.district === 'hangar') continue;
     const wp = ship.missions[id].waypoint; if(!wp || wp.port !== ship.at || !state.portDock) continue;
     if(!wp.district || wp.district === ship.district) out.push({id, x: wp.x * W, y: wp.y * H, label: wp.label, here: true, t0: wp.t0});
     else{
@@ -12837,7 +13209,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '26 Oct \u00B7 JOURNAL';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '27 Oct \u00B7 GANNET';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -13087,6 +13459,9 @@ const CROSS_CAST = [
   {name: 'Fenn', kind: 'barkeep', x: 0.36, y: 0.16, homeR: 40, brave: 9, district: 'cross',
    race: 'AMAROK', sex: 'MALE', faction: 'THE BEACON',
    bio: 'Keeps the Beacon. Pours for everyone, remembers everyone, repeats nothing without being paid to.'},
+  {name: 'Hesper Dunmore', kind: 'trader', x: 0.865, y: 0.315, homeR: 30, brave: 17, district: 'cross',
+   race: 'MINOTAUR', sex: 'FEMALE', faction: 'THE SHIPPERS',
+   bio: 'Runs the Shippers: hulls for hire, pilots for hire, no questions past the deposit. Flew herself until a bad landing on Garn took the nerve out of her left hand. Bets on who comes back, and is usually right.'},
   {name: 'Erina Jones', kind: 'trader', x: 0.61, y: 0.735, homeR: 36, brave: 15, district: 'cross',
    race: 'HUMAN', sex: 'FEMALE', faction: 'ERINA\u2019S EXOTICS',
    bio: 'Owner of the Exotics. A Colossus put her through six trees and left her a leg and an arm short; she lives through her retrievers now, and pays them well for work nobody else will take.'},
@@ -13978,6 +14353,19 @@ function portTalk(cv){
       '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D',
       [offer].concat(close));
   }
+  if(cv.name === 'Hesper Dunmore'){
+    const st = charterSt();
+    if(st === 'ticket' && passageHeld()){
+      return showEventModal('HESPER DUNMORE',
+        'She takes the cube without looking at it and looks at the crew instead, the way she looks at everyone who books a hull to Spindle. \u201CVenn\u2019s passage. Paid up front, which tells you what he thinks your odds are. Bay 3, through the back. She is called ' + GANNET_REG + ' on the papers and the Gannet by anyone who has flown her. One console. Press it when you are all aboard, and do not touch anything else.\u201D',
+        [{label: 'USE THE PASSAGE', cb: charterClear}].concat(close));
+    }
+    if(st === 'ticket') return showEventModal('HESPER DUNMORE', '\u201CVenn said he gave you a passage cube. Show it to me and the door opens. No cube, no door; that is the whole of my business model.\u201D', close);
+    if(st === 'cleared') return showEventModal('HESPER DUNMORE', '\u201CBay 3. The door is open. Thirty seconds of burn each way; the dark does what it does.\u201D', close);
+    if(st === 'done') return showEventModal('HESPER DUNMORE', '\u201CYou came back. Most don\u2019t. I had money on it both ways.\u201D', close);
+    if(st === 'grief') return showEventModal('HESPER DUNMORE', '\u201CYou came back without him. I have seen the other version. This one is better than it feels.\u201D', close);
+    return showEventModal('HESPER DUNMORE', '\u201CHulls for hire, pilots for hire. Spindle is extra and the deposit is in advance, on account of the odds. Nobody is paying your way today.\u201D', close);
+  }
   if(cv.name === 'Hask'){
     if(waCarrier()){
       return showEventModal('HASK',
@@ -14152,6 +14540,7 @@ function shipSave(){
       missions: ship.missions || {},
       erinaJobs: !!ship.erinaJobs,
       erinaJob: ship.erinaJob || null,
+      charter: ship.charter || null,
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -14174,6 +14563,7 @@ function shipLoad(){
     ship.missions = (d.missions && typeof d.missions === 'object') ? d.missions : {};
     ship.erinaJobs = !!d.erinaJobs;
     ship.erinaJob = (d.erinaJob && typeof d.erinaJob === 'object') ? d.erinaJob : null;
+    ship.charter = (d.charter && typeof d.charter === 'object') ? d.charter : null;
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -14194,6 +14584,7 @@ function doShipReset(){
   ship.district = shipDistrictOf('gateway');   // the dev reset boards you where the Orrix stands
   ship.missions = {};
   ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null; state.quietUntil = 0; state.camTourUntil = 0; state._hatchRun = null; state._denRun = null;
+  ship.charter = null; state.charterGround = false; state.charterZone = null; state.charterShow = false;
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
@@ -14567,7 +14958,7 @@ function win(){
       assess += `  ${met ? '✓' : '✗'} ${sec.label}`;
     }
   }
-  document.getElementById('ovTitle').textContent = L.payAt ? 'Readout \u00B7 Pay at the Counter' : iss.title;
+  document.getElementById('ovTitle').textContent = L.payAt === 'oskar' ? 'Readout \u00B7 Oskar Pays in the Hangar' : L.payAt ? 'Readout \u00B7 Pay at the Counter' : iss.title;
   missionsWon++;
   // the settlement: every clause itemised, bureaucratically, with a total beneath; no employer, no clauses
   const fee = iss.invoice ? (L.fee || 300) : 0;
@@ -14604,8 +14995,12 @@ function win(){
     items.push(['PAYABLE AT ERINA\u2019S COUNTER, ON DELIVERY', 0]);
     ship.erinaJob.due = paid; ship.erinaJob.items = items.slice();
   }
+  if(L.payAt === 'oskar' && ship.charter){
+    items.push(['PAYABLE BY OSKAR VENN IN THE HANGAR, ON ARRIVAL', 0]);
+    ship.charter.due = paid;
+  }
   state.invoiceItems = items;
-  if(!(L.payAt === 'erina')) ship.credits += paid;
+  if(!(L.payAt === 'erina' || L.payAt === 'oskar')) ship.credits += paid;
   state.lastPaid = paid;
   {
     const chL = currentLevel();
@@ -14678,7 +15073,7 @@ function win(){
           '" data-delay="' + (0.55 + ri * 0.22) + '">0</i></b></div>'
         ).join('') +
         '<div class="aiRow aiTotal aiLive" style="animation-delay:' +
-          (0.75 + (state.invoiceItems || []).length * 0.22) + 's"><span>' + (L.payAt ? 'DUE AT THE COUNTER \u00B7 NOTHING REMITTED YET' : iss.invoice ? 'TOTAL REMITTED TO THE ORRIX' : 'REMITTED: NOTHING. LOOTED: SEE PACKS.') + '</span><i></i><b>' +
+          (0.75 + (state.invoiceItems || []).length * 0.22) + 's"><span>' + (L.payAt === 'oskar' ? 'DUE FROM OSKAR \u00B7 NOTHING REMITTED YET' : L.payAt ? 'DUE AT THE COUNTER \u00B7 NOTHING REMITTED YET' : iss.invoice ? 'TOTAL REMITTED TO THE ORRIX' : 'REMITTED: NOTHING. LOOTED: SEE PACKS.') + '</span><i></i><b>' +
           '<i class="aiTick aiTickTotal" data-final="' + (state.lastPaid || 0) +
           '" data-delay="' + (0.75 + (state.invoiceItems || []).length * 0.22) + '">0</i> CR</b></div>' +
       '</div>' +
@@ -14714,6 +15109,12 @@ function tickInvoice(){
 }
 
 function fail(){
+  if(ship.charter && ship.charter.state === 'spindle'){
+    ship.charter.state = 'lost';
+    state.charterGround = false; state.charterZone = null;
+    missionEnd('spindle', 'lost');
+    chronicle('contract', 'The Gannet sits on Spindle with nobody left to fly her. The Shippers will send a bill; Oskar Venn will get no answer.');
+  }
   {
     const chL = (typeof currentLevel === 'function' && currentLevel()) || {};
     const chUp = (state.squad || []).filter(c => c.alive && !c.downed).length;
@@ -15630,7 +16031,8 @@ function endEnemyTurn(){
   }
   // the dying have died; only now may the law lose the scent
   if(s.deckCombat && s.portFight && !s.over){
-    const liveE = s.enemies.filter(e2 => e2.alive && !e2.ko);
+    // the scent is the law's: two people shooting each other, or a loose hound, are not hunting the crew and do not break off
+    const liveE = s.enemies.filter(e2 => e2.alive && !e2.ko && !e2.duel && !e2.loose);
     const seen9 = liveE.some(e2 => s.squad.some(c2 => c2.alive && !c2.downed && canPerceive(e2, c2)));
     if(liveE.length && s.squad.some(c2 => c2.alive)){
       if(!seen9){
@@ -16371,8 +16773,8 @@ function frame(now){
         if(!seesPoint(site.x, site.y)) continue;
         if(Math.hypot(site.x - s.pkg.x, site.y - s.pkg.y) < 2){
           s.pkgFound = true;
-          addPopup(s.pkg.x, s.pkg.y - 20, 'CACHE LOCATED', '#d4a843');
-          showBanner('CACHE LOCATED', '#d4a843');
+          addPopup(s.pkg.x, s.pkg.y - 20, currentLevel().pkgName ? currentLevel().pkgName + ' FOUND' : 'CACHE LOCATED', '#d4a843');
+          showBanner(currentLevel().pkgName ? currentLevel().pkgName + ' FOUND \u00B7 HE IS ALIVE' : 'CACHE LOCATED', '#d4a843');
           spawnBurst(s.pkg.x, s.pkg.y, 10, '#d4a843', 160);
         }else{
           site.cleared = true;
@@ -16399,8 +16801,8 @@ function frame(now){
         if(c.ko) continue;
         if(Math.hypot(c.x - s.pkg.x, c.y - s.pkg.y) < c.r + 12){
           s.pkg.carried = c;
-          addPopup(c.x, c.y - c.r - 14, 'PACKAGE SECURED', '#d4a843');
-          showBanner('DELIVER TO EXTRACTION', '#6fd6ff');
+          addPopup(c.x, c.y - c.r - 14, currentLevel().pkgName ? currentLevel().pkgName + ' \u00B7 CARRIED' : 'PACKAGE SECURED', '#d4a843');
+          showBanner(currentLevel().charter ? 'GET HIM ABOARD THE GANNET' : 'DELIVER TO EXTRACTION', '#6fd6ff');
           colonyAlarm(c.x, c.y);
           spawnBurst(s.pkg.x, s.pkg.y, 10, '#d4a843', 160);
           break;
@@ -16448,7 +16850,7 @@ function restart(){
   if(!usingCustom && levelIdx >= LEVELS.length) levelIdx = LEVELS.length - 1;
   s.over = false; s.bullets = []; s.burst = null;
   s.invoice = {noise: 0, civPanics: 0, cruelty: 0, wallHits: 0};
-  s.shipDeck = false; s.stations = null;   // decks re-flag themselves after; missions never do
+  s.shipDeck = false; s.stations = null; s.charterGround = false; s.charterZone = null;   // decks re-flag themselves after; missions never do
   // the level declares its world; the reference field is only the default
   const wd = currentLevel().world;
   W = (wd && wd.w) || LW;
@@ -16485,6 +16887,7 @@ function afterActionReturn(){
 document.getElementById('again').addEventListener('click', () => {
   if(state.range){ restart(); return; }     // the range keeps its own loop
   document.getElementById('overlay').style.display = 'none';
+  if(state.charterShow){ state.charterShow = false; return; }   // the charter already brought everyone home; the readout just closes
   afterActionReturn();
 });
 
@@ -16876,7 +17279,7 @@ function draw(){
   }
 
   // aboard: stations glow, and the near one offers its hand
-  if(s.shipDeck && s.stations){
+  if(s.stations && (s.shipDeck || s.charterGround)){
     const sel = p;
     for(const st of s.stations){
       const near = sel && Math.hypot(sel.x - st.x, sel.y - st.y) <= 85;
@@ -18464,7 +18867,7 @@ const LOUNGE_POSTS = [
   {x: 0.5,   y: 0.472}, {x: 0.5,   y: 0.566}, {x: 0.47,  y: 0.525}, {x: 0.527, y: 0.525},
 ];
 const STATION_LABELS = {bridge:'BRIDGE', loadout:'LOADOUT', skills:'SKILLS', medpod:'MED POD',
-  board:'CONTRACTS', cantina:'FOR HIRE', undock:'UNDOCK'};
+  board:'CONTRACTS', cantina:'FOR HIRE', undock:'UNDOCK', gannet:'THE GANNET \u00B7 BRIDGE'};
 // a docked hatch is a door: carve the wall beneath it (fractions in, fractions out)
 function carveDoorF(walls, a, PW, PH, gapPx){
   const gx = gapPx / PW, gy = gapPx / PH;
@@ -18666,6 +19069,7 @@ const CROSS_PORT = {
     {x: 0.942, y: 0.755, to: null, label: 'FREIGHT QUARTER'},
     {x: 0.760, y: 0.855, to: null, den: 'whyme', label: 'TALLOW STREET UNIT'},
     {x: 0.875, y: 0.845, to: null, den: 'warren', label: 'SERVICE HATCH'},
+    {x: 0.925, y: 0.335, to: 'hangar', label: 'HANGAR DOOR', needs: 'charter'},
   ],
   spots: [
     {x: 0.36, y: 0.17, kind: 'bar', label: 'THE BEACON'},
@@ -18681,6 +19085,7 @@ const CROSS_PORT = {
     {x: 0.50, y: 0.41, kind: 'bench', label: ''},
     {x: 0.50, y: 0.60, kind: 'bench', label: ''},
     {x: 0.21, y: 0.33, kind: 'shop', label: 'STALLS'},
+    {x: 0.865, y: 0.335, kind: 'shop', label: 'THE SHIPPERS'},
   ],
   npcs: [],
   shelves: [{x: 0.565, y: 0.775}, {x: 0.595, y: 0.79}, {x: 0.625, y: 0.79}, {x: 0.655, y: 0.775}],
@@ -18697,10 +19102,35 @@ const CROSS_PORT = {
   ],
 };
 // a port is a set of districts joined by arches; the ship stands in exactly one of them
+function buildHangarPort(){   // (a plain function, not an IIFE: the test harness hooks the closing IIFE of the script by its first closing token)
+  const PW = 2800, PH = 1760;
+  const g = gannetHullIn(PW, PH, 0.52, 0.5);
+  return {
+    name: 'The Shippers\u2019 Hangar', world: {w: PW, h: PH}, crowd: 0, noFog: true,
+    player: {x: 0.14, y: 0.5},
+    walls: [
+      {x: 0.000, y: 0.000, w: 1.000, h: 0.040, high: true},
+      {x: 0.000, y: 0.960, w: 1.000, h: 0.040, high: true},
+      {x: 0.000, y: 0.000, w: 0.030, h: 1.000, high: true},
+      {x: 0.970, y: 0.000, w: 0.030, h: 1.000, high: true},
+      {x: 0.10, y: 0.12, w: 0.05, h: 0.03},   // fuel bowsers and tool carts: low cover
+      {x: 0.16, y: 0.84, w: 0.06, h: 0.03},
+      {x: 0.84, y: 0.20, w: 0.05, h: 0.03},
+      {x: 0.86, y: 0.78, w: 0.05, h: 0.03},
+    ].concat(g.hull),
+    doors: [{x: 0.055, y: 0.5, to: 'cross', label: 'THE SHIPPERS'}],
+    stations: [g.console],
+    spots: [{x: 0.52, y: 0.30, kind: 'bench', label: 'BAY 3 \u00B7 ' + GANNET_REG}],
+    npcs: [], shelves: [], anchors: [],
+    gannet: g,
+  };
+}
+const HANGAR_PORT = buildHangarPort();
 const DISTRICTS = {
   gateway: {
     cross: {plan: CROSS_PORT, name: 'The Cross', ship: false},
     lanes: {plan: CROSSPORT_PORT, name: 'Market Lanes', ship: true},
+    hangar: {plan: HANGAR_PORT, name: 'The Shippers\u2019 Hangar', ship: false},
   },
 };
 const PORT_HOME = {gateway: 'cross'};          // where a new run first stands
