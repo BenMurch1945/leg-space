@@ -3328,6 +3328,9 @@ function bailPay(def){
 function lawTick(dt){
   if(!state.portDock || state.deckCombat || !(state.civs || []).length) return;
   if(typeof askPending !== 'undefined' && askPending) return;
+  // the floor talks: every so often a story moves one pair of ears
+  state.rumourT = (state.rumourT == null ? 90 : state.rumourT) - dt;
+  if(state.rumourT <= 0){ state.rumourT = 90 + Math.random() * 60; rumourSpread(); }
   for(const cv of state.civs){
     if(!(cv.alive && cv.ko && cv.down > 0 && !cv.collared)) continue;
     cv.down -= dt;
@@ -6912,6 +6915,7 @@ function travelTo(nodeId){
   const days = daysBetween(ship.at, nodeId);
   const before = boardState(ship.day);
   ship.day += days;
+  rumourSpread();
   ship.at = nodeId;
   if(ship.medPod) ship.medPod.hp = Math.min(ship.medPod.max, ship.medPod.hp + days * 6);   // the pod drinks the crossing
   const after = boardState(ship.day);
@@ -13418,15 +13422,16 @@ function shopBuy(i, cName){
   if(sh.keeper && moodRefuses(sh.keeper)){ const kp = shopKeeperCiv(); if(kp) addPopup(kp.x, kp.y - kp.r - 14, 'NOT TO YOU', '#e0483e'); return false; }
   const c = (state.squad || []).find(c2 => c2.alive && c2.name === (cName || (pc() && pc().name)));
   if(!c || !c.def) return false;
-  if(ship.credits < it.price) return false;
+  const price = shelfPrice(it);
+  if(ship.credits < price) return false;
   if(!Array.isArray(c.def.pack)) c.def.pack = [];
   if(c.def.pack.length >= 4) return false;
-  ship.credits -= it.price;
+  ship.credits -= price;
   moodPush(sh.keeper, {j: 0.3, t: 0.2}, 'the crew bought from the shelf', 'trade');
   c.def.pack.push({kind: 'weapon', key: it.key, mods: wpnItemMods(it)});
   it.gone = true; it.by = 'bought';
   addPopup(c.x, c.y - c.r - 14, 'BOUGHT \u00B7 ' + (WPN_NAMES[it.key] || it.key).toUpperCase(), '#9fe08e');
-  chronicle('trade', c.name + ' bought a ' + (WPN_NAMES[it.key] || it.key) + ' off Kestrel\u2019s shelf for ' + it.price + ' CR. Honest money, honest iron.');
+  chronicle('trade', c.name + ' bought a ' + (WPN_NAMES[it.key] || it.key) + ' off ' + (sh.keeper || 'the') + '\u2019s shelf for ' + price + ' CR. Honest money, honest iron.');
   shipCreditsRefresh && shipCreditsRefresh();
   shipSave();
   return true;
@@ -13436,8 +13441,10 @@ function shopSend(i){
   if(!sh || !it || sh.keeperDead) return false;
   if(facRepOf('tradersguild') <= -2) return false;
   if(!state.portDock || !state.shipZone) return false;
-  if(ship.credits < it.price) return false;
-  ship.credits -= it.price;
+  if(sh.keeper && moodRefuses(sh.keeper)) return false;
+  const price = shelfPrice(it);
+  if(ship.credits < price) return false;
+  ship.credits -= price;
   it.gone = true; it.by = 'sent';
   const start = (state.shelves && state.shelves[i]) || {x: W * 0.8, y: H * 0.12};
   state.civs.push({
@@ -13450,7 +13457,7 @@ function shopSend(i){
     errand: {kind: 'deliver', path: [], leg: 0, waitT: 0},
   });
   addPopup(start.x, start.y - 18, 'PORTER TAKES IT \u00B7 WATCH THE CROWD', '#6fd6ff');
-  chronicle('trade', 'Bought a ' + (WPN_NAMES[it.key] || it.key) + ' for ' + it.price + ' CR, sent by porter to the Orrix. The concourse lies between here and the ramp.');
+  chronicle('trade', 'Bought a ' + (WPN_NAMES[it.key] || it.key) + ' for ' + price + ' CR, sent by porter to the Orrix. The concourse lies between here and the ramp.');
   shipCreditsRefresh && shipCreditsRefresh();
   shipSave();
   return true;
@@ -13632,7 +13639,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '27 Oct \u00B7 THE WHEEL';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '27 Oct \u00B7 WORD GOES ROUND';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -13864,10 +13871,77 @@ function moodPush(name, d, what, kind){
   const tp = moodTemper(name);
   const w = (kind && tp.sens && tp.sens[kind] != null) ? tp.sens[kind] : 1;
   if(w === 0) return m;
+  // the brave and the badge answer violence with anger, not fear, and a little more of it
+  const cast = bzCastOf(name) || {};
+  if(kind === 'violence' && d.f > 0 && (cast.kind === 'constable' || cast.kind === 'sergeant' || (cast.brave || 10) >= 16)) d = Object.assign({}, d, {f: -(d.f + 0.5)});
   for(const k of MOOD_AXES) if(d[k]) m[k] = Math.max(-3, Math.min(3, +(m[k] + d[k] * w).toFixed(2)));
   m.last = {what, day: ship.day || 0};
-  m.mem = (m.mem || []).concat([{what, day: ship.day || 0}]).slice(-6);
+  m.mem = (m.mem || []).concat([{what, day: ship.day || 0, d, kind: kind || null, heard: /^heard /.test(what)}]).slice(-6);
   return m;
+}
+// ---- rumour: what one face saw, another hears, at half strength and through their own temperament ----
+// the Beacon is the hub (everyone drinks there, Fenn repeats nothing for free but hears everything);
+// a faction talks among itself; strangers rarely compare notes. Each story reaches each ear once.
+const RUMOUR_FRESH_DAYS = 3;
+function rumourNames(){
+  const out = [];
+  for(const p of portCast()) if(out.indexOf(p.name) < 0) out.push(p.name);
+  for(const k of Object.keys(ship.moods || {})) if(out.indexOf(k) < 0) out.push(k);
+  const dead = (bz() && bz().deadCast) || [];
+  return out.filter(n => dead.indexOf(n) < 0);
+}
+function rumourChance(teller, hearer){
+  if(teller === hearer) return 0;
+  const a = bzCastOf(teller) || {}, b = bzCastOf(hearer) || {};
+  if(teller === 'Fenn' || hearer === 'Fenn') return 0.55;
+  if(a.fac && a.fac === b.fac) return 0.6;
+  if(a.kind === 'constable' && b.kind === 'sergeant' || a.kind === 'sergeant' && b.kind === 'constable') return 0.7;
+  return 0.12;
+}
+function rumourSpread(force){
+  const names = rumourNames();
+  const today = ship.day || 0;
+  let told = 0;
+  for(const teller of names){
+    const tm = (ship.moods || {})[teller];
+    if(!tm || !tm.mem) continue;
+    for(const item of tm.mem){
+      if(item.heard || !item.d || today - item.day > RUMOUR_FRESH_DAYS) continue;
+      const story = 'heard that the crew ' + item.what.replace(/^saw /, 'were seen at ').replace(/^the crew /, '');
+      for(const hearer of names){
+        if(hearer === teller) continue;
+        const hm = moodOf(hearer);
+        if((hm.mem || []).some(x => x.what === story || x.what === item.what)) continue;   // saw it, or heard it already
+        const ch = force != null ? force : rumourChance(teller, hearer);
+        if(Math.random() >= ch) continue;
+        const d = {};
+        for(const k of MOOD_AXES) if(item.d[k]) d[k] = item.d[k] * 0.5;
+        moodPush(hearer, d, story, item.kind);
+        const cv = (state.civs || []).find(c => c.name === hearer && c.alive);
+        if(cv) addPopup(cv.x, cv.y - cv.r - 14, 'HEARD SOMETHING', '#b06ae0');
+        told++;
+      }
+    }
+  }
+  if(told) chronicle('event', 'Word went round the Cross. ' + told + (told === 1 ? ' person' : ' people') + ' now know something they did not see.');
+  return told;
+}
+// the price a keeper gives this crew, in their current mood: fear and gladness discount, disgust surcharges
+function keeperMul(name){
+  if(!name) return 1;
+  const m = moodOf(name);
+  let k = 1;
+  if(m.f >= 2) k *= 0.85;
+  else if(m.j >= 1.5) k *= 0.92;
+  if(m.t <= -1.5) k *= 1.2;
+  return k;
+}
+function shelfPrice(it){ const sh = shopOf(); return Math.max(1, Math.round(it.price * keeperMul(sh && sh.keeper))); }
+// a line chosen by the sector the face is in: the words follow the wheel
+function moodSay(name, lines){
+  const nm = moodName(moodOf(name));
+  const sector = nm.top || 'indifferent';
+  return lines[nm.word] || lines[sector] || lines.indifferent || '';
 }
 function moodIntensities(m){
   return {joy: Math.max(0, m.j), sadness: Math.max(0, -m.j), trust: Math.max(0, m.t), disgust: Math.max(0, -m.t),
@@ -13905,10 +13979,7 @@ function moodWitness(x, y, reach, d, what, kind, skip){
     if(!cv.name || !cv.alive || cv.ko || cv.gone || cv.tide || cv === skip) continue;
     if(cv.kind === 'cutpurse' || cv.kind === 'cleaner' || cv.kind === 'porter') continue;
     if(Math.hypot(cv.x - x, cv.y - y) > reach || !segClearHigh(cv.x, cv.y, x, y)) continue;
-    const dd = Object.assign({}, d);
-    // the brave and the badge answer violence with anger, not fear
-    if(kind === 'violence' && dd.f > 0 && (cv.kind === 'constable' || cv.kind === 'sergeant' || (cv.brave || 10) >= 16)) dd.f = -(dd.f + 0.5);
-    moodPush(cv.name, dd, what, kind);
+    moodPush(cv.name, d, what, kind);
     hit.push(cv.name);
   }
   return hit;
@@ -14624,7 +14695,11 @@ function eqCardOpen(i){
   const guildOut = facRepOf('tradersguild') <= -2;
   const cmp = shelfCompareLines(it.key, c, wpnItemMods(it));
   const packFull = (c.def.pack || []).length >= 4;
-  const canPay = ship.credits >= it.price;
+  const price = shelfPrice(it);
+  const canPay = ship.credits >= price;
+  const refuses = !!(sh.keeper && moodRefuses(sh.keeper));
+  const km = keeperMul(sh.keeper);
+  const priceNote = km < 1 ? ' \u00B7 <em style="color:#9fe08e">' + (moodOf(sh.keeper).f >= 2 ? 'NERVOUS PRICE' : 'A GLAD PRICE') + '</em>' : km > 1 ? ' \u00B7 <em style="color:#e0a33e">GRUDGING PRICE</em>' : '';
   const btn = (id, label, on, title) =>
     '<button class="eqBtn' + (on ? '' : ' eqOff') + '" data-act="' + id + '"' +
     (title ? ' title="' + title + '"' : '') + '>' + label + '</button>';
@@ -14634,10 +14709,13 @@ function eqCardOpen(i){
   }else if(guildOut){
     btns = '<div class="eqNoTrade">THE GUILD DOES NOT TRADE WITH THIS CREW</div>' +
       btn('steal', 'STEAL', !packFull, packFull ? 'Pack is full' : '');
+  }else if(refuses){
+    btns = '<div class="eqNoTrade">' + String(sh.keeper).toUpperCase() + ' WILL NOT SELL TO THIS CREW</div>' +
+      btn('steal', 'STEAL', !packFull, packFull ? 'Pack is full' : '');
   }else{
-    btns = btn('buy', 'BUY \u00B7 ' + it.price + ' CR', canPay && !packFull,
+    btns = btn('buy', 'BUY \u00B7 ' + price + ' CR', canPay && !packFull,
         !canPay ? 'Not enough credits' : packFull ? c.name + '\u2019s pack is full' : '') +
-      btn('send', 'BUY & SEND TO SHIP \u00B7 ' + it.price + ' CR', canPay, !canPay ? 'Not enough credits' : '') +
+      btn('send', 'BUY & SEND TO SHIP \u00B7 ' + price + ' CR', canPay, !canPay ? 'Not enough credits' : '') +
       btn('steal', 'STEAL', !packFull, packFull ? 'Pack is full' : '');
   }
   ov.innerHTML = '<div id="eqBox">' +
@@ -14646,7 +14724,7 @@ function eqCardOpen(i){
       ' \u00B7 ' + (GROUP_LABELS[m.group] || 'WEAPON').toUpperCase() + ' \u00B7 ' + (WPN_CALLSIGNS[it.key] || '') +
       (allowed ? '' : ' \u00B7 <em style="color:#e0483e">NOT RATED FOR ' + (c.def.cls || '').toUpperCase() + '</em>') + '</div>' +
     (sh.keeperDead ? '<div class="eqPrice eqDead">NO PRICE \u00B7 NO KEEPER</div>'
-                   : '<div class="eqPrice">' + it.price + ' CR</div>') +
+                   : '<div class="eqPrice">' + price + ' CR' + priceNote + '</div>') +
     '<div class="eqDesc">' + (WPN_DESC[it.key] || '') + '</div>' +
     '<div class="eqRows">' + cmp.rows.join('') + '</div>' +
     (cmp.curK ? '<div class="eqVs">AGAINST ' + c.name.toUpperCase() + '\u2019S ' + (WPN_NAMES[cmp.curK] || cmp.curK).toUpperCase() + '</div>' : '') +
@@ -14961,9 +15039,23 @@ function portTalk(cv){
         '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing.\u201D She slides a dart rifle across the counter. \u201CDarts, the goad, the screamer. Not lead. Lead makes a rug, and I do not pay for rugs. The service hatch is on the freight side of the Cross; I will have it unbolted by the time you get there. Bring it back here, to me.\u201D',
         [{label: 'TAKE THE JOB', cb: () => erinaAccept(opE)}, {label: 'NOT TODAY'}]);
     }};
-    return showEventModal('ERINA JONES',
-      '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D',
-      [offer].concat(close));
+    return showEventModal('ERINA JONES', moodSay('Erina Jones', {
+      love: '\u201CYou again.\u201D It is nearly a smile. \u201CThe good shelf is the one behind me. Ask.\u201D',
+      optimism: '\u201CI had a feeling you would be back. I have been keeping something aside.\u201D',
+      joy: '\u201CA good week, for once, and some of it was your doing. Browse. The prices are kind today.\u201D',
+      trust: '\u201CYou do what you say you will. That is rarer on this floor than anything in my cages.\u201D',
+      anticipation: '\u201CThere is always something that needs bringing back. I have my eye on you for it.\u201D',
+      fear: 'She keeps the counter between you and one hand below it. \u201CWhat do you want.\u201D It is not a question.',
+      submission: '\u201CWhatever you need. Take it. Pay what you like.\u201D Her voice is very level and her eyes are on the door.',
+      surprise: '\u201CI thought I had the measure of you.\u201D She says it half to herself. \u201CClearly not.\u201D',
+      awe: 'She looks at the crew the way she looks at something that came out of a crate bigger than it should have. \u201CWell. Exotics.\u201D',
+      sadness: '\u201CShelf is there. Prices are on the tags.\u201D She does not get up.',
+      disapproval: '\u201CI heard.\u201D That is all she says about it. \u201CShelf is there.\u201D',
+      remorse: '\u201CI should have known better than to hope. Shelf is there.\u201D',
+      disgust: '\u201CBuy and go.\u201D She does not look up from the ledger.',
+      anger: '\u201CYou have a nerve coming in here.\u201D The hand below the counter stays there.',
+      indifferent: '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D',
+    }), [offer].concat(close));
   }
   if(cv.name === 'Hesper Dunmore'){
     const st = charterSt();
@@ -14976,6 +15068,20 @@ function portTalk(cv){
     if(st === 'cleared') return showEventModal('HESPER DUNMORE', '\u201CBay 3. The door is open. Thirty seconds of burn each way; the dark does what it does.\u201D', close);
     if(st === 'done') return showEventModal('HESPER DUNMORE', '\u201CYou came back. Most don\u2019t. I had money on it both ways.\u201D', close);
     if(st === 'grief') return showEventModal('HESPER DUNMORE', '\u201CYou came back without him. I have seen the other version. This one is better than it feels.\u201D', close);
+    const hesperLine = moodSay('Hesper Dunmore', {
+      love: '\u201CMy favourite bad bet.\u201D She means it kindly. \u201CWhat do you need flown?\u201D',
+      optimism: '\u201CI have money on you coming back from the next one too. Do not make me a liar.\u201D',
+      trust: '\u201CYou are the kind that comes back. I notice that; it is the whole job.\u201D',
+      joy: '\u201CGood day for it. The odds are on your side for once, and so am I.\u201D',
+      anger: '\u201CI book hulls for people who finish quietly. You are getting loud.\u201D',
+      contempt: '\u201CNo hull of mine. Walk.\u201D',
+      fear: 'She does not take her good hand off the desk. \u201CSay what you want and say it from there.\u201D',
+      surprise: '\u201CDid not see that one coming. I usually do.\u201D',
+      disapproval: '\u201CI heard what you did. I bet against you after that, and I have not lost yet.\u201D',
+      sadness: '\u201CHulls for hire.\u201D Flat. \u201CPilots too, if any are left who will fly you.\u201D',
+      indifferent: null,
+    });
+    if(hesperLine) return showEventModal('HESPER DUNMORE', hesperLine, close);
     return showEventModal('HESPER DUNMORE', '\u201CHulls for hire, pilots for hire. Spindle is extra and the deposit is in advance, on account of the odds. Nobody is paying your way today.\u201D', close);
   }
   if(cv.name === 'Hask'){
@@ -14998,6 +15104,29 @@ function portTalk(cv){
       return showEventModal('HASK', '\u201CWarrant rates everywhere today, friend. Even forgetting costs more.\u201D', close);
     }
     return showEventModal('HASK', '\u201CBuy, sell, forget. Those are the services.\u201D', close);
+  }
+  if(cv.name === 'Fenn'){
+    const fm = moodOf('Fenn');
+    const heard = (fm.mem || []).filter(x => x.heard).slice(-3);
+    const greet = moodSay('Fenn', {
+      love: '\u201CThe usual, and the first one is on the house, which I never say.\u201D',
+      joy: '\u201CGood crowd, good night, and you lot in it. Sit.\u201D',
+      trust: '\u201CYou pay your tab and you break no glass. In this trade that is love.\u201D',
+      anger: '\u201CDrink, pay, leave. In that order, and not slowly.\u201D',
+      contempt: '\u201CNot served. Do not ask me why; you know why.\u201D',
+      fear: 'He pours without being asked and does not meet your eye. \u201COn the house. Please.\u201D',
+      disgust: '\u201CI serve everyone. I do not have to like it.\u201D',
+      sadness: '\u201CQuiet night.\u201D He wipes a glass that is already clean.',
+      indifferent: '\u201CPours for everyone, remembers everyone, repeats nothing for free.\u201D He waits.',
+    });
+    const btns = [];
+    if(heard.length && !moodRefuses('Fenn')) btns.push({label: 'WHAT IS GOING ROUND? \u00B7 20 CR', cb: () => {
+      if(ship.credits < 20) return;
+      ship.credits -= 20; shipCreditsRefresh && shipCreditsRefresh();
+      moodPush('Fenn', {j: 0.3}, 'the crew paid for the gossip', 'trade');
+      showEventModal('FENN', 'He leans in. \u201C' + heard.map(x => x.what.replace(/^heard that /, '')).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join('. ') + '. That is what the floor says, anyway.\u201D', close);
+    }});
+    return showEventModal('FENN', greet, btns.concat(close));
   }
   if(cv.kind === 'constable'){
     const sc = state.sawCrime;
