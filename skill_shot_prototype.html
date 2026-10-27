@@ -8928,6 +8928,20 @@ function errandNew(cv){
 function witnessRun(cv, crime){
   cv.errand = {kind: 'law', crime: crime || null, path: [], leg: 0, waitT: 0};
 }
+// the thief as anybody: stall to stall at an easy walk
+function crookDrift(cv, er, dt){
+  er.dwt = (er.dwt || 0) - dt;
+  if(!er.to || er.dwt <= 0 || Math.hypot(er.to.x - cv.x, er.to.y - cv.y) < 14){
+    for(let tr = 0; tr < 8; tr++){
+      const a = Math.random() * Math.PI * 2, rr = 60 + Math.random() * 160;
+      const nx = Math.max(30, Math.min(W - 30, cv.x + Math.cos(a) * rr));
+      const ny = Math.max(H * 0.12, Math.min(H * 0.86, cv.y + Math.sin(a) * rr));
+      if(!inShipZone(nx, ny) && openGround(nx, ny, cv.r + 4)){ er.to = {x: nx, y: ny}; break; }
+    }
+    er.dwt = 2 + Math.random() * 4;
+  }
+  if(er.to) civStep(cv, er.to.x, er.to.y, civSpd(cv) * 0.7, dt);
+}
 function errandTick(cv, dt){
   if(cv.panic > 0) return false;   // terror outranks every errand; flee movement handles it
   if(cv.held){                     // the spotlight: the moment has to land before they move
@@ -8940,10 +8954,11 @@ function errandTick(cv, dt){
   if(er.kind === 'stalk'){
     if(typeof askPending !== 'undefined' && askPending) return true;
     const mk = cv.crook && cv.crook.mark;
-    if(!mk || !mk.alive || mk.gone || mk.ko){ cv.crook = null; cv.errand = cv.tide ? errandNew(cv) : null; return true; }
+    if(!cv.crook){ cv.errand = cv.tide ? errandNew(cv) : null; return true; }
+    if(!mk || !mk.alive || mk.gone || mk.ko){ cv.errand = {kind: 'prowl', path: [], leg: 0, waitT: 0, wt: 2}; return true; }
     er.t = (er.t || 0) + dt;
-    if(er.t > 22){   // a mark that will not sit still is not worth the fingers
-      cv.crook = null; cv.errand = cv.tide ? errandNew(cv) : null; return true;
+    if(er.t > 22){   // a mark that will not sit still is not worth the fingers: find another
+      cv.errand = {kind: 'prowl', path: [], leg: 0, waitT: 0, wt: 2}; return true;
     }
     if(Math.hypot(mk.x - cv.x, mk.y - cv.y) < 26){ bzNpcCrimeAct(cv, mk); return true; }
     civTravel(cv, mk.x, mk.y, Math.max(civSpd(cv) * 1.1, civSpd({gait: 0.95})), dt);
@@ -9090,22 +9105,23 @@ function errandTick(cv, dt){
     return true;
   }
   // the slink: an easy walk to an arch, by someone sure nobody saw
+  // the prowl: a few seconds of being nobody, then the next pocket
+  if(er.kind === 'prowl'){
+    if(typeof askPending !== 'undefined' && askPending) return true;
+    if(!cv.crook){ cv.errand = cv.tide ? errandNew(cv) : null; return true; }
+    er.wt = (er.wt == null ? CUT_GAP_S : er.wt) - dt;
+    crookDrift(cv, er, dt);
+    if(er.wt <= 0){
+      if(!crimeStage(cv)) er.wt = 3;   // nobody worth the fingers just now; look again shortly
+    }
+    return true;
+  }
   if(er.kind === 'slink'){
     if(typeof askPending !== 'undefined' && askPending) return true;
     if(er.loiterT && er.loiterT > 0){
       // the easy hours: drift stall to stall like anybody else, then leave
       er.loiterT -= dt;
-      er.wt = (er.wt || 0) - dt;
-      if(!er.to || er.wt <= 0 || Math.hypot(er.to.x - cv.x, er.to.y - cv.y) < 14){
-        for(let tr = 0; tr < 8; tr++){
-          const a = Math.random() * Math.PI * 2, rr = 60 + Math.random() * 160;
-          const nx = Math.max(30, Math.min(W - 30, cv.x + Math.cos(a) * rr));
-          const ny = Math.max(H * 0.12, Math.min(H * 0.86, cv.y + Math.sin(a) * rr));
-          if(!inShipZone(nx, ny) && openGround(nx, ny, cv.r + 4)){ er.to = {x: nx, y: ny}; break; }
-        }
-        er.wt = 2 + Math.random() * 4;
-      }
-      if(er.to) civStep(cv, er.to.x, er.to.y, civSpd(cv) * 0.7, dt);
+      crookDrift(cv, er, dt);
       return true;
     }
     let dr = null, bd = 1e9;
@@ -9284,32 +9300,68 @@ function crowdTick(dt){
   { const arches1 = state.doors.filter(d => !d.den); if(n < cap && arches1.length) crowdSpawn(arches1[Math.floor(Math.random() * arches1.length)]); }
 }
 // ---- the tide's own sins: the world commits crimes without you ----
+// (Ben, 27 Oct) a cutpurse is a named face from the first lift, works a new pocket every
+// CUT_GAP_S seconds, runs only when they see the law coming, and leaves after CUT_LIFTS clean lifts
+const CUT_GAP_S = 10, CUT_LIFTS = 6, CUT_SEE_LAW = 260;
 function crimeStage(perp, mark){
   const tide = (state.civs || []).filter(cv => cv.tide && cv.alive && !cv.ko && !cv.sleeper &&
     !cv.crook && (!cv.errand || ['visit', 'chat', 'cross'].includes(cv.errand.kind)));
-  if(tide.length < 2) return null;
-  const p = perp || tide[Math.floor(Math.random() * tide.length)];
+  const p = perp || (tide.length >= 2 ? tide[Math.floor(Math.random() * tide.length)] : null);
+  if(!p) return null;
+  const done = (p.crook && p.crook.marks) || [];
   let m = mark || null;
   if(!m){
-    const rest = tide.filter(cv => cv !== p);
+    const rest = tide.filter(cv => cv !== p && done.indexOf(cv) < 0);
     const still = rest.filter(cv => cv.errand && cv.errand.waitT > 0);   // dwellers first
     const pool = still.length ? still : rest.filter(cv => !cv.errand || cv.errand.kind !== 'cross');
     const pick = pool.length ? pool : rest;
-    m = pick[Math.floor(Math.random() * pick.length)];
+    m = pick.length ? pick[Math.floor(Math.random() * pick.length)] : null;
   }
   if(!m || m === p) return null;
-  p.crook = {stage: 'stalk', mark: m};
+  if(!p.crook){ crookPromote(p); p.crook = {stage: 'stalk', mark: m, lifts: 0, pouch: null, marks: []}; }
+  else { p.crook.stage = 'stalk'; p.crook.mark = m; }
   p.errand = {kind: 'stalk', path: [], leg: 0, waitT: 0};
   return p;
 }
+// the announcement: a popup names the situation, the camera finds the thief, the rings close
+function crimeAnnounce(p){
+  spotlightOn(p, {label: 'CUTPURSE IN THE AREA', hold: 6000});
+  chronicle('event', 'A cutpurse is working the Cross: ' + p.name + ', the ' + String(p.race || '').toLowerCase() + '. The crew knows the face. Nobody else does yet.');
+  showEventModal('CUTPURSE IN THE AREA',
+    p.name + ', the ' + String(p.race || '').toLowerCase() + ' drifting through the crowd, has quick hands and a pocket in mind. ' +
+    'They will work a new mark every few seconds until somebody notices, or until the take is enough and they walk. ' +
+    'Stop them for a cut, take the pouch off them, point the law at them, or let the Cross look after itself.',
+    [{label: 'UNDERSTOOD', cb: () => {}}]);
+}
+// when the thief is done or rumbled by the player, they drift out at a walk
+function crookLeave(p){
+  p.crook.stage = 'leave';
+  p.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
+}
+// the take is one pouch that grows with each lift; the label says how many hands it came from
+function crookPouchAdd(c){
+  c.pouch = c.pouch || {kind: 'trinket', label: 'Cut Pouch', value: 0, own: 'a Crossport dock-hand'};
+  c.pouch.value += 12 + Math.floor(Math.random() * 18);
+  c.pouch.label = c.lifts > 1 ? 'Cut Pouches \u00B7 ' + c.lifts : 'Cut Pouch';
+  return c.pouch;
+}
 // the act: the pouch changes hands, and everyone near gets their chance to matter
 function bzNpcCrimeAct(perp, mk){
-  const pouch = {kind: 'trinket', label: 'Cut Pouch', value: 12 + Math.floor(Math.random() * 18),
-    own: 'a Crossport dock-hand'};
-  perp.crook = {stage: 'bolt', pouch};
-  perp.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
+  if(!perp.crook){ crookPromote(perp); perp.crook = {stage: 'stalk', mark: mk, lifts: 0, pouch: null, marks: []}; }
+  const c = perp.crook;
+  c.lifts = (c.lifts || 0) + 1;
+  c.marks = c.marks || [];
+  if(mk) c.marks.push(mk);
+  crookPouchAdd(c);
+  c.mark = null;
+  c.stage = 'prowl';
+  perp.errand = {kind: 'prowl', path: [], leg: 0, waitT: 0, wt: CUT_GAP_S};
   if(mk){ mk.panic = 2.2; addPopup(mk.x, mk.y - mk.r - 14, 'CUTPURSE!', '#e0a33e'); }
-  chronicle('event', 'A cutpurse lifted a dock-hand\u2019s pay pouch on the open concourse.');
+  chronicle('event', (perp.name || 'A cutpurse') + ' lifted a dock-hand\u2019s pay pouch on the open concourse. Lift ' + c.lifts + '.');
+  if(c.lifts >= CUT_LIFTS){
+    crookLeave(perp);
+    chronicle('event', perp.name + ' has ' + CUT_LIFTS + ' pouches and no more nerve. Heading for the arch.');
+  }
   // the law's own eyes first
   let seenByLaw = false;
   for(const cv of (state.civs || [])){
@@ -9321,39 +9373,30 @@ function bzNpcCrimeAct(perp, mk){
     addPopup(cv.x, cv.y - cv.r - 14, 'HOY!', '#b06ae0');
     break;
   }
-  // failing that, a bystander's nerve
-  if(!seenByLaw){
+  // failing that, a bystander: the odds climb with every lift, and a noticed thief is told on
+  if(!seenByLaw && Math.random() < crookNoticeOdds(c.lifts)){
     for(const w2 of (state.civs || [])){
       if(w2 === perp || w2 === mk || !w2.alive || w2.ko || w2.kind === 'constable' || w2.name) continue;
       if(w2.errand && w2.errand.kind === 'law') continue;
       if(Math.hypot(w2.x - perp.x, w2.y - perp.y) > 340) continue;
       if(!segClearHigh(w2.x, w2.y, perp.x, perp.y)) continue;
-      if(!witnessNerve(w2, null).tells) continue;
       witnessRun(w2, {npc: true, perp});
+      c.noticed = true;
       addPopup(w2.x, w2.y - w2.r - 14, '!', '#e0a33e');
+      chronicle('event', 'Somebody in the crowd saw ' + perp.name + '\u2019s hand in a pocket and went to find a badge.');
       break;
     }
   }
-  // an operator close enough to see it is TOLD what they saw, and nothing more.
-  // the game sets the scene; the player's tools write the ending.
+  // an operator close enough to see it can point the law at them later; the popup already named the face
   const near = (state.squad || []).find(c2 => c2.alive &&
     Math.hypot(c2.x - perp.x, c2.y - perp.y) < 300 && segClearHigh(c2.x, c2.y, perp.x, perp.y));
-  if(near && !state.deckCombat){
-    crookPromote(perp);
+  if(near && !state.deckCombat && !state.sawCrime){
     state.sawCrime = {perp, op: near.name};
-    perp.errand = {kind: 'slink', path: [], leg: 0, waitT: 0,
-      loiterT: 50 + Math.random() * 250};   // in no hurry at all: they work the crowd a while, sure nobody saw
-    const dOp = near.def || SQUAD_DEFS.find(d2 => d2.name === near.name);
-    const he = dOp && dOp.sex === 'f' ? 'She' : 'He';
     chronicle('event', near.name + ' witnessed ' + perp.name + ' cut a dock-hand\u2019s pouch. The thief doesn\u2019t know it yet.');
-    showEventModal('A THEFT, WITNESSED',
-      near.name + ' just watched ' + perp.name + ', the ' + perp.race.toLowerCase() +
-      ' working the crowd, lift a dock-hand\u2019s hard-earned pay, clean as a whisper. ' +
-      'The thief hasn\u2019t marked ' + near.name + ' watching: they\u2019re walking easy, trying to be nobody. ' +
-      he + ' has eyes, hands, irons, and the law\u2019s address. What happens next is yours.',
-      [{label: 'UNDERSTOOD', cb: () => {}}]);
   }
 }
+// the odds a bystander clocks the hand: low on the first lift, near certain by the sixth
+function crookNoticeOdds(lifts){ return Math.min(0.95, 0.08 + 0.10 * Math.max(0, (lifts || 1) - 1)); }
 const THIEF_NAMES = [
   {name: 'Lelt',    race: 'HUMAN',   sex: 'MALE'},
   {name: 'Whisper', race: 'VAMPIRE', sex: 'FEMALE'},
@@ -10308,7 +10351,7 @@ function districtWake(snap){
   civs = civs.filter(cv => !cv.tide);                           // the tide is new people every minute anyway
   civs = civs.filter(cv => {
     if(cv.crook && cv.errand && cv.errand.kind === 'slink'){ cv.errand.loiterT = (cv.errand.loiterT || 0) - el; return cv.errand.loiterT > 0; }
-    if(cv.crook) return false;                                  // a stalk with nobody to stalk is given up
+    if(cv.crook) return false;                                  // a thief left alone on a floor has moved on
     if(cv.kind === 'face' || cv.kind === 'fan') return false;   // a face that did not follow has drifted off
     return true;
   });
@@ -12285,9 +12328,12 @@ function tickProps(dt){
           cv.chase = null; cv.pursue = false; continue;
         }
         cv.pursue = true;
-        if(prC.errand && prC.errand.kind === 'slink'){
+        if(prC.errand && prC.errand.kind !== 'bolt' &&
+           Math.hypot(prC.x - cv.x, prC.y - cv.y) < CUT_SEE_LAW && segClearHigh(prC.x, prC.y, cv.x, cv.y)){
           prC.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
+          if(prC.crook) prC.crook.stage = 'bolt';
           addPopup(prC.x, prC.y - prC.r - 14, 'RUMBLED', '#e0a33e');
+          chronicle('event', (prC.name || 'The cutpurse') + ' saw the badge coming and ran for the arch.');
         }
         if(Math.hypot(prC.x - cv.x, prC.y - cv.y) < 30){
           prC.ko = true; prC.collared = true; prC.crook = null; prC.errand = null;
@@ -12314,7 +12360,8 @@ function tickProps(dt){
       if(performance.now() > state.crimeT && !state.deckCombat && !state.respT && situationLive('lightfingers') && !pingsQuiet() &&
          !(state.civs || []).some(cv => cv.crook)){
         state.crimeT = performance.now() + 30000 + Math.random() * 30000;
-        crimeStage();
+        const pC = crimeStage();
+        if(pC) crimeAnnounce(pC);
         quietFor(SIT_GAP_MS);
       }
       state._bzSeeT = (state._bzSeeT || 0) + dt;
@@ -13209,7 +13256,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '27 Oct \u00B7 TRUE SIZE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '27 Oct \u00B7 QUICK HANDS';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14167,7 +14214,7 @@ function portTalk(cv){
   if(!b || !b.active || cv.name === undefined) return false;
   if(cv.kind === 'cutpurse'){
     if(!(cv.crook && cv.crook.pouch))
-      return showEventModal(String(cv.name || 'STRANGER').toUpperCase(), '\u201CDo I know you? Didn\u2019t think so.\u201D', close);
+      return showEventModal(String(cv.name || 'STRANGER').toUpperCase(), '\u201CDo I know you? Didn\u2019t think so.\u201D Empty hands, for now. Watch them.', close);
     const cut = Math.ceil(cv.crook.pouch.value / 2);
     return showEventModal(String(cv.name).toUpperCase(),
       'The thief\u2019s eyes flick to the exits, then settle. \u201CSharp eyes, friend. Half the pouch, ' + cut +
@@ -14177,7 +14224,8 @@ function portTalk(cv){
           cv.crook.pouch.value -= cut;
           facRepAdd('greymarket', 1);
           state.sawCrime = null;
-          chronicle('event', 'Took ' + cut + ' CR to forget what was seen. The grey market approves of flexible eyes.');
+          crookLeave(cv);
+          chronicle('event', 'Took ' + cut + ' CR to forget what was seen. The grey market approves of flexible eyes. ' + cv.name + ' called it a day.');
           shipCreditsRefresh && shipCreditsRefresh();
         }},
        {label: 'DEMAND THE POUCH', cb: () => {
@@ -14186,10 +14234,12 @@ function portTalk(cv){
             (((op2 && WEAPONS[op2.weapon]) && WEAPONS[op2.weapon].noise) || 0) / 160);
           if(intim >= (cv.brave || 10)){
             crimeStepIn(cv, op2, true);
+            crookLeave(cv);
             addPopup(cv.x, cv.y - cv.r - 14, 'HANDED IT OVER', '#9fe08e');
             chronicle('event', (cv.name || 'The thief') + ' weighed ' + op2.name + '\u2019s reach and handed the pouch over. Marked goods, freely given.');
           }else{
             cv.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
+            if(cv.crook) cv.crook.stage = 'bolt';
             addPopup(cv.x, cv.y - cv.r - 14, 'TRY IT, LONG-LEGS', '#e0a33e');
             chronicle('event', (cv.name || 'The thief') + ' laughed at the demand and bolted for the arches.');
           }
