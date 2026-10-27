@@ -13209,7 +13209,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '27 Oct \u00B7 GANNET';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '27 Oct \u00B7 TRUE SIZE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -16844,8 +16844,12 @@ function restart(){
     document.getElementById('rangeskip').classList.remove('show');
     document.getElementById('leftbar').classList.remove('hidden');
     document.getElementById('rightbar').classList.remove('hidden');
-    if(rangePrev){ usingCustom = rangePrev.usingCustom; customLevel = rangePrev.customLevel;
-      rosterSelection = rangePrev.rosterSelection; rangePrev = null; } }
+    // leaving the range: restore what the range displaced, UNLESS the caller has already set a new level
+    // (a new game walks straight from the boot range onto the Cross; restoring here rebuilt the Cross in the
+    // range's 1400x880 world and everything came up four times too big)
+    if(rangePrev){
+      if(customLevel === RANGE_LEVEL){ usingCustom = rangePrev.usingCustom; customLevel = rangePrev.customLevel; rosterSelection = rangePrev.rosterSelection; }
+      rangePrev = null; } }
   if(advanceOnRestart){ levelIdx++; advanceOnRestart = false; }
   if(!usingCustom && levelIdx >= LEVELS.length) levelIdx = LEVELS.length - 1;
   s.over = false; s.bullets = []; s.burst = null;

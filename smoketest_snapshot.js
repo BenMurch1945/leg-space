@@ -6472,3 +6472,17 @@ const gn2 = (() => {
   return {ok: there && left && grief && open, there, left, grief, open};
 })();
 console.log('GN2 the empty berth:', gn2.ok ? 'PASS' : 'FAIL', `(there ${gn2.there}, left ${gn2.left}, grief ${gn2.grief}, open ${gn2.open})`);
+
+
+// BT1 a new game straight off the boot range builds the Cross in its own world, not the range's
+const bt1 = (() => {
+  G.doShipReset();
+  G.startRange();
+  const onRange = !!G.state.range;
+  G.newGameStart();
+  const d = G.dims();
+  const right = d.W === 5600 && d.H === 3520 && !G.state.range && G.currentLevel().name.indexOf('Cross') >= 0;
+  G.undockToDeck(); G.doShipReset();
+  return {ok: onRange && right, onRange, right, W: d.W};
+})();
+console.log('BT1 the first floor is the right size:', bt1.ok ? 'PASS' : 'FAIL', `(range ${bt1.onRange}, right ${bt1.right}, W ${bt1.W})`);

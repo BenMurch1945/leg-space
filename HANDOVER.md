@@ -24,7 +24,7 @@ A **full game**, no longer a publisher demo (Ben's ruling, 1 Oct). Single-file H
 
 | File | Where | Status |
 |---|---|---|
-| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 403-test suite green. |
+| `skill_shot_prototype.html` | `/mnt/user-data/outputs/` | **THE deliverable**, ~800 KB single file. 404-test suite green. |
 | `smoketest_snapshot.js` | `/mnt/user-data/outputs/` | The full harness. **Refresh every delivery** — it is the only harness that survives an environment reset. |
 | `legendary_space_snapshot_v1.html`, `_v2.html` | `/mnt/user-data/outputs/` | Sacred fallbacks. NEVER touch. |
 | `HANDOVER.md` | `/mnt/user-data/outputs/` | This document. |
@@ -157,6 +157,9 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - **`ship.where`** ('port' | 'deck') saved/loaded; `enterPort` sets 'port', `undockToDeck` sets 'deck' and saves. `continueGame()` → `enterPort()` when where==='port' (and the port plan exists), else the ship screen as before.
 - Tests `FD1` (presets) and `FD2` (new game, arrows, GO, save round-trip, continue). Verified visually in headless Chromium (title → picker → port, no page errors).
 - **Next for this strand** (Ben, 17 Oct): ship-less landing (Varko owns the Orrix), the operator creator, multi-map ports (doors load districts; police station for arrests). Then back to situations.
+
+### The first floor was four times too big (27 Oct)
+- The game boots onto the firing range (`startRange` stores `rangePrev`). A new game walked straight from the range onto the Cross: `enterPort` set `customLevel` to the Cross plan and called `restart()`, whose leave-the-range branch then restored `rangePrev` (the pre-range level, 1400x880), so the Cross was built in the range's world: same layout in fractions, units four times too big relative to it. A second new game had no range to leave, so it looked right. `restart()` now restores `rangePrev` only when `customLevel === RANGE_LEVEL` (a skip from the range itself); a caller that already set a level keeps it. Test `BT1`.
 
 ### A Brother on Spindle: the Shippers, the Gannet, the moon (27 Oct)
 - **Rule (Ben)**: the "help" face no longer holds a board posting open; Oskar Venn hands over PASSAGE (a data cube) for a hired hull to Spindle and back, the crew walks to the Shippers, uses it, goes through the hangar door, boards, presses one console, flies 30 s (events can happen), lands on Spindle turn-based, finds and carries the injured brother aboard, presses the console again, flies home, lands in the hangar; Oskar pays in person; the readout follows; free roam in the hangar.
