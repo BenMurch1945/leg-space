@@ -1685,6 +1685,7 @@ function addSed(u, amt, author){
   u.sed = (u.sed || 0) + amt;
   if(u.sed >= sedCap(u)){
     u.ko = true;
+    if(author && author.stats && author.name) u.koBy = author.name;
     if(u.loose) houndReBag(u);   // the Erina hound, under again: cargo before the fight can resolve it away
     if(!u.stats && author && author.stats){
       bark(author, 'sedKO');
@@ -2695,6 +2696,7 @@ function copCamFlush(){
 }
 function exitDeckCombat(){
   for(const e of (state.enemies || [])) if(e.loose && e.alive && e.ko) houndReBag(e);   // a stunned hound is cargo, not a casualty
+  if(state.portDock) for(const e of (state.enemies || [])) if(e.alive && e.ko && e.wasCiv && !e.loose && e.type !== 'constable') foeToDownCiv(e);   // a thief out cold stays on the floor
   state.walls = state.walls.filter(w2 => !w2._prop);
   state.deckCombat = false;
   state.boarding = null;
@@ -2824,7 +2826,8 @@ function showPlanetStage(stage){
 }
 function enterPort(distId, opts){
   opts = opts || {};
-  const alive = SQUAD_DEFS.map((d, i) => d.dead ? -1 : i).filter(i => i >= 0);
+  // the jailed walk no floor but the station's own
+  const alive = SQUAD_DEFS.map((d, i) => (d.dead || (d.jailed && distId !== 'station' && !(distId == null && ship.district === 'station'))) ? -1 : i).filter(i => i >= 0);
   if(!alive.length) return false;
   const node = galaxyNode(ship.at);
   // which district: asked for, remembered, or the port's home; a port with no districts is its own single floor
@@ -2979,7 +2982,7 @@ function enterPort(distId, opts){
   // the port's own life: arches people arrive through, places worth standing at
   state.shipZone = lvl.shipZone ? {x0: lvl.shipZone.x0 * W, y0: lvl.shipZone.y0 * H,
     x1: lvl.shipZone.x1 * W, y1: lvl.shipZone.y1 * H} : null;
-  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null, den: d.den || null, needs: d.needs || null,
+  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null, den: d.den || null, noCrowd: !!d.noCrowd, needs: d.needs || null,
     armed: !(fromDist && d.to === fromDist)}));
   state.shelves = (lvl.shelves || []).map(p9 => ({x: p9.x * W, y: p9.y * H}));
   state.anchors = portAnchors(lvl);
@@ -2994,7 +2997,7 @@ function enterPort(distId, opts){
   if(state.crowdTarget && state.doors.length){
     // the tide is already in: seed the crowd mid-errand across the floor
     for(let i = 0; i < Math.min(state.crowdTarget, 60); i++){
-      const arches0 = state.doors.filter(d => !d.den);
+      const arches0 = state.doors.filter(d => !d.den && !d.noCrowd);
       const cv = crowdSpawn(arches0[i % arches0.length]);
       for(let tr = 0; tr < 10; tr++){
         const rx = W * (0.08 + Math.random() * 0.84), ry = H * (0.08 + Math.random() * 0.84);
@@ -3041,6 +3044,7 @@ function enterPort(distId, opts){
         holder: heldBy});
     }
   }
+  if(ship.district === 'station') stationArrive();
   refreshDropBtn();
   updateOrbitStatus();
   if(typeof camReset === 'function') camReset();
@@ -3058,6 +3062,319 @@ function enterPort(distId, opts){
   return true;
 }
 // when the law draws, the law fights: the beat walkers become the battle
+// ---- the lockup (Ben, 27 Oct) ----
+// ship.lockup: thieves walked in by the law, {name, race, sex, faction, bio, cell, day}
+// ship.evidence: confiscated kit, {who, loadout, pack}
+// def.jailed on an operator: {cell, what, bail, day}; the operator stands no floor but the station's
+const DOWN_S = 90;   // how long a knocked-out thief lies on the floor before they come round and leave
+function stationDoor(){ return (state.doors || []).find(d => d.to === 'station') || null; }
+function nearestArch(x, y){
+  let dr = null, bd = 1e9;
+  for(const d2 of (state.doors || [])){ if(d2.den || d2.noCrowd) continue; const dd = Math.hypot(d2.x - x, d2.y - y); if(dd < bd){ bd = dd; dr = d2; } }
+  return dr;
+}
+function cellsTaken(){
+  const t = {};
+  for(const d of SQUAD_DEFS) if(d.jailed) t[d.jailed.cell] = d.name;
+  for(const l of (ship.lockup || [])) t[l.cell] = l.name;
+  return t;
+}
+function cellFree(){ const t = cellsTaken(); for(let n = 1; n <= CELL_N; n++) if(!t[n]) return n; return 0; }
+function sergeantLive(){ return (state.civs || []).find(cv => cv.kind === 'sergeant' && cv.alive && !cv.ko) || null; }
+// a knocked-out fighter who was a face in the tide goes back on the floor as a body, not into the bin
+function foeToDownCiv(e, by){
+  const cv = {
+    x: e.x, y: e.y, r: 9, alive: true, ko: true, down: DOWN_S, koBy: by || e.koBy || null,
+    panic: 0, tx: e.x, ty: e.y, pace: 24, bob: Math.random() * 6, hood: false, tide: false,
+    kind: 'cutpurse', name: e.name, race: e.race || 'HUMAN', sex: e.sex || 'MALE', gait: 0.85,
+    faction: e.faction || 'GREY MARKET \u00B7 FREELANCE FINGERS', bio: e.bio || null,
+    arch: e.type || 'runner', wpnKey: e.wpnKey || 'stdknife', brave: 10,
+    crook: e.crook || null, lootExtra: e.lootExtra || null, errand: null,
+  };
+  if(cv.crook) cv.crook.stage = 'down';
+  state.civs.push(cv);
+  addPopup(cv.x, cv.y - 20, 'OUT COLD', '#6fd6ff');
+  return cv;
+}
+// the law finds a body breathing: on its feet, in cuffs, and walked to the station
+function collarWake(cop, perp){
+  perp.ko = false; perp.down = 0; perp.collared = true; perp.crook = null; perp.sed = 0;
+  perp.errand = {kind: 'led', who: cop, path: [], leg: 0, waitT: 0};
+  cop.collar = null; cop.chase = null; cop.pursue = true;
+  cop.lead = {who: perp, op: false};
+  addPopup(perp.x, perp.y - perp.r - 14, 'ON YOUR FEET', '#b06ae0');
+  chronicle('event', cop.name + ' got ' + (perp.name || 'the thief') + ' up off the floor and walked them towards the station.');
+  const op = perp.koBy ? (state.squad || []).find(c => c.name === perp.koBy && c.alive) : null;
+  if(op && !perp.credited && Math.hypot(op.x - cop.x, op.y - cop.y) < 360){
+    perp.credited = true;
+    facRepAdd('constabulary', 2);
+    showEventModal('CONSTABLE ' + String(cop.name).toUpperCase(),
+      '\u201CWe will take it from here, ' + op.name + '. The Constabulary noted who put ' + (perp.name || 'them') + ' down, and how. That goes in the book on the right side for once.\u201D',
+      [{label: 'UNDERSTOOD', cb: () => {}}], {sub: 'CONSTABULARY STANDING +2'});
+    chronicle('event', cop.name + ' acknowledged ' + op.name + ' over the collar. The Constabulary remembers a thief handed over breathing.');
+  }
+}
+function lockupAdd(perp){
+  ship.lockup = ship.lockup || [];
+  const cell = cellFree();
+  if(cell) ship.lockup.push({name: perp.name, race: perp.race, sex: perp.sex, faction: perp.faction, bio: perp.bio, cell, day: ship.day || 0});
+  chronicle('event', (perp.name || 'The thief') + ' went through the Constabulary door' + (cell ? ' and into cell ' + cell + '.' : '. The cells were full; the ring office will have them.'));
+  shipSave();
+}
+// the arrest: an officer with a name walks up and asks once
+function arrestFlag(cop, crime){
+  cop.arrest = {who: crime.who, what: crime.what, bail: crime.bail || 400, seen: crime.seen || 'badge', victim: crime.victim || null, asked: false};
+  cop.pursue = true;
+  showBanner('THE LAW IS COMING FOR ' + String(crime.who).toUpperCase(), '#e0483e');
+}
+function arrestAsk(cop, c){
+  const a = cop.arrest; if(!a) return false;
+  a.asked = true;
+  const seen = a.seen === 'badge' ? 'I watched you do it.' : 'A witness gave me your face and your name.';
+  const close = () => {};
+  const march = () => arrestMarch(cop, c);
+  const deny = () => {
+    addPopup(cop.x, cop.y - cop.r - 14, 'SEEN', '#e0483e');
+    chronicle('event', c.name + ' denied it. ' + cop.name + ' had seen enough not to care.');
+    showEventModal('CONSTABLE ' + String(cop.name).toUpperCase(), '\u201C' + seen + ' Hands where I can see them. We are walking.\u201D',
+      [{label: 'GO QUIETLY', cb: march}, {label: 'DRAW', cb: () => arrestDraw(cop)}]);
+  };
+  showEventModal('CONSTABLE ' + String(cop.name).toUpperCase(),
+    '\u201C' + c.name + '. ' + a.what.charAt(0).toUpperCase() + a.what.slice(1) + '. ' + seen + ' You can come to the station on your feet, or I can call the ring office and we do it the other way. Bail is set at the desk; the cells are behind it.\u201D',
+    [{label: 'ADMIT IT \u00B7 GO QUIETLY', cb: march}, {label: 'DENY IT', cb: deny}, {label: 'DRAW', cb: () => arrestDraw(cop)}],
+    {sub: c.name.toUpperCase() + ' \u00B7 ' + a.what.toUpperCase()});
+  void close;
+  return true;
+}
+function arrestDraw(cop){
+  cop.arrest = null; cop.pursue = false;
+  chronicle('event', 'Irons came out in front of the law. Every badge on the floor answered.');
+  if(!state.ironsOut && typeof ironsToggle === 'function') ironsToggle();
+  startConstableFight();
+}
+function arrestMarch(cop, c){
+  const a = cop.arrest || {what: 'a complaint', bail: 400};
+  cop.arrest = null; cop.pursue = true;
+  cop.lead = {who: c, op: true, what: a.what, bail: a.bail, victim: a.victim};
+  c.marched = cop; c.run = null; c.moving = false; c.friskT = performance.now() + 1e9;
+  if(state.squad[state.sel] === c){
+    const i2 = state.squad.findIndex(c2 => c2 !== c && c2.alive && !c2.marched);
+    if(i2 >= 0) state.sel = i2;
+  }
+  showBanner(String(c.name).toUpperCase() + ' \u00B7 IN CUSTODY', '#e0483e');
+  addPopup(c.x, c.y - c.r - 16, 'IN CUSTODY \u00B7 MARCHED TO THE STATION', '#e0483e');
+  chronicle('event', c.name + ' went quietly. ' + cop.name + ' walked them off towards the Constabulary; the crew kept the floor.');
+  quietFor(SIT_GAP_MS);
+  updateHud();
+}
+// the cell door shuts: the operator leaves the floor, their kit goes in the locker, the ledger says why
+function jailOp(c, cop, lead){
+  const def = c.def || SQUAD_DEFS.find(d2 => d2.name === c.name);
+  if(!def) return false;
+  const cell = cellFree() || 1;
+  def.jailed = {cell, what: lead.what || 'a complaint', bail: lead.bail || 400, day: ship.day || 0};
+  ship.evidence = ship.evidence || [];
+  ship.evidence.push({who: c.name, loadout: Object.assign({}, def.loadout || {}), pack: (def.pack || []).slice()});
+  def.loadout = {}; def.pack = [];
+  c.marched = null; c.friskT = 0;
+  const i = state.squad.indexOf(c);
+  if(i >= 0) state.squad.splice(i, 1);
+  if(state.sel >= state.squad.length || !state.squad[state.sel] || !state.squad[state.sel].alive){
+    const i2 = state.squad.findIndex(c2 => c2.alive);
+    state.sel = i2 >= 0 ? i2 : 0;
+  }
+  const dr = stationDoor();
+  showBanner(String(c.name).toUpperCase() + ' \u00B7 IN THE CELLS', '#e0483e');
+  showEventModal('IN THE CELLS',
+    c.name + ' is in cell ' + cell + ' of the Cross Constabulary, charged with ' + def.jailed.what + '. Kit confiscated to the evidence locker. ' +
+    'Bail at the front desk is ' + def.jailed.bail + ' CR and clears the charge, kit returned. The other way is the cell console in the corridor, which is a second charge if the desk hears it. ' +
+    'The station door is on the north wall of the Cross.',
+    [{label: 'UNDERSTOOD', cb: () => {}}], {sub: 'CELL ' + cell + ' \u00B7 BAIL ' + def.jailed.bail + ' CR'});
+  chronicle('event', c.name + ' was booked into cell ' + cell + ' for ' + def.jailed.what + '. Bail ' + def.jailed.bail + ' CR at the desk. Their kit is in the evidence locker.');
+  if(dr) camTour(dr.x, dr.y, 2200);
+  shipSave();
+  updateHud();
+  return true;
+}
+// the station floor: closed cells, whoever is in them, the operator who is in one
+function stationArrive(){
+  state.cellsOpen = {};
+  for(const l of (ship.lockup || [])){
+    if((state.civs || []).some(cv => cv.name === l.name)) continue;
+    const p = cellCentre(l.cell);
+    state.civs.push({x: p.x, y: p.y, r: 9, alive: true, ko: false, panic: 0, tx: p.x, ty: p.y, pace: 20, bob: Math.random() * 6, hood: false,
+      tide: false, kind: 'cutpurse', name: l.name, race: l.race, sex: l.sex, faction: l.faction, bio: l.bio, brave: 10, jailed: true,
+      home: {x: p.x, y: p.y}, homeR: 0, errand: null});
+  }
+  for(const c of state.squad){
+    const def = c.def || SQUAD_DEFS.find(d2 => d2.name === c.name);
+    if(!def || !def.jailed) continue;
+    const p = cellCentre(def.jailed.cell);
+    c.x = p.x; c.y = p.y; c.jailed = true; c.weapon = 'unarmed'; c.run = null; c.moving = false;
+  }
+}
+function cellOpen(n, how){
+  if(!state.cellsOpen) state.cellsOpen = {};
+  if(state.cellsOpen[n]) return false;
+  state.cellsOpen[n] = true;
+  if((state.walls || []).some(w => w.cell === n)){ state.walls = state.walls.filter(w => w.cell !== n); cnavDirty(); }
+  const p = cellCentre(n);
+  addPopup(p.x, p.y + 60, 'CELL ' + n + ' OPEN', '#9fe08e');
+  const sgt = sergeantLive();
+  // whoever was inside: an operator walks out of the charge or into a second one; a thief walks out of the port
+  for(const c of state.squad){
+    const def = c.def || SQUAD_DEFS.find(d2 => d2.name === c.name);
+    if(!def || !def.jailed || def.jailed.cell !== n) continue;
+    c.jailed = false;
+    if(how === 'console'){
+      def.jailed = null;
+      if(sgt){
+        rapAdd(c.name, 'major', 'breaking out of the Cross lockup');
+        addPopup(sgt.x, sgt.y - sgt.r - 14, 'THE DESK HEARD THAT', '#e0483e');
+      }else chronicle('event', c.name + ' walked out of cell ' + n + ' with nobody at the desk to see it.');
+    }
+  }
+  ship.lockup = (ship.lockup || []).filter(l => {
+    if(l.cell !== n) return true;
+    const cv = (state.civs || []).find(c2 => c2.name === l.name && c2.jailed);
+    if(cv){ cv.jailed = false; cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; }
+    return false;
+  });
+  shipSave();
+  return true;
+}
+function cellsConsole(){
+  const taken = cellsTaken();
+  const btns = [];
+  for(let n = 1; n <= CELL_N; n++){
+    if(state.cellsOpen && state.cellsOpen[n]) continue;
+    btns.push({label: 'OPEN CELL ' + n + ' \u00B7 ' + (taken[n] ? String(taken[n]).toUpperCase() : 'EMPTY'), cb: ((k) => () => cellOpen(k, 'console'))(n)});
+  }
+  btns.push({label: 'LEAVE IT', cb: () => {}});
+  const held = Object.keys(taken).map(k => 'cell ' + k + ': ' + taken[k]).join(', ');
+  showEventModal('CELL CONTROL', 'Five doors, one panel, no lock on the panel. ' + (held ? 'Occupied: ' + held + '. ' : 'Every cell is empty. ') +
+    'The desk sergeant can hear the doors from where she sits.', btns);
+  return btns.length - 1;
+}
+// the kit comes back: on bail from the desk, or from the locker by hand
+function evidenceReturn(name, how){
+  ship.evidence = ship.evidence || [];
+  const bag = ship.evidence.find(b => b.who === name);
+  if(!bag) return false;
+  const def = SQUAD_DEFS.find(d2 => d2.name === name);
+  if(def){
+    def.loadout = Object.assign({}, bag.loadout);
+    def.pack = (bag.pack || []).concat(def.pack || []);
+    const c = (state.squad || []).find(c2 => c2.name === name);
+    if(c) c.weapon = def.loadout[c.slot] || 'unarmed';
+  }
+  ship.evidence = ship.evidence.filter(b => b !== bag);
+  chronicle('event', name + '\u2019s kit came out of the evidence locker' + (how === 'bail' ? ', signed for at the desk.' : '. Nobody signed for it.'));
+  shipSave();
+  return true;
+}
+function lockerOpen(){
+  const bags = ship.evidence || [];
+  const btns = bags.map(b => ({label: 'TAKE ' + String(b.who).toUpperCase() + '\u2019S KIT', cb: () => {
+    const sgt = sergeantLive();
+    const c0 = pc();
+    evidenceReturn(b.who, 'taken');
+    if(sgt && c0) rapAdd(c0.name, 'minor', 'theft from the evidence locker', true);
+  }}));
+  btns.push({label: 'LEAVE IT', cb: () => {}});
+  showEventModal('EVIDENCE LOCKER', bags.length ? 'Tagged bags on steel shelves: ' + bags.map(b => b.who).join(', ') + '. Taking one without the desk\u2019s signature is theft, and the desk is twenty paces away.'
+    : 'Tagged bags on steel shelves. None of them are yours.', btns);
+  return bags.length;
+}
+function bailPay(def){
+  if(!def || !def.jailed) return false;
+  const due = def.jailed.bail || 400;
+  if(ship.credits < due) return false;
+  ship.credits -= due;
+  const cell = def.jailed.cell;
+  def.jailed = null;
+  rapClear(def.name);
+  evidenceReturn(def.name, 'bail');
+  const c = (state.squad || []).find(c2 => c2.name === def.name);
+  if(c) c.jailed = false;
+  if(ship.district === 'station') cellOpen(cell, 'bail');
+  chronicle('trade', 'Bail paid for ' + def.name + ': ' + due + ' CR. The charge is struck, the kit is back, and the Constabulary has the money.');
+  shipCreditsRefresh && shipCreditsRefresh();
+  shipSave();
+  return true;
+}
+// one loop for the law on the open floor: bodies come round, officers collar, lead, and arrest
+function lawTick(dt){
+  if(!state.portDock || state.deckCombat || !(state.civs || []).length) return;
+  if(typeof askPending !== 'undefined' && askPending) return;
+  for(const cv of state.civs){
+    if(!(cv.alive && cv.ko && cv.down > 0 && !cv.collared)) continue;
+    cv.down -= dt;
+    if(cv.down > 0) continue;
+    cv.ko = false; cv.down = 0; cv.sed = 0;
+    if(cv.crook) crookLeave(cv); else cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
+    addPopup(cv.x, cv.y - cv.r - 14, 'CAME ROUND', '#e0a33e');
+    chronicle('event', (cv.name || 'The thief') + ' came round on the floor, found nobody standing over them, and left.');
+  }
+  for(const c of state.squad){
+    if(!c.marched) continue;
+    const cop = c.marched;
+    c.run = null; c.moving = false;
+    if(!cop.alive || cop.ko || !state.civs.includes(cop)){ c.marched = null; c.friskT = 0; addPopup(c.x, c.y - c.r - 14, 'THE GRIP CAME OFF', '#9fe08e'); continue; }
+    const d = Math.hypot(cop.x - c.x, cop.y - c.y);
+    if(d > 34) civTravel(c, cop.x, cop.y, 175, dt);
+    else c.facing = Math.atan2(cop.y - c.y, cop.x - c.x);
+  }
+  for(const cv of state.civs){
+    if(cv.kind !== 'constable' || !cv.alive || cv.ko) continue;
+    if(cv.lead){
+      const who = cv.lead.who;
+      const gone = cv.lead.op ? (!who.alive || !state.squad.includes(who)) : (!who.alive || who.gone || !state.civs.includes(who));
+      if(gone){ cv.lead = null; cv.pursue = false; continue; }
+      const dr = stationDoor() || nearestArch(cv.x, cv.y);
+      if(!dr){ cv.lead = null; cv.pursue = false; continue; }
+      const dd = Math.hypot(dr.x - cv.x, dr.y - cv.y);
+      if(dd < 44 && Math.hypot(who.x - cv.x, who.y - cv.y) < 90){
+        if(cv.lead.op) jailOp(who, cv, cv.lead);
+        else { who.gone = true; lockupAdd(who); }
+        cv.lead = null; cv.pursue = false;
+        cv.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
+        continue;
+      }
+      if(Math.hypot(who.x - cv.x, who.y - cv.y) > 120){ cv.facing = Math.atan2(who.y - cv.y, who.x - cv.x); continue; }   // waits for the one in cuffs
+      civTravel(cv, dr.x, dr.y, 150, dt);
+      continue;
+    }
+    if(cv.collar){
+      const p = cv.collar;
+      if(!p.alive || p.gone || !state.civs.includes(p)){ cv.collar = null; cv.pursue = false; continue; }
+      if(!p.ko){ cv.collar = null; cv.chase = p; continue; }   // up before the law arrived: a chase now
+      cv.pursue = true;
+      if(Math.hypot(p.x - cv.x, p.y - cv.y) > 30) civTravel(cv, p.x, p.y, 170, dt);
+      else collarWake(cv, p);
+      continue;
+    }
+    if(cv.arrest){
+      const a = cv.arrest;
+      const who = state.squad.find(c => c.name === a.who && c.alive);
+      if(!who || who.marched){ cv.arrest = null; cv.pursue = false; continue; }
+      cv.pursue = true;
+      const d = Math.hypot(who.x - cv.x, who.y - cv.y);
+      if(d > 48) civTravel(cv, who.x, who.y, 170, dt);
+      else if(!a.asked) arrestAsk(cv, who);
+      continue;
+    }
+    if(cv.respond || cv.chase || cv.hunt || cv.escort || cv.sweep || cv.scene || cv.attend) continue;
+    // a body breathing on the floor, in sight: the officer goes to it
+    for(const p of state.civs){
+      if(!(p.alive && p.ko && p.down > 0 && !p.collared && p.kind === 'cutpurse')) continue;
+      if(Math.hypot(p.x - cv.x, p.y - cv.y) > 340 || !segClearHigh(cv.x, cv.y, p.x, p.y)) continue;
+      cv.collar = p; cv.pursue = true;
+      addPopup(cv.x, cv.y - cv.r - 14, 'ONE ON THE FLOOR', '#b06ae0');
+      break;
+    }
+  }
+}
 function startConstableFight(){
   if(!state.shipDeck || !state.portDock) return false;
   if(state.deckCombat && state.portFight) return false;   // the law is already in this fight
@@ -3118,7 +3435,8 @@ function portFightBreakOff(){
   // the standing law walks out of the fight and into a search pattern
   const hunters = [];
   for(const e of state.enemies){
-    if(!e.alive || e.ko) continue;
+    if(!e.alive) continue;
+    if(e.ko){ if(e.wasCiv && !e.loose && e.type !== 'constable') foeToDownCiv(e); continue; }   // out cold: stays on the floor, breathing
     if(e.type === 'constable' && e.name){
       const home = bzCastOf(e.name);
       const lk = e.lastKnown || {x: e.x, y: e.y};
@@ -4122,6 +4440,8 @@ function deckStation(st, who){
     charterConsole();
     return true;
   }
+  if(st.id === 'cells'){ cellsConsole(); return true; }
+  if(st.id === 'locker'){ lockerOpen(); return true; }
   if(st.id === 'bridge'){
     document.getElementById('roster').classList.remove('hidden');
     shipShowPane('paneMap');
@@ -4264,7 +4584,7 @@ function deckDown(p){
 function squadFollow(px, py){
   const selKeep = state.sel;
   state.squad.forEach((c2, i2) => {
-    if(i2 === selKeep || !c2.alive || c2.downed) return;
+    if(i2 === selKeep || !c2.alive || c2.downed || c2.marched || c2.jailed) return;
     if(c2.friskT && performance.now() < c2.friskT) return;   // the searched stand still
     const a2 = i2 * 2.4 + 0.8;
     state.sel = i2;
@@ -4299,6 +4619,7 @@ function layout(){
     h: Math.max(14, w.h*H),
     high: !!w.high,
     den: w.den || undefined,   // a door that is a wall until it is opened
+    cell: w.cell || undefined, // a cell door: a wall until the console opens it
   }));
   for(const w of s.walls) buildChunks(w);
   // strongboxes the level puts down: floor loot with a lid
@@ -7656,7 +7977,9 @@ function civStruck(cv, dmg, team, owner, sed, src){
       eT.wpnKey = cv.wpnKey || 'stdknife';
       eT.wasCiv = true;
       if(cv.named) eT.named = cv.named;
+      eT.race = cv.race; eT.sex = cv.sex; eT.faction = cv.faction; eT.bio = cv.bio; eT.crook = cv.crook || null;
       if(cv.lootExtra) eT.loot = lootOf(eT).concat(cv.lootExtra);
+      if(cv.crook && cv.crook.pouch) eT.loot = (eT.loot || lootOf(eT)).concat([cv.crook.pouch]);
       if(cv.stolen) eT.stolen = cv.stolen;
       eT.alert = 'alerted';
       eT.lastKnown = {x: owner ? owner.x : cv.x, y: owner ? owner.y : cv.y};
@@ -8063,6 +8386,7 @@ function commitMove(){
   state.moveGraph = null;
   if(!mp || !mp.valid || mp.dist < 6) return; // no path or a non-move: don't spend the action
   const c = pc();
+  if(c && c.marched){ addPopup(c.x, c.y - c.r - 14, 'IN CUSTODY', '#e0483e'); return; }
   if(state.shipDeck && !state.deckCombat && c.friskT && performance.now() < c.friskT){
     addPopup(c.x, c.y - c.r - 16, 'HOLD STILL, BEING SEARCHED', '#e0a33e');
     return;
@@ -8888,7 +9212,7 @@ function errandNew(cv){
   const spots = state.spots || [], doors = state.doors || [];
   const roll = Math.random();
   // a quarter of the crowd is only passing through
-  const arches = doors.filter(d => !d.den);
+  const arches = doors.filter(d => !d.den && !d.noCrowd);
   if(cv.tide && arches.length && roll < 0.25){
     const dr = arches[Math.floor(Math.random() * arches.length)];
     return {kind: 'cross', path: [{x: dr.x, y: dr.y}], leg: 0, waitT: 0};
@@ -8948,8 +9272,17 @@ function errandTick(cv, dt){
     if(performance.now() < cv.held) return true;
     cv.held = null;
   }
+  if(cv.jailed) return true;       // four walls and a console: nowhere to go
   const er = cv.errand;
   if(!er) return false;
+  // in cuffs: a step behind the officer, all the way to the door
+  if(er.kind === 'led'){
+    const who = er.who;
+    if(!who || !who.alive || who.ko){ cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; cv.collared = false; return true; }
+    if(Math.hypot(who.x - cv.x, who.y - cv.y) > 30) civTravel(cv, who.x, who.y, 175, dt);
+    else cv.facing = who.facing || cv.facing;
+    return true;
+  }
   // the stalk: a hand drifting toward a stranger's pocket
   if(er.kind === 'stalk'){
     if(typeof askPending !== 'undefined' && askPending) return true;
@@ -9126,6 +9459,7 @@ function errandTick(cv, dt){
     }
     let dr = null, bd = 1e9;
     for(const d2 of (state.doors || [])){
+      if(d2.noCrowd) continue;
       const dd = Math.hypot(d2.x - cv.x, d2.y - cv.y);
       if(dd < bd){ bd = dd; dr = d2; }
     }
@@ -9145,6 +9479,7 @@ function errandTick(cv, dt){
     if(typeof askPending !== 'undefined' && askPending) return true;
     let dr = null, bd = 1e9;
     for(const d2 of (state.doors || [])){
+      if(d2.noCrowd) continue;
       const dd = Math.hypot(d2.x - cv.x, d2.y - cv.y);
       if(dd < bd){ bd = dd; dr = d2; }
     }
@@ -9214,6 +9549,13 @@ function errandTick(cv, dt){
             if(cp9.kind === 'constable' && cp9.alive && !cp9.ko && !cp9.respond) cp9.chase = cr.perp;
           addPopup(tgt.x, tgt.y - (tgt.r || 14) - 14, 'WORD OF A CUTPURSE', '#b06ae0');
         }
+        return true;
+      }
+      if(cr && cr.arrest && tgt.kind === 'constable' && !tgt.arrest && !tgt.lead){
+        // the story names a killer: the officer goes to make the arrest
+        rapAdd(cr.who, cr.grade, cr.what, true);
+        arrestFlag(tgt, Object.assign({}, cr, {seen: 'witness'}));
+        addPopup(tgt.x, tgt.y - (tgt.r || 14) - 14, 'A NAME AND A FACE', '#e0483e');
         return true;
       }
       if(cr && cr.grade === 'defence'){
@@ -9297,7 +9639,7 @@ function crowdTick(dt){
   state.civs = state.civs.filter(cv => !cv.gone);
   const n = state.civs.filter(cv => cv.tide && cv.alive).length;
   const cap = Math.min(state.crowdTarget, 60);
-  { const arches1 = state.doors.filter(d => !d.den); if(n < cap && arches1.length) crowdSpawn(arches1[Math.floor(Math.random() * arches1.length)]); }
+  { const arches1 = state.doors.filter(d => !d.den && !d.noCrowd); if(n < cap && arches1.length) crowdSpawn(arches1[Math.floor(Math.random() * arches1.length)]); }
 }
 // ---- the tide's own sins: the world commits crimes without you ----
 // (Ben, 27 Oct) a cutpurse is a named face from the first lift, works a new pocket every
@@ -12102,7 +12444,7 @@ function tickProps(dt){
       }
       // the sedated come round, and a keeper wakes with a name on her lips
       if(!state.deckCombat) for(const cv of (state.civs || [])){
-        if(!cv.ko || !cv.alive || cv.collared) continue;
+        if(!cv.ko || !cv.alive || cv.collared || cv.down > 0) continue;   // a thief out cold keeps the lockup's own clock
         if(!cv.koUntil) cv.koUntil = performance.now() + 35000 + Math.random() * 20000;
         else if(performance.now() > cv.koUntil){
           cv.ko = false; cv.koUntil = 0;
@@ -12324,6 +12666,7 @@ function tickProps(dt){
       for(const cv of (state.civs || [])){
         if(!cv.chase || !cv.alive || cv.ko) continue;
         const prC = cv.chase;
+        if(prC.alive && prC.ko && prC.down > 0 && !prC.collared && state.civs.includes(prC)){ cv.chase = null; cv.collar = prC; continue; }   // found them on the floor
         if(!prC.alive || prC.gone || prC.ko || !state.civs.includes(prC)){
           cv.chase = null; cv.pursue = false; continue;
         }
@@ -13256,7 +13599,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '27 Oct \u00B7 QUICK HANDS';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '27 Oct \u00B7 THE CELLS';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -13509,6 +13852,9 @@ const CROSS_CAST = [
   {name: 'Hesper Dunmore', kind: 'trader', x: 0.865, y: 0.315, homeR: 30, brave: 17, district: 'cross',
    race: 'MINOTAUR', sex: 'FEMALE', faction: 'THE SHIPPERS',
    bio: 'Runs the Shippers: hulls for hire, pilots for hire, no questions past the deposit. Flew herself until a bad landing on Garn took the nerve out of her left hand. Bets on who comes back, and is usually right.'},
+  {name: 'Sergeant Vey', kind: 'sergeant', x: 0.5, y: 0.575, homeR: 12, fac: 'constabulary', brave: 18, district: 'station',
+   race: 'HUMAN', sex: 'FEMALE', faction: 'PORT CONSTABULARY',
+   bio: 'Keeps the front desk of the Cross Constabulary and the keys to nothing: the cells answer to the console, and the console answers to her. Sets bail by the ledger and the look of you.'},
   {name: 'Erina Jones', kind: 'trader', x: 0.61, y: 0.735, homeR: 36, brave: 15, district: 'cross',
    race: 'HUMAN', sex: 'FEMALE', faction: 'ERINA\u2019S EXOTICS',
    bio: 'Owner of the Exotics. A Colossus put her through six trees and left her a leg and an arm short; she lives through her retrievers now, and pays them well for work nobody else will take.'},
@@ -13659,7 +14005,7 @@ function rapsAnyMajor(){
   const b = bz();
   return !!(b && b.raps && Object.keys(b.raps).some(k => b.raps[k].major > 0));
 }
-function rapAdd(name, grade, what){
+function rapAdd(name, grade, what, quiet){
   const b = bz();
   if(!b || !name) return;
   const m = JSON.parse(JSON.stringify(b.raps || {}));
@@ -13670,7 +14016,7 @@ function rapAdd(name, grade, what){
   bzSet({raps: m, heat: true, lawAware: true});
   chronicle('event', 'The law has a name: ' + name + ', wanted for ' + what + '. Every badge on the port carries it now.');
   // dispatch answers while it has names left: the only cap is the graveyard
-  if(grade === 'major' && !state.respT &&
+  if(grade === 'major' && !quiet && !state.respT &&
      !(state.civs || []).some(cv2 => cv2.respond)){
     state.respT = performance.now() + 40000;
     showBanner('THE RING OFFICE KNOWS, CLEAR THE PORT', '#e0483e');
@@ -13838,6 +14184,12 @@ function bzCrimeWitness(x, y, crime, op){
       addPopup(cv.x, cv.y - cv.r - 14, 'SEEN \u00B7 SELF-DEFENCE', '#6fd6ff');
       chronicle('event', cv.name + ' watched ' + crime.what + ' and saw the knife come out first. No charge. A conversation, and a search, are still coming.');
       cleanupCall();
+      return;
+    }
+    if(crime.arrest){
+      // (Ben, 27 Oct) a killing seen by a badge is an arrest after the shooting stops, not a shootout now
+      rapAdd(crime.who, crime.grade, crime.what, true);
+      arrestFlag(cv, Object.assign({seen: 'badge'}, crime));
       return;
     }
     rapAdd(crime.who, crime.grade, crime.what);   // a badge saw it itself: no runner needed
@@ -14212,6 +14564,21 @@ function portTalk(cv){
   const holds = bzCrewHoldsHere();
   const close = [{label: 'LEAVE', cb: () => {}}];
   if(!b || !b.active || cv.name === undefined) return false;
+  if(cv.kind === 'sergeant'){
+    const jailed = SQUAD_DEFS.filter(d => d.jailed && !d.dead);
+    const held = (ship.lockup || []).map(l => l.name);
+    const btns = jailed.map(d => ({label: 'BAIL ' + String(d.name).toUpperCase() + ' \u00B7 ' + (d.jailed.bail || 400) + ' CR', cb: () => {
+      if(bailPay(d)) showEventModal('SERGEANT VEY', '\u201CSigned, struck, and I never want to see the name again. Kit is on the counter. Mind the door.\u201D', close);
+      else showEventModal('SERGEANT VEY', '\u201CYou are short. Come back when you are not, or get used to visiting.\u201D', close);
+    }})).concat(close);
+    const body = jailed.length
+      ? '\u201C' + jailed.map(d => d.name + ', cell ' + d.jailed.cell + ', ' + d.jailed.what + ', bail ' + (d.jailed.bail || 400)).join('; ') + '. Pay it and the charge is struck and the kit comes back. Or do not, and we both find out how patient you are.\u201D'
+      : held.length ? '\u201CNobody of yours in the back. ' + held.join(' and ') + (held.length > 1 ? ' are' : ' is') + ' cooling off until the ring office sends a van. The benches are for waiting, not for sleeping.\u201D'
+      : '\u201CNobody in the cells, nobody on the benches, and I would like it kept that way. State your business or find the door.\u201D';
+    return showEventModal('SERGEANT VEY', body, btns);
+  }
+  if(cv.kind === 'cutpurse' && cv.jailed)
+    return showEventModal(String(cv.name || 'STRANGER').toUpperCase(), '\u201CThere is a panel at the end of the corridor. Five buttons. You look like somebody who can count to ' + ((ship.lockup || []).find(l => l.name === cv.name) || {cell: '?'}).cell + '.\u201D', close);
   if(cv.kind === 'cutpurse'){
     if(!(cv.crook && cv.crook.pouch))
       return showEventModal(String(cv.name || 'STRANGER').toUpperCase(), '\u201CDo I know you? Didn\u2019t think so.\u201D Empty hands, for now. Watch them.', close);
@@ -14575,6 +14942,7 @@ function shipSave(){
       injuries: (d.injuries || []).slice(),
       dead: !!d.dead, deployed: d.deployed !== false,
       hired: !!d.hired, icon: d.icon || null,
+      jailed: d.jailed || null,
     }));
     localStorage.setItem(SHIP_SAVE_KEY, JSON.stringify({
       v: ship.v, credits: ship.credits, slotsMax: ship.slotsMax,
@@ -14591,6 +14959,7 @@ function shipSave(){
       erinaJobs: !!ship.erinaJobs,
       erinaJob: ship.erinaJob || null,
       charter: ship.charter || null,
+      lockup: (ship.lockup || []).slice(), evidence: (ship.evidence || []).slice(),
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -14614,6 +14983,8 @@ function shipLoad(){
     ship.erinaJobs = !!d.erinaJobs;
     ship.erinaJob = (d.erinaJob && typeof d.erinaJob === 'object') ? d.erinaJob : null;
     ship.charter = (d.charter && typeof d.charter === 'object') ? d.charter : null;
+    ship.lockup = Array.isArray(d.lockup) ? d.lockup : [];
+    ship.evidence = Array.isArray(d.evidence) ? d.evidence : [];
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -14635,6 +15006,7 @@ function doShipReset(){
   ship.missions = {};
   ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null; state.quietUntil = 0; state.camTourUntil = 0; state._hatchRun = null; state._denRun = null;
   ship.charter = null; state.charterGround = false; state.charterZone = null; state.charterShow = false;
+  ship.lockup = []; ship.evidence = []; state.cellsOpen = {};
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
@@ -14857,6 +15229,7 @@ function kill(e, b){
      b && b.team === 'player' && b.owner && b.owner.name){
     // a thief shot down in the open is still a person shot down in the open; a knife that drew first is not
     bzCrimeWitness(e.x, e.y, {grade: e.defence ? 'defence' : 'major', who: b.owner.name,
+      arrest: !e.defence, victim: e.name || null, bail: e.crook || e.type === 'runner' ? 350 : 700,
       what: e.defence ? 'the killing of ' + (e.name || 'a stranger') + ', who drew first'
                       : 'the killing of ' + (e.name || 'a stranger') + ' on the concourse'}, b.owner);
   }
@@ -16425,7 +16798,7 @@ function frame(now){
   if(state && state.shipDeck && state.squad) deckSeparate();
   camGlideTick(); spotlightTick();
   if(state && state.squad && !editorOn && ((state._stripT || 0) + 400 < performance.now())){ state._stripT = performance.now(); nextStripTick(); }
-  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ waTick(realDt); houndTick(realDt); }
+  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ waTick(realDt); houndTick(realDt); lawTick(realDt); }
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();
   if(state && state.squad && !editorOn){
@@ -18920,7 +19293,7 @@ const LOUNGE_POSTS = [
   {x: 0.482, y: 0.497}, {x: 0.515, y: 0.497}, {x: 0.482, y: 0.555}, {x: 0.515, y: 0.555},
   {x: 0.5,   y: 0.472}, {x: 0.5,   y: 0.566}, {x: 0.47,  y: 0.525}, {x: 0.527, y: 0.525},
 ];
-const STATION_LABELS = {bridge:'BRIDGE', loadout:'LOADOUT', skills:'SKILLS', medpod:'MED POD',
+const STATION_LABELS = {cells:'CELL CONTROL', locker:'EVIDENCE LOCKER', bridge:'BRIDGE', loadout:'LOADOUT', skills:'SKILLS', medpod:'MED POD',
   board:'CONTRACTS', cantina:'FOR HIRE', undock:'UNDOCK', gannet:'THE GANNET \u00B7 BRIDGE'};
 // a docked hatch is a door: carve the wall beneath it (fractions in, fractions out)
 function carveDoorF(walls, a, PW, PH, gapPx){
@@ -19124,6 +19497,7 @@ const CROSS_PORT = {
     {x: 0.760, y: 0.855, to: null, den: 'whyme', label: 'TALLOW STREET UNIT'},
     {x: 0.875, y: 0.845, to: null, den: 'warren', label: 'SERVICE HATCH'},
     {x: 0.925, y: 0.335, to: 'hangar', label: 'HANGAR DOOR', needs: 'charter'},
+    {x: 0.820, y: 0.066, to: 'station', label: 'CONSTABULARY', noCrowd: true},   // the tide does not come and go through a police station
   ],
   spots: [
     {x: 0.36, y: 0.17, kind: 'bar', label: 'THE BEACON'},
@@ -19180,11 +19554,48 @@ function buildHangarPort(){   // (a plain function, not an IIFE: the test harnes
   };
 }
 const HANGAR_PORT = buildHangarPort();
+// (Ben, 27 Oct) the Cross Constabulary: a waiting room with a desk, a corridor, five cells behind closed doors,
+// a console that opens them and an evidence locker. Kept small until we know what else it has to do.
+const CELL_N = 5;
+function cellCentre(n){ return {x: (0.10 + (n - 1) * 0.16 + 0.08) * W, y: 0.17 * H}; }
+function buildStationPort(){
+  const walls = [
+    {x: 0.000, y: 0.000, w: 1.000, h: 0.040, high: true},
+    {x: 0.000, y: 0.960, w: 1.000, h: 0.040, high: true},
+    {x: 0.000, y: 0.000, w: 0.030, h: 1.000, high: true},
+    {x: 0.970, y: 0.000, w: 0.030, h: 1.000, high: true},
+    // the partition between the public room and the cells, one gap in the middle
+    {x: 0.030, y: 0.520, w: 0.430, h: 0.012, high: true},
+    {x: 0.540, y: 0.520, w: 0.430, h: 0.012, high: true},
+    // the front desk and the benches: low, you can see over them
+    {x: 0.400, y: 0.620, w: 0.200, h: 0.030},
+    {x: 0.100, y: 0.800, w: 0.120, h: 0.025},
+    {x: 0.780, y: 0.800, w: 0.120, h: 0.025},
+  ];
+  for(let i = 0; i <= CELL_N; i++) walls.push({x: 0.10 + i * 0.16 - 0.004, y: 0.040, w: 0.008, h: 0.265, high: true});
+  for(let i = 0; i < CELL_N; i++){
+    const x0 = 0.10 + i * 0.16;
+    walls.push({x: x0, y: 0.300, w: 0.055, h: 0.012, high: true});
+    walls.push({x: x0 + 0.105, y: 0.300, w: 0.055, h: 0.012, high: true});
+    walls.push({x: x0 + 0.055, y: 0.300, w: 0.050, h: 0.012, high: true, cell: i + 1});   // the door: a wall until the console says otherwise
+  }
+  return {
+    name: 'The Cross Constabulary', world: {w: 2000, h: 1300}, crowd: 0, noFog: true,
+    player: {x: 0.5, y: 0.86},
+    walls,
+    doors: [{x: 0.5, y: 0.925, to: 'cross', label: 'THE CROSS'}],
+    stations: [{x: 0.94, y: 0.41, id: 'cells'}, {x: 0.06, y: 0.41, id: 'locker'}],
+    spots: [{x: 0.5, y: 0.665, kind: 'bench', label: 'FRONT DESK'}, {x: 0.5, y: 0.41, kind: 'bench', label: 'THE CELLS'}],
+    npcs: [], shelves: [], anchors: [],
+  };
+}
+const STATION_PORT = buildStationPort();
 const DISTRICTS = {
   gateway: {
     cross: {plan: CROSS_PORT, name: 'The Cross', ship: false},
     lanes: {plan: CROSSPORT_PORT, name: 'Market Lanes', ship: true},
     hangar: {plan: HANGAR_PORT, name: 'The Shippers\u2019 Hangar', ship: false},
+    station: {plan: STATION_PORT, name: 'The Cross Constabulary', ship: false},
   },
 };
 const PORT_HOME = {gateway: 'cross'};          // where a new run first stands
