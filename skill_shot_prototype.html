@@ -291,6 +291,22 @@
   #bnJournal{font-size:10px;letter-spacing:.22em;color:rgba(212,168,67,.75);cursor:pointer;
     text-transform:uppercase;border-bottom:1px dotted rgba(212,168,67,.4);margin-right:14px;}
   #bnJournal:hover{color:var(--brass);}
+  #bnMoods{font-size:10px;letter-spacing:.22em;color:rgba(176,106,224,.7);cursor:pointer;text-transform:uppercase;border-bottom:1px dotted rgba(176,106,224,.4);margin-right:14px;}
+  #bnMoods:hover{color:#b06ae0;}
+  #moodDbg{position:fixed;right:12px;top:58px;bottom:12px;width:300px;overflow-y:auto;z-index:88;display:none;background:rgba(10,12,20,.94);
+    border:1px solid rgba(176,106,224,.45);padding:10px 12px;font-family:'Cinzel',serif;color:var(--ink,#e8e0cc);font-size:10px;letter-spacing:.14em;}
+  #moodDbg .mdHead{font-weight:800;color:#b06ae0;margin-bottom:8px;display:flex;justify-content:space-between;}
+  #moodDbg #mdClose{cursor:pointer;color:rgba(232,224,204,.6);text-decoration:underline dotted;}
+  #moodDbg .mdRow{border-top:1px solid rgba(176,106,224,.2);padding:8px 0 6px;}
+  #moodDbg .mdRow b{display:block;font-size:11px;}
+  #moodDbg .mdRow b i{font-style:normal;font-size:8px;color:rgba(232,224,204,.5);}
+  #moodDbg .mdWord{display:block;font-weight:800;font-size:12px;text-transform:uppercase;margin:2px 0;}
+  #moodDbg .mdLast{display:block;font-size:8px;color:rgba(232,224,204,.55);text-transform:uppercase;margin-bottom:4px;}
+  #moodDbg label{display:grid;grid-template-columns:62px 1fr 78px 26px;align-items:center;gap:4px;font-size:7.5px;margin:2px 0;}
+  #moodDbg label s{text-decoration:none;color:rgba(232,224,204,.6);}
+  #moodDbg label s:last-of-type{text-align:right;}
+  #moodDbg label u{text-decoration:none;text-align:right;color:#b06ae0;}
+  #moodDbg input[type=range]{width:100%;accent-color:#b06ae0;height:14px;margin:0;}
   #journalWin{position:fixed;inset:0;background:rgba(7,9,15,.72);z-index:86;display:none;align-items:center;justify-content:center;}
   .jnHead{font-size:9px;letter-spacing:.3em;color:rgba(212,168,67,.7);padding:12px 16px 4px;}
   .jnRow{cursor:pointer;}
@@ -1270,6 +1286,7 @@
       <span class="bnStat"><b id="shipCredits">0</b> CR</span>
       <span class="bnStat">DAY <b id="bnDay">0</b></span>
       <span id="bnJournal">journal</span>
+      <span id="bnMoods" title="debug: how the named faces feel about the crew">moods</span>
       <span id="bnLog">ship's log</span>
       <span id="bnNewGame">new game</span>
     </div>
@@ -3108,6 +3125,7 @@ function collarWake(cop, perp){
   if(op && !perp.credited && Math.hypot(op.x - cop.x, op.y - cop.y) < 360){
     perp.credited = true;
     facRepAdd('constabulary', 2);
+    moodPush(cop.name, {t: 1, j: 0.5}, 'took a thief off the crew breathing', 'law');
     showEventModal('CONSTABLE ' + String(cop.name).toUpperCase(),
       '\u201CWe will take it from here, ' + op.name + '. The Constabulary noted who put ' + (perp.name || 'them') + ' down, and how. That goes in the book on the right side for once.\u201D',
       [{label: 'UNDERSTOOD', cb: () => {}}], {sub: 'CONSTABULARY STANDING +2'});
@@ -3125,6 +3143,7 @@ function lockupAdd(perp){
 function arrestFlag(cop, crime){
   cop.arrest = {who: crime.who, what: crime.what, bail: crime.bail || 400, seen: crime.seen || 'badge', victim: crime.victim || null, asked: false};
   cop.pursue = true;
+  moodPush(cop.name, {t: -1, f: -1}, 'went to arrest ' + crime.who, 'law');
   showBanner('THE LAW IS COMING FOR ' + String(crime.who).toUpperCase(), '#e0483e');
 }
 function arrestAsk(cop, c){
@@ -3229,6 +3248,7 @@ function cellOpen(n, how){
     if(how === 'console'){
       def.jailed = null;
       if(sgt){
+        moodPush(sgt.name, {t: -2, f: -2, a: -1}, 'heard the cell doors open', 'law');
         rapAdd(c.name, 'major', 'breaking out of the Cross lockup');
         addPopup(sgt.x, sgt.y - sgt.r - 14, 'THE DESK HEARD THAT', '#e0483e');
       }else chronicle('event', c.name + ' walked out of cell ' + n + ' with nobody at the desk to see it.');
@@ -3294,6 +3314,7 @@ function bailPay(def){
   const cell = def.jailed.cell;
   def.jailed = null;
   rapClear(def.name);
+  moodPush('Sergeant Vey', {t: 0.5, j: 0.3}, 'bail paid at the desk', 'trade');
   evidenceReturn(def.name, 'bail');
   const c = (state.squad || []).find(c2 => c2.name === def.name);
   if(c) c.jailed = false;
@@ -6296,6 +6317,8 @@ if(document.addEventListener){
     if(lg) lg.addEventListener('click', openChronicle);
     const jn = document.getElementById('bnJournal');
     if(jn) jn.addEventListener('click', openJournal);
+    const md = document.getElementById('bnMoods');
+    if(md) md.addEventListener('click', moodDbgToggle);
     // the banner belongs to the whole ship: out of the menu, onto the glass
     const tb0 = document.getElementById('topBanner');
     if(tb0 && document.body && document.body.appendChild) document.body.appendChild(tb0);
@@ -11183,6 +11206,7 @@ function passageHeld(){
 // Hesper reads the cube and unbolts the hangar door
 function charterClear(){
   if(charterSt() !== 'ticket') return false;
+  moodPush('Hesper Dunmore', {a: 1}, 'booked the crew a hull to Spindle', 'trade');
   ship.charter.state = 'cleared';
   const ms = ship.missions && ship.missions.spindle;
   if(ms && ms.state === 'open') ms.waypoint = {port: 'gateway', district: 'cross', x: 0.925, y: 0.335, label: 'THE HANGAR DOOR', t0: performance.now()};
@@ -11324,6 +11348,7 @@ function charterDepart(withHim){
 function charterHome(){
   const ch = ship.charter;
   ch.state = ch.rescued ? 'done' : 'grief';
+  moodPush('Hesper Dunmore', ch.rescued ? {t: 1, j: 1, a: -1} : {j: -1, a: -1}, ch.rescued ? 'the crew came back from Spindle with the brother' : 'the crew came back from Spindle without him', 'trade');
   leaveShipDeck();
   enterPort('hangar');
   // the crew comes down the ramp; Oskar is waiting by the bay, and his brother is on the ramp if he came home
@@ -11368,6 +11393,7 @@ function doorNeedsMet(dr){
 // accepting the work: a dart rifle across the counter, a waypoint, the banner, and the camera shows the way
 function erinaAccept(c){
   if(ship.erinaJob) return false;
+  moodPush('Erina Jones', {a: 1.5}, 'gave the crew the hound job', 'trade');
   ship.erinaJobs = true;
   ship.erinaJob = {state: 'open', day: ship.day || 0};
   erinaIdx();
@@ -11522,6 +11548,8 @@ function erinaSettle(){
   }
   const due = j.due != null ? j.due : 25;
   ship.credits += due;
+  if(j.state === 'carrying') moodPush('Erina Jones', {t: 1, j: 1, a: -1}, 'the hound came home breathing', 'trade');
+  else moodPush('Erina Jones', {j: -1, f: -1, t: -0.5, a: -1}, 'the hound came back dead', 'stock');
   j.state = 'paid'; j.paidDay = ship.day || 0;
   missionEnd('liveone', 'done');
   chronicle('trade', j.state === 'paid' && due > 100
@@ -11918,6 +11946,7 @@ const WA_ERINA_PAY = 90, WA_HASK_PAY = 110;
 function waReturnToErina(){
   const c = waCarrier(); if(!c) return false;
   state.props = state.props.filter(p => !p.wa);
+  moodPush('Erina Jones', {t: 1, j: 0.5}, 'the crew brought her crate back', 'stock');
   ship.credits += WA_ERINA_PAY;
   facRepAdd('tradersguild', 1);
   waSet({crate: 'erina', outcome: (waFacts().outcome || '') + '_returned', erinaKnows: true});
@@ -12458,6 +12487,7 @@ function tickProps(dt){
           if(sh9.grudge && kp9){
             const g9 = sh9.grudge;
             sh9.grudge = null;
+            moodPush(kp9.name, {t: -2, f: -1, a: -1}, 'woke with the thief\u2019s name on her lips', 'stock');
             shipSave();
             addPopup(kp9.x, kp9.y - kp9.r - 14, 'SHE REMEMBERS', '#e0483e');
             facRepAdd('tradersguild', -1);
@@ -12467,6 +12497,7 @@ function tickProps(dt){
           if(sh9.stocktakeT && performance.now() > sh9.stocktakeT){
             sh9.stocktakeT = 0;
             sh9.counted = true;
+            moodPush(sh9.keeper, {t: -1, f: -0.5}, 'counted her shelves and came up short', 'stock');
             shipSave();
             chronicle('event', 'Kestrel counted her shelves and came up short. No name to give the law, just a colder eye on everyone who browses.');
           }
@@ -13384,12 +13415,14 @@ function shopBuy(i, cName){
   const sh = shopOf(), it = shelfItem(i);
   if(!sh || !it || sh.keeperDead) return false;
   if(facRepOf('tradersguild') <= -2) return false;   // guild paper: nobody trades
+  if(sh.keeper && moodRefuses(sh.keeper)){ const kp = shopKeeperCiv(); if(kp) addPopup(kp.x, kp.y - kp.r - 14, 'NOT TO YOU', '#e0483e'); return false; }
   const c = (state.squad || []).find(c2 => c2.alive && c2.name === (cName || (pc() && pc().name)));
   if(!c || !c.def) return false;
   if(ship.credits < it.price) return false;
   if(!Array.isArray(c.def.pack)) c.def.pack = [];
   if(c.def.pack.length >= 4) return false;
   ship.credits -= it.price;
+  moodPush(sh.keeper, {j: 0.3, t: 0.2}, 'the crew bought from the shelf', 'trade');
   c.def.pack.push({kind: 'weapon', key: it.key, mods: wpnItemMods(it)});
   it.gone = true; it.by = 'bought';
   addPopup(c.x, c.y - c.r - 14, 'BOUGHT \u00B7 ' + (WPN_NAMES[it.key] || it.key).toUpperCase(), '#9fe08e');
@@ -13599,7 +13632,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '27 Oct \u00B7 THE CELLS';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '27 Oct \u00B7 THE WHEEL';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -13784,6 +13817,157 @@ function worldEnsure(){
 }
 function portFacts(id){ return (ship.world && ship.world.ports && ship.world.ports[id]) || null; }
 function orgOf(fac){ return (ship.world && ship.world.orgs && ship.world.orgs[fac]) || null; }
+// ---- moods (Ben, 27 Oct): how a named face feels about the crew, on Plutchik's wheel ----
+// four signed axes, -3..3: t (trust / disgust), j (joy / sadness), f (fear / anger), a (anticipation / surprise).
+// Events push; days decay each axis back to the character's baseline; the dominant sector names the feeling,
+// two strong neighbours name the dyad. Behaviour reads the axes, never the label.
+const MOOD_AXES = ['t', 'j', 'f', 'a'];
+const MOOD_DECAY = 0.5;   // per day, toward baseline
+const WHEEL = ['joy', 'trust', 'fear', 'surprise', 'sadness', 'disgust', 'anger', 'anticipation'];
+const PLUTCHIK = {
+  joy: ['serene', 'glad', 'delighted'], trust: ['accepting', 'trusting', 'admiring'],
+  fear: ['apprehensive', 'afraid', 'terrified'], surprise: ['distracted', 'surprised', 'amazed'],
+  sadness: ['pensive', 'sad', 'grieving'], disgust: ['bored', 'disgusted', 'loathing'],
+  anger: ['annoyed', 'angry', 'enraged'], anticipation: ['interested', 'expectant', 'vigilant'],
+};
+const DYADS = {'joy|trust': 'love', 'trust|fear': 'submission', 'fear|surprise': 'awe', 'surprise|sadness': 'disapproval',
+  'sadness|disgust': 'remorse', 'disgust|anger': 'contempt', 'anger|anticipation': 'aggressiveness', 'anticipation|joy': 'optimism'};
+// temperament: where each face rests, and how hard each kind of event lands on them
+const TEMPERS = {
+  'Erina Jones':    {base: {t: -1, a: 1},          sens: {violence: 0.6, stock: 2, trade: 1, law: 0.5}},
+  'Hesper Dunmore': {base: {a: 1, f: -0.5},        sens: {violence: 0.4, trade: 1, law: 0.5}},
+  'Kestrel':        {base: {t: -0.5},              sens: {violence: 0.8, stock: 2, trade: 1.2}},
+  'Fenn':           {base: {j: 0.5},               sens: {violence: 0.8, trade: 1}},
+  'Marek':          {base: {},                     sens: {violence: 1.2, law: 1.5}},
+  'Sulla':          {base: {f: -1},                sens: {violence: 1, law: 1.5}},
+  'Sergeant Vey':   {base: {t: -1},                sens: {violence: 1, law: 2}},
+  'Varric':         {base: {a: 0.5},               sens: {violence: 0.3, trade: 1.5}},
+  'Hask':           {base: {t: -0.5, f: -0.5},     sens: {violence: 0.2, trade: 1.5, law: 0}},
+};
+function moodTemper(name){ return TEMPERS[name] || {base: {}, sens: {}}; }
+function moodBase(name){ return Object.assign({t: 0, j: 0, f: 0, a: 0}, moodTemper(name).base || {}); }
+function moodOf(name){
+  ship.moods = ship.moods || {};
+  const base = moodBase(name);
+  let m = ship.moods[name];
+  if(!m) m = ship.moods[name] = {t: base.t, j: base.j, f: base.f, a: base.a, day: ship.day || 0, last: null, mem: []};
+  const el = (ship.day || 0) - (m.day || 0);
+  if(el > 0){
+    for(const k of MOOD_AXES){ const d = base[k] - m[k]; m[k] += Math.sign(d) * Math.min(Math.abs(d), MOOD_DECAY * el); }
+    m.day = ship.day || 0;
+  }
+  return m;
+}
+function moodPush(name, d, what, kind){
+  if(!name) return null;
+  const m = moodOf(name);
+  const tp = moodTemper(name);
+  const w = (kind && tp.sens && tp.sens[kind] != null) ? tp.sens[kind] : 1;
+  if(w === 0) return m;
+  for(const k of MOOD_AXES) if(d[k]) m[k] = Math.max(-3, Math.min(3, +(m[k] + d[k] * w).toFixed(2)));
+  m.last = {what, day: ship.day || 0};
+  m.mem = (m.mem || []).concat([{what, day: ship.day || 0}]).slice(-6);
+  return m;
+}
+function moodIntensities(m){
+  return {joy: Math.max(0, m.j), sadness: Math.max(0, -m.j), trust: Math.max(0, m.t), disgust: Math.max(0, -m.t),
+    fear: Math.max(0, m.f), anger: Math.max(0, -m.f), anticipation: Math.max(0, m.a), surprise: Math.max(0, -m.a)};
+}
+function moodName(m){
+  const it = moodIntensities(m);
+  const sorted = WHEEL.slice().sort((a2, b2) => it[b2] - it[a2]);
+  const top = sorted[0], second = sorted[1];
+  if(it[top] < 0.5) return {word: 'indifferent', top: null};
+  // a strong neighbour on the wheel makes a dyad: the stronger of the two sides wins
+  const i1 = WHEEL.indexOf(top);
+  const left = WHEEL[(i1 + 7) % 8], right = WHEEL[(i1 + 1) % 8];
+  const nb = it[left] >= it[right] ? left : right;
+  if(it[nb] >= 1){
+    const key = nb === right ? top + '|' + nb : nb + '|' + top;
+    if(DYADS[key]) return {word: DYADS[key], top, second: nb};
+  }
+  void second;
+  return {word: PLUTCHIK[top][it[top] >= 2.5 ? 2 : it[top] >= 1.5 ? 1 : 0], top};
+}
+// the thresholds behaviour reads
+function moodRefuses(name){ const m = moodOf(name); return m.t <= -2 || m.f <= -2; }    // disgust or anger: no trade, no work
+function moodTrusts(name){ return moodOf(name).t >= 1; }
+function moodAfraid(name){ return moodOf(name).f >= 2; }
+const MOOD_TINT = {joy: '#9fe08e', trust: '#6fd6ff', fear: '#e0a33e', surprise: '#d4a843', sadness: '#8a93b8', disgust: '#b06ae0', anger: '#e0483e', anticipation: '#9fe0d8'};
+function moodLine(name){
+  const m = moodOf(name), nm = moodName(m);
+  return {word: nm.word.toUpperCase(), tint: nm.top ? MOOD_TINT[nm.top] : 'rgba(232,224,204,.7)', last: m.last ? m.last.what : null};
+}
+// every named face in reach with a line of sight takes the event personally
+function moodWitness(x, y, reach, d, what, kind, skip){
+  const hit = [];
+  for(const cv of (state.civs || [])){
+    if(!cv.name || !cv.alive || cv.ko || cv.gone || cv.tide || cv === skip) continue;
+    if(cv.kind === 'cutpurse' || cv.kind === 'cleaner' || cv.kind === 'porter') continue;
+    if(Math.hypot(cv.x - x, cv.y - y) > reach || !segClearHigh(cv.x, cv.y, x, y)) continue;
+    const dd = Object.assign({}, d);
+    // the brave and the badge answer violence with anger, not fear
+    if(kind === 'violence' && dd.f > 0 && (cv.kind === 'constable' || cv.kind === 'sergeant' || (cv.brave || 10) >= 16)) dd.f = -(dd.f + 0.5);
+    moodPush(cv.name, dd, what, kind);
+    hit.push(cv.name);
+  }
+  return hit;
+}
+// ---- the debug panel: every named face on the floor, four sliders each ----
+function moodDbgToggle(){
+  if(typeof document.getElementById !== 'function') return false;
+  let box = document.getElementById('moodDbg');
+  if(box && box.style.display !== 'none'){ box.style.display = 'none'; if(box._t) clearInterval(box._t); box._t = null; return false; }
+  if(!box){ box = document.createElement('div'); box.id = 'moodDbg'; document.body.appendChild(box); }
+  box.style.display = 'block';
+  moodDbgRender(box);
+  box._t = setInterval(() => moodDbgRefresh(box), 600);
+  return true;
+}
+function moodDbgNames(){
+  const out = [];
+  for(const cv of (state.civs || [])) if(cv.name && !cv.tide && cv.alive && cv.kind !== 'cutpurse' && cv.kind !== 'cleaner' && cv.kind !== 'porter' && out.indexOf(cv.name) < 0) out.push(cv.name);
+  for(const k of Object.keys(ship.moods || {})) if(out.indexOf(k) < 0) out.push(k + ' (away)');
+  return out;
+}
+const MOOD_AXIS_LABEL = {t: ['DISGUST', 'TRUST'], j: ['SADNESS', 'JOY'], f: ['ANGER', 'FEAR'], a: ['SURPRISE', 'ANTICIPATION']};
+function moodDbgRender(box){
+  const names = moodDbgNames();
+  let h = '<div class="mdHead">MOODS \u00B7 PLUTCHIK <span id="mdClose">close</span></div>';
+  if(!names.length) h += '<div class="mdRow">No named faces on this floor.</div>';
+  for(const nm0 of names){
+    const nm = nm0.replace(' (away)', '');
+    const m = moodOf(nm), ln = moodLine(nm);
+    h += '<div class="mdRow" data-n="' + nm + '"><b>' + nm.toUpperCase() + (nm0 !== nm ? ' <i>away</i>' : '') + '</b><em class="mdWord" style="color:' + ln.tint + '">' + ln.word + '</em>' +
+      '<span class="mdLast">' + (ln.last ? ln.last : 'nothing yet') + '</span>';
+    for(const k of MOOD_AXES){
+      h += '<label><s>' + MOOD_AXIS_LABEL[k][0] + '</s><input type="range" min="-3" max="3" step="0.5" data-n="' + nm + '" data-k="' + k + '" value="' + m[k] + '"><s>' + MOOD_AXIS_LABEL[k][1] + '</s><u class="mdVal">' + m[k] + '</u></label>';
+    }
+    h += '</div>';
+  }
+  box.innerHTML = h;
+  const cl = box.querySelector('#mdClose'); if(cl) cl.addEventListener('click', moodDbgToggle);
+  for(const inp of box.querySelectorAll('input[type=range]')){
+    inp.addEventListener('input', () => {
+      const m = moodOf(inp.dataset.n); m[inp.dataset.k] = parseFloat(inp.value); m.last = {what: 'set by hand', day: ship.day || 0};
+      moodDbgRefresh(box);
+    });
+  }
+}
+function moodDbgRefresh(box){
+  if(!box || box.style.display === 'none') return;
+  const rows = box.querySelectorAll('.mdRow[data-n]');
+  if(rows.length !== moodDbgNames().length){ moodDbgRender(box); return; }
+  for(const row of rows){
+    const nm = row.dataset.n; const ln = moodLine(nm); const m = moodOf(nm);
+    const w = row.querySelector('.mdWord'); if(w){ w.textContent = ln.word; w.style.color = ln.tint; }
+    const l = row.querySelector('.mdLast'); if(l) l.textContent = ln.last || 'nothing yet';
+    for(const inp of row.querySelectorAll('input[type=range]')){
+      if(document.activeElement !== inp) inp.value = m[inp.dataset.k];
+      const v = inp.parentNode.querySelector('.mdVal'); if(v) v.textContent = m[inp.dataset.k];
+    }
+  }
+}
 function bz(){ return portFacts('gateway'); }
 function bzSet(patch){
   const b = bz();
@@ -14169,6 +14353,9 @@ function bzCrimeWitness(x, y, crime, op){
   const b = bz();
   if(!b || !b.active || b.at !== (state.portDock || ship.at)) return;
   const reach = crime.grade === 'minor' ? 340 : 700;   // a body dropping is seen from further than a lift
+  if(crime.grade === 'major') moodWitness(x, y, reach, {t: -1, f: 1, a: -1}, 'saw ' + crime.what, 'violence');
+  else if(crime.grade === 'defence') moodWitness(x, y, reach, {t: -0.5, f: 0.5, a: -0.5}, 'saw ' + crime.what, 'violence');
+  else if(crime.grade === 'minor') moodWitness(x, y, reach, {t: -0.5, a: -0.5}, 'saw ' + crime.what, 'violence');
   for(const cv of (state.civs || [])){
     if(cv.kind !== 'constable' || !cv.alive || cv.ko) continue;
     if(Math.hypot(cv.x - x, cv.y - y) > reach) continue;
@@ -14520,6 +14707,7 @@ function showNpcTip(cv, cx, cy){
   const cast = bzCastOf(cv.name) ||
     (cv.race ? {race: cv.race, sex: cv.sex, faction: cv.faction, bio: cv.bio} : {});
   const att = npcAttitude(cv);
+  const ml = (!cv.tide && cv.kind !== 'cutpurse' && cv.kind !== 'cleaner' && cv.kind !== 'porter' && bzCastOf(cv.name)) ? moodLine(cv.name) : null;
   const tint = cv.kind === 'constable' ? '#b06ae0' : cv.kind === 'trader' ? '#6fd6ff'
     : cv.kind === 'barkeep' ? '#9fe08e' : 'var(--brass)';
   tip.innerHTML =
@@ -14528,7 +14716,8 @@ function showNpcTip(cv, cx, cy){
     '<span>' + (cast.race ? cast.race + ' \u00B7 ' + cast.sex + ' \u00B7 ' : '') +
       (cast.faction || (cv.kind || '').toUpperCase()) + '</span>' +
     '<p>' + (cast.bio || '') + '</p>' +
-    '<i>DISPOSITION \u00B7 <em style="color:' + att.tint + '">' + att.word + '</em></i>';
+    '<i>DISPOSITION \u00B7 <em style="color:' + att.tint + '">' + att.word + '</em></i>' +
+    (ml ? '<i>FEELS \u00B7 <em style="color:' + ml.tint + '">' + ml.word + '</em>' + (ml.last ? ' \u00B7 ' + ml.last.toUpperCase() : '') + '</i>' : '');
   tip.style.left = (cx + 18) + 'px';
   tip.style.top = (cy - 10) + 'px';
   tip.style.display = 'block';
@@ -14741,6 +14930,12 @@ function portTalk(cv){
     }
     if(j && j.state === 'open'){
       return showEventModal('ERINA JONES', '\u201CThe hatch is on the freight side, by the east arch. Darts, not lead. Come back with it breathing.\u201D', close);
+    }
+    if(moodRefuses('Erina Jones')){
+      const em = moodOf('Erina Jones');
+      return showEventModal('ERINA JONES', em.f <= -2
+        ? '\u201CNot you. Not for money, not for anything.\u201D She does not come round the counter. \u201CI saw what you are. Get off my floor.\u201D'
+        : '\u201CNo.\u201D The word sits there. \u201CI do not deal with your kind of trouble, and I have stopped pretending I might.\u201D', close);
     }
     if(j && j.state === 'paid'){
       return showEventModal('ERINA JONES', '\u201CNothing on my ledger for you today. There will be. Things keep getting loose.\u201D', close);
@@ -14960,6 +15155,7 @@ function shipSave(){
       erinaJob: ship.erinaJob || null,
       charter: ship.charter || null,
       lockup: (ship.lockup || []).slice(), evidence: (ship.evidence || []).slice(),
+      moods: ship.moods || {},
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -14985,6 +15181,7 @@ function shipLoad(){
     ship.charter = (d.charter && typeof d.charter === 'object') ? d.charter : null;
     ship.lockup = Array.isArray(d.lockup) ? d.lockup : [];
     ship.evidence = Array.isArray(d.evidence) ? d.evidence : [];
+    ship.moods = (d.moods && typeof d.moods === 'object') ? d.moods : {};
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -15006,7 +15203,7 @@ function doShipReset(){
   ship.missions = {};
   ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null; state.quietUntil = 0; state.camTourUntil = 0; state._hatchRun = null; state._denRun = null;
   ship.charter = null; state.charterGround = false; state.charterZone = null; state.charterShow = false;
-  ship.lockup = []; ship.evidence = []; state.cellsOpen = {};
+  ship.lockup = []; ship.evidence = []; state.cellsOpen = {}; ship.moods = {};
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
