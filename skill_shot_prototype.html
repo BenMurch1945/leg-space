@@ -13747,7 +13747,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '29 Oct \u00B7 WHAT TARN WANTS';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '29 Oct \u00B7 CLOSING TIME';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14277,7 +14277,7 @@ function shiftTick(skip){
       const dr = nearestArch(hx, hy) || {x: hx, y: hy};
       const nc = castCivOf(p, skip ? hx : dr.x, skip ? hy : dr.y);
       if(!skip && !nc.routine) nc.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
-      if(skip && nc.routine){ const rt = ROUTINES[p.name]; let i = -1; for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= clockNow()) i = k; if(i >= 0){ nc.plan = planNew(rt, i); nc.plan.done = nc.plan.step !== 'evening'; } }
+      if(skip && nc.routine){ const rt = ROUTINES[p.name]; let i = -1; for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= clockNow()) i = k; if(i >= 0){ nc.plan = planNew(rt, i); nc.plan.done = nc.plan.step !== 'evening'; if(nc.plan.step === 'close' || nc.plan.step === 'evening') tarnDisplayIn(); } }
       state.civs.push(nc);
       if(!skip) addPopup(nc.x, nc.y - 20, p.name.toUpperCase() + ' \u00B7 ON', '#8a93b8');
     }else if(!duty && cv && cv.alive && !cv.ko && !castBusy(cv)){
@@ -14653,14 +14653,63 @@ function routineTick(cv, dt){
   }
   if(st.do === 'floor'){ p.done = true; return routineIdle(cv, p, sk, dt); }
   if(st.do === 'close'){
-    if(p.phase === 0){ if(routineGo(cv, anchorPt(sk, 'door_in'), dt)) p.phase = 1; return true; }
-    if(p.phase === 1){ if(routineGo(cv, anchorPt(sk, 'door_out'), dt)) p.phase = 2; return true; }
+    const shp = shopByKeeper(cv.name);
+    const inside = (state.squad || []).filter(c => c.alive && shopInside(sk, c));
+    // phase 0: the display back into the lockers, one shelf at a time, with a word for anyone still browsing
+    if(p.phase === 0){
+      if(inside.length && !p.warned){
+        p.warned = true;
+        civSay(cv, 'We are closed. Finish up and out, please.', 10);
+        addPopup(cv.x, cv.y - cv.r - 14, 'CLOSING \u00B7 OUT, PLEASE', '#e0a33e');
+      }
+      const shelves = SHOPS[sk].shelves;
+      let j = -1;
+      if(shp) for(let q = 0; q < shelves.length; q++){ const it = shp.stock[shelves[q] - (shp.base || 0)]; if(it && !it.gone){ j = q; break; } }
+      if(cv.carry){
+        if(routineGo(cv, anchorPt(sk, 'lockers'), dt)){ cv.carry = null; p.tidied = (p.tidied || 0) + 1; }
+        return true;
+      }
+      if(j < 0){ if(shp) shp.lockerSeen = shp.locker.length; p.phase = 1; return true; }
+      const pt = state.shelves[shelves[j]];
+      if(routineGo(cv, {x: pt.x + 18, y: pt.y + 18}, dt)){
+        const it = shp.stock[shelves[j] - (shp.base || 0)];
+        shp.stock[shelves[j] - (shp.base || 0)] = null;
+        shp.locker.push(it);
+        cv.carry = 'CRATE';
+      }
+      return true;
+    }
+    // phase 1: to the door; phase 2: a last look round, an order, a minute's grace, then the law if they will not go
+    if(p.phase === 1){ if(routineGo(cv, anchorPt(sk, 'door_in'), dt)) p.phase = 2; return true; }
     if(p.phase === 2){
-      const n = tarnDisplayIn();
+      if(inside.length){
+        if(!p.ordered){
+          p.ordered = true; p.grace = 30;
+          civSay(cv, 'Out. Now. I lock this door in a minute, with or without you, and then I fetch a badge.', 12);
+          addPopup(cv.x, cv.y - cv.r - 14, 'OUT. NOW.', '#e0483e');
+          moodPush(cv.name, {t: -0.5, f: -0.5}, 'had to order ' + inside[0].name + ' out at closing', 'trade');
+          return true;
+        }
+        p.grace -= dt;
+        if(p.grace > 0) return true;
+        if(!p.reported){
+          p.reported = true;
+          const who = inside[0];
+          civSay(cv, 'Right. The law can have you, ' + who.name + '.', 10);
+          moodPush(cv.name, {t: -1, f: -1}, who.name + ' would not leave his shop at closing', 'trade');
+          chronicle('event', cv.name + ' told ' + who.name + ' twice to leave at closing and went for a badge the third time.');
+          witnessRun(cv, {who: who.name, grade: 'minor', what: 'refusing to leave Tarn\u2019s Arms after hours'});
+          return true;   // the law errand runs him there and back; the plan waits at phase 2 and locks up on his return
+        }
+      }
+      p.phase = 3; return true;
+    }
+    if(p.phase === 3){ if(routineGo(cv, anchorPt(sk, 'door_out'), dt)) p.phase = 4; return true; }
+    if(p.phase === 4){
       shopLock(sk, true);
       addPopup(cv.x, cv.y - cv.r - 14, 'CLOSED', '#8a93b8');
-      chronicle('event', cv.name + ' put ' + n + ' pieces back in the locker and locked up at ' + clockHHMM() + '.');
-      p.phase = 3; p.done = true;
+      chronicle('event', cv.name + ' put ' + (p.tidied || 0) + ' pieces back in the locker and locked up at ' + clockHHMM() + (inside.length ? ', with ' + inside[0].name + ' still inside.' : '.'));
+      p.phase = 5; p.done = true;
     }
     return true;
   }
@@ -14831,6 +14880,7 @@ function tarnPeople(cv, p, sk, dt){
       if(t >= when && !p['said_' + k + '_' + c.name]){
         p['said_' + k + '_' + c.name] = true;
         addPopup(cv.x, cv.y - cv.r - 14, text, k === 'out' ? '#e0483e' : k === 'eye' ? '#e0a33e' : '#8a93b8');
+        civSay(cv, k === 'ask' ? 'Looking for something, ' + c.name + '? Everything on the shelf works.' : k === 'eye' ? 'I have got my eye on you. Buy or browse somewhere else.' : 'Out. Now. I will not say it twice.', 10);
         if(delta) moodPush('Tarn', delta, what, 'trade');
         if(k !== 'ask') p.to = {x: c.x + 40, y: c.y};   // he comes over
         return true;
@@ -14840,11 +14890,29 @@ function tarnPeople(cv, p, sk, dt){
     sayAt('ask', 45, 'LOOKING FOR SOMETHING, ' + c.name.toUpperCase() + '?', null, null);
     sayAt('eye', 100, 'I HAVE MY EYE ON YOU', {t: -0.5, f: -0.3}, 'watched ' + c.name + ' hang about his shop');
     if(sayAt('out', 160, 'OUT. NOW.', {t: -0.5, f: -0.8}, 'told ' + c.name + ' to get out')) chronicle('event', 'Tarn told ' + c.name + ' to get out of his shop. He did not raise his voice; he did not need to.');
-    if(t > 220 && (!p.outAgainT || t - p.outAgainT > 60)){ p.outAgainT = t; addPopup(cv.x, cv.y - cv.r - 14, 'I SAID OUT.', '#e0483e'); moodPush('Tarn', {f: -0.4}, c.name + ' would not leave', 'trade'); }
+    if(t > 220 && (!p.outAgainT || t - p.outAgainT > 60)){ p.outAgainT = t; addPopup(cv.x, cv.y - cv.r - 14, 'I SAID OUT.', '#e0483e'); civSay(cv, 'I said out, ' + c.name + '. Do not make me come round the counter.', 10); moodPush('Tarn', {f: -0.4}, c.name + ' would not leave', 'trade'); }
   }
   return false;
 }
 // a purchase buys a welcome: the loiter clock starts again
+// the fence at work: a marked piece goes into his locker with a new name on it, and the crew gets forty-five on the hundred
+function tarnFenceSell(c, it){
+  const d = c && c.def; if(!d) return false;
+  const i = (d.pack || []).indexOf(it); if(i < 0) return false;
+  const sh = shopByKeeper('Tarn'); if(!sh) return false;
+  d.pack.splice(i, 1);
+  const paid = Math.round((WPN_PRICE[it.key] || 60) * 0.45);
+  ship.credits += paid;
+  const clean = Object.assign({}, it, {own: 'Tarn \u00B7 shop stock', ownFac: null, hot: true, gone: false, price: Math.round((WPN_PRICE[it.key] || 60) * 0.8)});
+  sh.locker.push(clean); sh.lockerSeen = (sh.lockerSeen || 0) + 1;
+  lifeNote('Tarn', 'bought a marked ' + (WPN_NAMES[it.key] || it.key) + ' off ' + c.name + ' and filed the name off it');
+  moodPush('Tarn', {t: 0.4, j: 0.3}, 'did business with ' + c.name + ' that nobody will write down', 'trade');
+  addPopup(c.x, c.y - c.r - 16, '+' + paid + ' CR \u00B7 NO QUESTIONS', '#d4a843');
+  chronicle('trade', c.name + ' sold a marked ' + (WPN_NAMES[it.key] || it.key) + ' to Tarn for ' + paid + ' CR. By morning it will have his name on the tag.');
+  shipCreditsRefresh && shipCreditsRefresh();
+  shipSave();
+  return true;
+}
 function tarnBoughtReset(name){ const cv = (state.civs || []).find(c => c.name === 'Tarn'); if(cv && cv.plan && cv.plan.loiter){ cv.plan.loiter[name] = 0; for(const k of Object.keys(cv.plan)) if(k.indexOf('said_') === 0 && k.endsWith('_' + name)) delete cv.plan[k]; } }
 // the floor: walk the front room, stop and look, now and then a stint at the workbench
 function routineIdle(cv, p, sk, dt){
@@ -16034,6 +16102,28 @@ function portTalk(cv){
   if(cv.kind === 'courier'){
     return showEventModal('SABLE', '\u201CI carry things. Sometimes words. None of them are for you.\u201D', close);
   }
+  if(cv.name === 'Tarn' && !(cv.plan && (cv.plan.step === 'stock' || cv.plan.bench > 0 || cv.plan.step === 'open' || cv.plan.step === 'close'))){
+    const shT = shopByKeeper('Tarn');
+    const hot = shT && (shT.locker.some(it => it.hot) || shT.stock.some(it => it && !it.gone && it.hot));
+    const knows = (state.sawDeal && state.sawDeal.who === 'Tarn') || hot;
+    if(knows && roleOf('Tarn') !== 'lockup' && !(cv.plan && cv.plan.askedCrate)){
+      const m = moodOf('Tarn');
+      const c0 = pc();
+      const marked = c0 ? contrabandOfOp(c0.name).stolen.filter(it => it.kind === 'weapon' && !/Tarn/.test(it.own || '')) : [];
+      const sellBtns = marked.slice(0, 3).map((it, i) => ({label: 'SELL ' + (WPN_NAMES[it.key] || it.key).toUpperCase() + ' \u00B7 ' + Math.round((WPN_PRICE[it.key] || 60) * 0.45) + ' CR', cb: () => tarnFenceSell(c0, it)}));
+      return showEventModal('TARN', m.t >= 0.5
+        ? '\u201CYou saw that, did you.\u201D He does not deny it. \u201CA man has to eat, and the Cross does not buy enough honest iron. If you have pieces with other people\u2019s names on them, I can make the names go away. Forty-five on the hundred. Nobody else is offering.\u201D'
+        : m.t <= -1
+          ? '\u201CI do not know what you think you saw.\u201D The hand goes below the counter. \u201CAnd I would stop thinking it.\u201D'
+          : '\u201CWhatever you saw at the Beacon, you did not see it here.\u201D A long look. \u201CBuy something or go.\u201D',
+        (m.t >= 0.5 ? sellBtns : []).concat([{label: 'ABOUT THAT CRATE', cb: () => {
+          if(cv.plan) cv.plan.askedCrate = true;
+          moodPush('Tarn', m.t >= 0.5 ? {a: 0.3} : {f: -0.6, t: -0.3}, m.t >= 0.5 ? 'was asked about the crate by someone he trusts' : 'was asked about the crate', 'trade');
+          showEventModal('TARN', m.t >= 0.5 ? '\u201CHask\u2019s people. A crate a week, no questions, and for once this shop pays for itself. If the Constabulary ask, you never met me.\u201D'
+            : '\u201CThere was no crate.\u201D He says it the way a man closes a door.', close);
+        }}, {label: 'LEAVE IT', cb: () => {}}]));
+    }
+  }
   if(cv.name === 'Tarn'){
     const tp = cv.plan || {};
     const busy = tp.step === 'stock' || tp.bench > 0 || tp.step === 'open' || tp.step === 'close';
@@ -16476,6 +16566,15 @@ function pairTalk(){
   return (a && b) ? PAIR_TALK[pairKey(a, b)] : null;
 }
 
+// (Ben, 29 Oct) signposting: a line over a face stays on the glass long enough to notice and read
+function civSay(cv, txt, life){
+  if(!cv || !cv.alive) return false;
+  if(!cv.color) cv.color = cv.kind === 'constable' ? '#b06ae0' : '#d4a843';
+  if(!state.barks) state.barks = [];
+  state.barks = state.barks.filter(bk => bk.c !== cv);
+  state.barks.push({c: cv, txt, t: 0, life: life || 9});
+  return true;
+}
 function bark(c, trigger, force){
   if(!c || !c.alive || !c.stats) return;
   const lines = (BARKS[c.kind] || {})[trigger];
