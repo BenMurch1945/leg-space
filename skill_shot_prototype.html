@@ -3232,7 +3232,7 @@ function cellOpen(n, how){
   if(!state.cellsOpen) state.cellsOpen = {};
   if(state.cellsOpen[n]) return false;
   state.cellsOpen[n] = true;
-  if((state.walls || []).some(w => w.cell === n)){ state.walls = state.walls.filter(w => w.cell !== n); cnavDirty(); }
+  if((state.walls || []).some(w => w.cell === n)){ state.walls = state.walls.filter(w => w.cell !== n); cnavDirty(); state.moveGraph = null; }
   const p = cellCentre(n);
   addPopup(p.x, p.y + 60, 'CELL ' + n + ' OPEN', '#9fe08e');
   const sgt = sergeantLive();
@@ -10971,7 +10971,7 @@ function denDoorWalls(){ return (state.walls || []).filter(w => w.den === 'whyme
 function denOpen(how){
   const dn = denFacts(); if(!dn || dn.done) return false;
   if(!dn.open){ dn.open = true; dn.how = how; bzSet({den: dn}); }
-  if(denDoorWalls().length){ state.walls = state.walls.filter(w => w.den !== 'whyme'); cnavDirty(); }
+  if(denDoorWalls().length){ state.walls = state.walls.filter(w => w.den !== 'whyme'); cnavDirty(); state.moveGraph = null; }
   const line = {alarm: 'The lookout went through the door on Tallow Street at a run and left it open behind him. Whoever is inside knows you are coming.',
     bought: 'Roak took the money, looked at nothing in particular, and the door on Tallow Street stood open.',
     key: 'The key from the lookout turned in the door on Tallow Street.',
@@ -14195,8 +14195,9 @@ const SHOPS = {
   tarn: {keeper: 'Tarn', lock: 'tarn', shelves: [4, 5, 6, 7],
     anchors: {door_out: {x: 0.19, y: 0.278}, door_in: {x: 0.19, y: 0.238}, counter: {x: 0.18, y: 0.14}, bench: {x: 0.105, y: 0.128},
       lockers: {x: 0.108, y: 0.215}, workshop: {x: 0.112, y: 0.14}, store: {x: 0.115, y: 0.215}},
-    front: {x0: 0.15, y0: 0.13, x1: 0.23, y1: 0.245}},
+    front: {x0: 0.15, y0: 0.13, x1: 0.23, y1: 0.245}, rect: {x0: 0.08, y0: 0.09, x1: 0.24, y1: 0.26}},
 };
+function shopInside(key, cv){ const r = SHOPS[key].rect; return !!cv && cv.x > r.x0 * W && cv.x < r.x1 * W && cv.y > r.y0 * H && cv.y < r.y1 * H; }
 const ROUTINES = {
   Tarn: {shop: 'tarn', day: [
     {at: 8 * 60, do: 'open'},
@@ -14219,6 +14220,7 @@ function shopLock(key, locked){
     state.walls.push(w);
   }else state.walls = state.walls.filter(w => w.lock !== key);
   cnavDirty();
+  state.moveGraph = null;   // the crew's own paths were planned around the old door
   return true;
 }
 // which step of the day a routine is on, by the clock
@@ -14235,7 +14237,9 @@ function shopDoorsAtArrival(){
     const rt = ROUTINES[sh.keeper];
     const dead = (bz() && bz().deadCast || []).includes(sh.keeper);
     const st = rt && !dead ? routineStepNow(rt) : null;
-    const open = !!st && ['stock', 'floor'].includes(st.do);
+    const cv = (state.civs || []).find(c => c.name === sh.keeper && c.alive && !c.gone);
+    // open only when the keeper is in and past the walk to the door: a keeper still coming up the street finds it locked
+    const open = !!st && ['open', 'stock', 'floor'].includes(st.do) && !!cv && (shopInside(key, cv) || (cv.plan && cv.plan.idx > 0) || (cv.plan && cv.plan.step === 'open' && cv.plan.phase >= 2));
     shopLock(key, !open);
   }
 }
@@ -14249,17 +14253,19 @@ function planNew(rt, idx){ const st = rt.day[idx]; return {idx, step: st.do, at:
 function routineTick(cv, dt){
   const rt = ROUTINES[cv.routine]; if(!rt) return false;
   const now = clockNow();
+  const sk = rt.shop;
   if(!cv.plan || cv.plan.idx == null){
     let i = -1;
     for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= now) i = k;
     if(i < 0) return false;
     cv.plan = planNew(rt, i);
     if(cv.plan.step === 'floor' || cv.plan.step === 'close') cv.plan.done = cv.plan.step === 'floor';
+    // placed inside at the start of a floor (a new game at eight, a load): the door is already open
+    if(cv.plan.step === 'open' && shopInside(sk, cv)){ cv.plan.done = true; shopLock(sk, false); }
   }
   let p = cv.plan;
   if(p.done && p.idx + 1 < rt.day.length && rt.day[p.idx + 1].at <= now) p = cv.plan = planNew(rt, p.idx + 1);
   const st = rt.day[p.idx];
-  const sk = rt.shop;
   p.t += dt;
   if(p.done) return routineIdle(cv, p, sk, dt);
   if(st.do === 'open'){
@@ -20176,9 +20182,9 @@ const CROSS_PORT = {
     {x: 0.529, y: 0.3227, w: 0.030, h: 0.0220},
     {x: 0.591, y: 0.4201, w: 0.030, h: 0.0220},
     // the north-west stalls
-    {x: 0.170, y: 0.2800, w: 0.040, h: 0.0250},
-    {x: 0.230, y: 0.3100, w: 0.035, h: 0.0220},
-    {x: 0.190, y: 0.3500, w: 0.030, h: 0.0200},
+    {x: 0.140, y: 0.3150, w: 0.040, h: 0.0250},   // the stalls, moved off Tarn's doorstep (29 Oct)
+    {x: 0.235, y: 0.3400, w: 0.035, h: 0.0220},
+    {x: 0.190, y: 0.3750, w: 0.030, h: 0.0200},
     // the food stalls
     {x: 0.680, y: 0.4500, w: 0.045, h: 0.0300},
     {x: 0.740, y: 0.4600, w: 0.040, h: 0.0300},
@@ -20224,7 +20230,7 @@ const CROSS_PORT = {
     {x: 0.56, y: 0.50, kind: 'bench', label: ''},
     {x: 0.50, y: 0.41, kind: 'bench', label: ''},
     {x: 0.50, y: 0.60, kind: 'bench', label: ''},
-    {x: 0.21, y: 0.33, kind: 'shop', label: 'STALLS'},
+    {x: 0.20, y: 0.35, kind: 'shop', label: 'STALLS'},
     {x: 0.16, y: 0.105, kind: 'shop', label: 'TARN\u2019S ARMS'},
     {x: 0.865, y: 0.335, kind: 'shop', label: 'THE SHIPPERS'},
   ],
@@ -20234,7 +20240,7 @@ const CROSS_PORT = {
   anchors: [
     {x: 0.36, y: 0.17, tags: ['counter', 'bar']},
     {x: 0.19, y: 0.19, tags: ['shop', 'gunsmith']},
-    {x: 0.21, y: 0.33, tags: ['stall', 'market']},
+    {x: 0.20, y: 0.35, tags: ['stall', 'market']},
     {x: 0.72, y: 0.49, tags: ['stall', 'food']},
     {x: 0.10, y: 0.86, tags: ['corner', 'quiet']},
     {x: 0.90, y: 0.30, tags: ['corner', 'quiet']},
