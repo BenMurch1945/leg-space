@@ -1284,7 +1284,7 @@
       <span id="shipName">THE ORRIX · INDEPENDENT REGISTRY</span>
       <span class="bnStat">CREW <b id="bnCrew">-</b></span>
       <span class="bnStat"><b id="shipCredits">0</b> CR</span>
-      <span class="bnStat">DAY <b id="bnDay">0</b></span>
+      <span class="bnStat">DAY <b id="bnDay">0</b> · <b id="bnClock">08:00</b></span>
       <span id="bnJournal">journal</span>
       <span id="bnMoods" title="debug: how the named faces feel about the crew">moods</span>
       <span id="bnLog">ship's log</span>
@@ -2958,15 +2958,10 @@ function enterPort(distId, opts){
     for(const p of portCast()){
       if((p.district || 'lanes') !== (ship.district || 'lanes')) continue;   // a face belongs to one floor
       if((bzf.deadCast || []).includes(p.name)) continue;
+      if(!onDuty(p.name)) continue;   // off shift: not on this floor until the clock says so
       const cx = placed[p.name] ? placed[p.name].x : p.x * W;
       const cy = placed[p.name] ? placed[p.name].y : p.y * H;
-      state.civs.push({
-        x: cx, y: cy, r: 9, alive: true, ko: false,
-        panic: 0, tx: cx, ty: cy, pace: 20 + Math.random() * 10,
-        bob: Math.random() * 6, hood: p.kind === 'worker',
-        kind: p.kind, name: p.name, home: {x: cx, y: cy}, homeR: p.homeR,
-        fac: p.fac || null, brave: p.brave || 10,
-      });
+      state.civs.push(castCivOf(p, cx, cy));
     }
     if(bzf.crateHolder === 'june' && situationLive('crate') && (ship.district || 'lanes') === 'lanes'){
       const cp = placed.crate || {x: 0.262 * W, y: 0.812 * H};
@@ -4538,6 +4533,8 @@ function deckDown(p){
   if(state.portDock && !state.deckCombat && !unitAtPoint(state.squad, p.x, p.y, 22)){
     const drC = (state.doors || []).find(d => d.label && Math.hypot(d.x - p.x, d.y - p.y) < 36);
     if(drC){ doorInspect(drC); return; }
+    const bn = (state.spots || []).find(s2 => s2.kind === 'bench' && Math.hypot(s2.x - p.x, s2.y - p.y) < 40);
+    if(bn){ benchInspect(bn); return; }
   }
   // a named face on the concourse: near enough, talk; too far, walk over first
   const ncv = (state.civs || []).find(v => v.name && v.alive && !v.ko &&
@@ -6289,6 +6286,7 @@ function shipCreditsRefresh(){
   if(cw) cw.textContent = livingRoster().length + '/' + ship.slotsMax;
   const dy = document.getElementById('bnDay');
   if(dy) dy.textContent = String(ship.day);
+  clockHudRefresh();
 }
 function shipShowPane(id){
   document.querySelectorAll('.shippane').forEach(p => p.style.display = p.id === id ? 'block' : 'none');
@@ -9665,7 +9663,7 @@ function crowdTick(dt){
   // the departed leave the ledger
   state.civs = state.civs.filter(cv => !cv.gone);
   const n = state.civs.filter(cv => cv.tide && cv.alive).length;
-  const cap = Math.min(state.crowdTarget, 60);
+  const cap = Math.min(Math.round(state.crowdTarget * crowdMul()), 60);
   { const arches1 = state.doors.filter(d => !d.den && !d.noCrowd); if(n < cap && arches1.length) crowdSpawn(arches1[Math.floor(Math.random() * arches1.length)]); }
 }
 // ---- the tide's own sins: the world commits crimes without you ----
@@ -12737,7 +12735,7 @@ function tickProps(dt){
       if(!state.crimeT) state.crimeT = performance.now() + 15000 + Math.random() * 20000;
       if(performance.now() > state.crimeT && !state.deckCombat && !state.respT && situationLive('lightfingers') && !pingsQuiet() &&
          !(state.civs || []).some(cv => cv.crook)){
-        state.crimeT = performance.now() + 30000 + Math.random() * 30000;
+        state.crimeT = performance.now() + (clockIsNight() ? 0.6 : 1) * (30000 + Math.random() * 30000);   // the dark is a cutpurse's hour
         const pC = crimeStage();
         if(pC) crimeAnnounce(pC);
         quietFor(SIT_GAP_MS);
@@ -13419,6 +13417,7 @@ function shopBuy(i, cName){
   const sh = shopOf(), it = shelfItem(i);
   if(!sh || !it || sh.keeperDead) return false;
   if(facRepOf('tradersguild') <= -2) return false;   // guild paper: nobody trades
+  if(!onDuty(sh.keeper)) return false;   // shut: the shelf is behind glass until the hours say otherwise
   if(sh.keeper && moodRefuses(sh.keeper)){ const kp = shopKeeperCiv(); if(kp) addPopup(kp.x, kp.y - kp.r - 14, 'NOT TO YOU', '#e0483e'); return false; }
   const c = (state.squad || []).find(c2 => c2.alive && c2.name === (cName || (pc() && pc().name)));
   if(!c || !c.def) return false;
@@ -13441,6 +13440,7 @@ function shopSend(i){
   if(!sh || !it || sh.keeperDead) return false;
   if(facRepOf('tradersguild') <= -2) return false;
   if(!state.portDock || !state.shipZone) return false;
+  if(!onDuty(sh.keeper)) return false;
   if(sh.keeper && moodRefuses(sh.keeper)) return false;
   const price = shelfPrice(it);
   if(ship.credits < price) return false;
@@ -13639,7 +13639,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '27 Oct \u00B7 WORD GOES ROUND';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '29 Oct \u00B7 THE CLOCK';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14038,6 +14038,155 @@ function moodDbgRefresh(box){
       const v = inp.parentNode.querySelector('.mdVal'); if(v) v.textContent = m[inp.dataset.k];
     }
   }
+}
+// ---- the clock (Ben, 29 Oct): a port day is fifteen real minutes; night is a different place ----
+const DAY_MIN = 1440, DAY_REAL_S = 900;
+const CLOCK_RATE = DAY_MIN / DAY_REAL_S;   // game minutes per real second
+const CLOCK_START = 8 * 60;
+function clockNow(){ return ship.clock == null ? CLOCK_START : ship.clock; }
+function clockHour(){ return clockNow() / 60; }
+function clockHHMM(mins){ const m = ((mins == null ? clockNow() : mins) % DAY_MIN + DAY_MIN) % DAY_MIN; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(Math.floor(m % 60)).padStart(2, '0'); }
+function clockIsNight(h){ h = h == null ? clockHour() : h; return h >= 21 || h < 5; }
+// how dark: 0 by day, 1 deep night, with dusk and dawn between
+function nightAmount(h){
+  h = h == null ? clockHour() : h;
+  if(h >= 7 && h < 19) return 0;
+  if(h >= 19 && h < 21.5) return (h - 19) / 2.5;
+  if(h >= 5 && h < 7) return 1 - (h - 5) / 2;
+  return 1;
+}
+function crowdMul(h){
+  h = h == null ? clockHour() : h;
+  if(h < 5) return 0.25;
+  if(h < 7) return 0.5;
+  if(h < 19) return 1;
+  if(h < 23) return 0.8;
+  return 0.4;
+}
+// who keeps what hours: [open, close], close past 24 runs into the small hours; absent = always about
+const CAST_HOURS = {
+  'Erina Jones': [8, 20], 'Hesper Dunmore': [7, 19], 'Kestrel': [8, 20], 'Varric': [7, 21],
+  'Fenn': [16, 28], 'Hask': [12, 27],
+  'Marek': [6, 18], 'Sulla': [14, 26], 'Dren': [6, 18], 'Vask': [14, 26],
+};
+function onDuty(name, h){
+  const hr = CAST_HOURS[name]; if(!hr) return true;
+  h = h == null ? clockHour() : h;
+  const [o, c] = hr;
+  if(c <= 24) return h >= o && h < c;
+  return h >= o || h < c - 24;   // a shift that crosses midnight
+}
+function hoursLabel(name){ const hr = CAST_HOURS[name]; return hr ? clockHHMM(hr[0] * 60) + ' to ' + clockHHMM((hr[1] % 24) * 60) : 'all hours'; }
+function dayRolled(){
+  ship.day = (ship.day || 0) + 1;
+  rumourSpread();
+  chronicle('event', 'Midnight on the Cross. Day ' + ship.day + '.');
+  shipSave();
+  const dy = document.getElementById('bnDay'); if(dy) dy.textContent = String(ship.day);
+}
+// one game minute passes: the day may roll, the shifts may change
+function clockMinute(skip){
+  ship.clock = clockNow() + 1;
+  if(ship.clock >= DAY_MIN){ ship.clock -= DAY_MIN; dayRolled(); }
+  if(state.portDock) shiftTick(skip);
+}
+function clockTick(realDt){
+  if(!state.portDock || state.deckCombat || !ship || ship.clockHold) return;   // clockHold: the harness and the designer can stop the hours
+  ship._clockAcc = (ship._clockAcc || 0) + realDt * CLOCK_RATE;
+  let guard = 0;
+  while(ship._clockAcc >= 1 && guard++ < 10){ ship._clockAcc -= 1; clockMinute(false); clockHudRefresh(); }
+}
+function clockHudRefresh(){
+  const el = (typeof document.getElementById === 'function') && document.getElementById('bnClock');
+  if(el) el.textContent = clockHHMM();
+}
+// the wait: minutes pass at once; the floor catches up (arrivals stand at their posts, leavers are gone)
+function clockSkip(mins){
+  const from = clockHHMM();
+  for(let i = 0; i < mins; i++) clockMinute(true);
+  clockHudRefresh();
+  quietFor(SIT_GAP_MS);
+  showBanner('WAITED \u00B7 ' + from + ' TO ' + clockHHMM(), '#d4a843');
+  chronicle('event', 'The crew sat on a bench from ' + from + ' until ' + clockHHMM() + ' and let the Cross go by.');
+  return clockNow();
+}
+function minutesUntil(hour){ const t = hour * 60; const n = clockNow(); return t > n ? t - n : t + DAY_MIN - n; }
+function benchInspect(sp){
+  const crew = (state.squad || []).filter(c => c.alive && !c.downed && !c.ko && !c.marched);
+  const near = crew.filter(c => Math.hypot(c.x - sp.x, c.y - sp.y) < DOOR_NEAR);
+  if(near.length !== crew.length){
+    const c0 = pc();
+    if(!c0) return {walked: false};
+    state.movePreview = computeMovePreview(sp.x, sp.y + 36);
+    if(state.movePreview && state.movePreview.valid){ commitMove(); squadFollow(sp.x, sp.y + 36); }
+    else addPopup(sp.x, sp.y - 24, 'NO PATH', '#e0a33e');
+    return {walked: true};
+  }
+  const opt = (label, h) => ({label: label + ' \u00B7 ' + clockHHMM(h * 60), cb: () => clockSkip(minutesUntil(h))});
+  showEventModal('WAIT HERE?', 'The bench is cold and the Cross keeps moving. Sit a while and let the hours pass; whatever is coming will come.',
+    [{label: 'AN HOUR', cb: () => clockSkip(60)}, opt('UNTIL MORNING', 6), opt('UNTIL EVENING', 18), opt('UNTIL MIDNIGHT', 0), {label: 'NOT NOW', cb: () => {}}],
+    {sub: (sp.label || 'A BENCH') + ' \u00B7 ' + clockHHMM()});
+  return {asked: true};
+}
+// shifts: the named cast arrive for their hours through the nearest arch and leave by it when they are done
+function castCivOf(p, cx, cy){
+  return {
+    x: cx, y: cy, r: 9, alive: true, ko: false,
+    panic: 0, tx: cx, ty: cy, pace: 20 + Math.random() * 10,
+    bob: Math.random() * 6, hood: p.kind === 'worker',
+    kind: p.kind, name: p.name, home: {x: p.x * W, y: p.y * H}, homeR: p.homeR,
+    fac: p.fac || null, brave: p.brave || 10,
+  };
+}
+function castBusy(cv){ return !!(cv.chase || cv.respond || cv.hunt || cv.lead || cv.collar || cv.arrest || cv.escort || cv.sweep || cv.scene || cv.attend || cv.held); }
+function shiftTick(skip){
+  const bzf = bz();
+  if(!bzf || !bzf.active || bzf.at !== ship.at) return;
+  const dead = bzf.deadCast || [];
+  for(const p of portCast()){
+    if(!CAST_HOURS[p.name]) continue;
+    if((p.district || 'lanes') !== (ship.district || 'lanes')) continue;
+    if(dead.includes(p.name)) continue;
+    const cv = (state.civs || []).find(c => c.name === p.name && !c.gone);
+    const duty = onDuty(p.name);
+    if(duty && !cv){
+      const hx = p.x * W, hy = p.y * H;
+      const dr = nearestArch(hx, hy) || {x: hx, y: hy};
+      const nc = castCivOf(p, skip ? hx : dr.x, skip ? hy : dr.y);
+      if(!skip) nc.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
+      state.civs.push(nc);
+      if(!skip) addPopup(nc.x, nc.y - 20, p.name.toUpperCase() + ' \u00B7 ON', '#8a93b8');
+    }else if(!duty && cv && cv.alive && !cv.ko && !castBusy(cv)){
+      if(skip){ cv.gone = true; }
+      else if(!(cv.errand && cv.errand.kind === 'slink')){
+        cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
+        addPopup(cv.x, cv.y - cv.r - 14, 'CLOSING UP', '#8a93b8');
+      }
+    }
+  }
+  if(skip) state.civs = (state.civs || []).filter(c => !c.gone);
+}
+function shopOpenNow(){ const sh = shopOf(); return !!(sh && !sh.keeperDead && onDuty(sh.keeper)); }
+// night on the floor: a blue wash that deepens with the hour, warm light spilling from the venues and the arches
+function drawNight(){
+  if(!state.portDock) return;
+  const a = nightAmount();
+  if(a <= 0) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(6,8,26,' + (0.4 * a).toFixed(3) + ')';
+  ctx.fillRect(-W, -H, W * 3, H * 3);
+  ctx.globalCompositeOperation = 'lighter';
+  const lamps = [];
+  for(const sp of (state.spots || [])) if(sp.kind !== 'bench') lamps.push({x: sp.x, y: sp.y, r: sp.kind === 'bar' ? 360 : 260, warm: sp.kind === 'bar' || sp.kind === 'food'});
+  for(const dr of (state.doors || [])) if(!dr.den) lamps.push({x: dr.x, y: dr.y, r: 200, warm: false});
+  for(const l of lamps){
+    const g = ctx.createRadialGradient(l.x, l.y, 10, l.x, l.y, l.r);
+    g.addColorStop(0, (l.warm ? 'rgba(255,190,90,' : 'rgba(160,190,255,') + (0.28 * a).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
 }
 function bz(){ return portFacts('gateway'); }
 function bzSet(patch){
@@ -14709,6 +14858,9 @@ function eqCardOpen(i){
   }else if(guildOut){
     btns = '<div class="eqNoTrade">THE GUILD DOES NOT TRADE WITH THIS CREW</div>' +
       btn('steal', 'STEAL', !packFull, packFull ? 'Pack is full' : '');
+  }else if(!onDuty(sh.keeper)){
+    btns = '<div class="eqNoTrade">CLOSED \u00B7 ' + String(sh.keeper).toUpperCase() + ' KEEPS ' + hoursLabel(sh.keeper).toUpperCase() + '</div>' +
+      btn('steal', 'STEAL \u00B7 NOBODY IS WATCHING', !packFull, packFull ? 'Pack is full' : '');
   }else if(refuses){
     btns = '<div class="eqNoTrade">' + String(sh.keeper).toUpperCase() + ' WILL NOT SELL TO THIS CREW</div>' +
       btn('steal', 'STEAL', !packFull, packFull ? 'Pack is full' : '');
@@ -15284,7 +15436,7 @@ function shipSave(){
       erinaJob: ship.erinaJob || null,
       charter: ship.charter || null,
       lockup: (ship.lockup || []).slice(), evidence: (ship.evidence || []).slice(),
-      moods: ship.moods || {},
+      moods: ship.moods || {}, clock: clockNow(),
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -15311,6 +15463,7 @@ function shipLoad(){
     ship.lockup = Array.isArray(d.lockup) ? d.lockup : [];
     ship.evidence = Array.isArray(d.evidence) ? d.evidence : [];
     ship.moods = (d.moods && typeof d.moods === 'object') ? d.moods : {};
+    ship.clock = typeof d.clock === 'number' ? d.clock : CLOCK_START;
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -15332,7 +15485,7 @@ function doShipReset(){
   ship.missions = {};
   ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null; state.quietUntil = 0; state.camTourUntil = 0; state._hatchRun = null; state._denRun = null;
   ship.charter = null; state.charterGround = false; state.charterZone = null; state.charterShow = false;
-  ship.lockup = []; ship.evidence = []; state.cellsOpen = {}; ship.moods = {};
+  ship.lockup = []; ship.evidence = []; state.cellsOpen = {}; ship.moods = {}; ship.clock = CLOCK_START; ship._clockAcc = 0;
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
@@ -17124,7 +17277,7 @@ function frame(now){
   if(state && state.shipDeck && state.squad) deckSeparate();
   camGlideTick(); spotlightTick();
   if(state && state.squad && !editorOn && ((state._stripT || 0) + 400 < performance.now())){ state._stripT = performance.now(); nextStripTick(); }
-  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ waTick(realDt); houndTick(realDt); lawTick(realDt); }
+  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ clockTick(realDt); waTick(realDt); houndTick(realDt); lawTick(realDt); }
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();
   if(state && state.squad && !editorOn){
@@ -18501,6 +18654,7 @@ function draw(){
 
   // the fog itself, then ghosts of enemies at their last seen positions
   drawFog();
+  drawNight();
   drawWaypoints();
 
   // an armed mode announces itself: a wash over the world and quiet instructions
