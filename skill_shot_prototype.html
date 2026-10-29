@@ -3057,6 +3057,7 @@ function enterPort(distId, opts){
     }
   }
   if(ship.district === 'station') stationArrive();
+  shopDoorsAtArrival();
   refreshDropBtn();
   updateOrbitStatus();
   if(typeof camReset === 'function') camReset();
@@ -4510,8 +4511,8 @@ function deckDown(p){
       let si = -1;
       state.shelves.forEach((pt, i2) => {
         if(si >= 0) return;
-        const it2 = sh0.stock[i2];
-        if(it2 && !it2.gone && Math.hypot(pt.x - p.x, pt.y - p.y) < 20) si = i2;
+        const it2 = shelfItem(i2);
+        if(it2 && Math.hypot(pt.x - p.x, pt.y - p.y) < 20) si = i2;
       });
       if(si >= 0 && !unitAtPoint(state.squad, p.x, p.y, 22)){
         const c0 = pc();
@@ -4641,6 +4642,7 @@ function layout(){
     high: !!w.high,
     den: w.den || undefined,   // a door that is a wall until it is opened
     cell: w.cell || undefined, // a cell door: a wall until the console opens it
+    lock: w.lock || undefined, // a shop door: a wall until the keeper unlocks it
   }));
   for(const w of s.walls) buildChunks(w);
   // strongboxes the level puts down: floor loot with a lid
@@ -7693,11 +7695,10 @@ function onMove(e){
     let si9 = -1;
     if(!u && !nc && state.shipDeck && !state.deckCombat && state.portDock &&
        state.shelves && state.shelves.length && shopOf()){
-      const sh9 = shopOf();
       state.shelves.forEach((pt, i3) => {
         if(si9 >= 0) return;
-        const it3 = sh9.stock[i3];
-        if(it3 && !it3.gone && Math.hypot(pt.x - hp2.x, pt.y - hp2.y) < 16) si9 = i3;
+        const it3 = shelfItem(i3);
+        if(it3 && Math.hypot(pt.x - hp2.x, pt.y - hp2.y) < 16) si9 = i3;
       });
     }
     if(nc !== state.hoverNpc){
@@ -9298,6 +9299,7 @@ function errandTick(cv, dt){
     cv.held = null;
   }
   if(cv.jailed) return true;       // four walls and a console: nowhere to go
+  if(cv.routine && !cv.errand && !castBusy(cv) && state.portDock && !state.deckCombat) return routineTick(cv, dt);
   const er = cv.errand;
   if(!er) return false;
   // in cuffs: a step behind the officer, all the way to the door
@@ -10736,7 +10738,10 @@ function districtWake(snap){
   state.civs = civs.concat((state.civs || []).filter(cv => cv.tide));   // the fresh tide this build just seeded
   state.enemies = enemies.concat((state.enemies || []).filter(e => e.alive));
   state.props = props;
-  if(snap.walls && snap.walls.length === state.walls.length) state.walls = snap.walls;   // the same plan: keep its damage
+  if(snap.walls){   // the same plan: keep its damage (shop doors come and go with the keeper, so they are matched apart)
+    const a = snap.walls.filter(w => !w.lock), b = state.walls.filter(w => !w.lock);
+    if(a.length === b.length) state.walls = a.concat(state.walls.filter(w => w.lock));
+  }
   if(snap.exp && typeof expCtx !== 'undefined' && expCtx && snap.W === W && snap.H === H){
     try{ expCtx.drawImage(snap.exp, 0, 0, W, H); }catch(e){}   // what you had explored, you still remember
   }
@@ -13402,26 +13407,41 @@ function erinaSeed(){
   return {stock: keys.map(k => ({key: k, price: Math.max(10, Math.round((WPN_PRICE[k] || 100) * (1.0 + Math.random() * 0.2))), gone: false})),
     keeper: 'Erina Jones', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, erina: true};
 }
-function shopOf(){
+// Tarn's stock: honest iron, a little of everything, restocked from his lockers every morning
+function tarnSeed(){
+  const keys = ['pistol', 'revolver', 'rifle', 'stdautogun'];
+  return {stock: keys.map(k => ({key: k, price: Math.max(10, Math.round((WPN_PRICE[k] || 100) * (0.95 + Math.random() * 0.2))), gone: false})),
+    keeper: 'Tarn', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, tarn: true, base: 4};
+}
+// which shop a shelf belongs to: on the Cross, shelves 0..3 are Erina's and 4..7 are Tarn's (each shop's stock is indexed from its base)
+function shopOf(i){
   const b = bz(); if(!b) return null;
-  if(ship.district === 'cross'){ if(!b.shop2) b.shop2 = erinaSeed(); return b.shop2; }
+  if(ship.district === 'cross'){
+    if(i != null && i >= 4){ if(!b.shop3) b.shop3 = tarnSeed(); return b.shop3; }
+    if(!b.shop2) b.shop2 = erinaSeed(); return b.shop2;
+  }
   return b.shop || null;
 }
-function shelfItem(i){ const sh = shopOf(); const it = sh && sh.stock[i]; return it && !it.gone ? it : null; }
-function shopKeeperCiv(){
-  const sh = shopOf();
+function shopByKeeper(name){
+  const b = bz(); if(!b) return null;
+  for(const sh of [b.shop, b.shop2, b.shop3]) if(sh && sh.keeper === name) return sh;
+  return null;
+}
+function shelfItem(i){ const sh = shopOf(i); const it = sh && sh.stock[i - (sh.base || 0)]; return it && !it.gone ? it : null; }
+function shopKeeperCiv(sh){
+  sh = sh || shopOf();
   return sh && !sh.keeperDead
     ? (state.civs || []).find(cv => cv.name === sh.keeper && cv.alive) || null : null;
 }
 function shopBuy(i, cName){
-  const sh = shopOf(), it = shelfItem(i);
+  const sh = shopOf(i), it = shelfItem(i);
   if(!sh || !it || sh.keeperDead) return false;
   if(facRepOf('tradersguild') <= -2) return false;   // guild paper: nobody trades
   if(!onDuty(sh.keeper)) return false;   // shut: the shelf is behind glass until the hours say otherwise
-  if(sh.keeper && moodRefuses(sh.keeper)){ const kp = shopKeeperCiv(); if(kp) addPopup(kp.x, kp.y - kp.r - 14, 'NOT TO YOU', '#e0483e'); return false; }
+  if(sh.keeper && moodRefuses(sh.keeper)){ const kp = shopKeeperCiv(sh); if(kp) addPopup(kp.x, kp.y - kp.r - 14, 'NOT TO YOU', '#e0483e'); return false; }
   const c = (state.squad || []).find(c2 => c2.alive && c2.name === (cName || (pc() && pc().name)));
   if(!c || !c.def) return false;
-  const price = shelfPrice(it);
+  const price = shelfPrice(it, sh);
   if(ship.credits < price) return false;
   if(!Array.isArray(c.def.pack)) c.def.pack = [];
   if(c.def.pack.length >= 4) return false;
@@ -13436,13 +13456,13 @@ function shopBuy(i, cName){
   return true;
 }
 function shopSend(i){
-  const sh = shopOf(), it = shelfItem(i);
+  const sh = shopOf(i), it = shelfItem(i);
   if(!sh || !it || sh.keeperDead) return false;
   if(facRepOf('tradersguild') <= -2) return false;
   if(!state.portDock || !state.shipZone) return false;
   if(!onDuty(sh.keeper)) return false;
   if(sh.keeper && moodRefuses(sh.keeper)) return false;
-  const price = shelfPrice(it);
+  const price = shelfPrice(it, sh);
   if(ship.credits < price) return false;
   ship.credits -= price;
   it.gone = true; it.by = 'sent';
@@ -13463,21 +13483,21 @@ function shopSend(i){
   return true;
 }
 function shopSteal(i, cName){
-  const sh = shopOf(), it = shelfItem(i);
+  const sh = shopOf(i), it = shelfItem(i);
   if(!sh || !it) return false;
   const c = (state.squad || []).find(c2 => c2.alive && c2.name === (cName || (pc() && pc().name)));
   if(!c || !c.def) return false;
   if(!Array.isArray(c.def.pack)) c.def.pack = [];
   if(c.def.pack.length >= 4) return false;
   it.gone = true; it.by = 'stolen';
-  c.def.pack.push({kind: 'weapon', key: it.key, own: 'Kestrel \u00B7 Outfitters stock', ownFac: 'tradersguild', mods: wpnItemMods(it)});
-  const keeper = shopKeeperCiv();
+  c.def.pack.push({kind: 'weapon', key: it.key, own: (sh.keeper || 'Kestrel') + ' \u00B7 shop stock', ownFac: sh.tarn ? null : 'tradersguild', mods: wpnItemMods(it)});
+  const keeper = shopKeeperCiv(sh);
   const seen = keeper && !keeper.ko &&
     Math.hypot(keeper.x - c.x, keeper.y - c.y) < 320 && segClearHigh(keeper.x, keeper.y, c.x, c.y);
   if(seen){
     addPopup(keeper.x, keeper.y - keeper.r - 14, 'HOY, THIEF!', '#e0483e');
     facRepAdd('tradersguild', -1);
-    witnessRun(keeper, {who: c.name, grade: 'minor', what: 'theft from Kestrel Outfitters'});
+    witnessRun(keeper, {who: c.name, grade: 'minor', what: 'theft from ' + (sh.tarn ? 'Tarn\u2019s Arms' : sh.erina ? 'Erina\u2019s Exotics' : 'Kestrel Outfitters')});
     chronicle('event', 'Kestrel watched ' + c.name + ' lift a ' + (WPN_NAMES[it.key] || it.key) + ' off her own shelf, and went for the law at a dead run.');
   }else{
     if(keeper && keeper.ko){
@@ -13639,7 +13659,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '29 Oct \u00B7 THE CLOCK';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '29 Oct \u00B7 TARN OPENS UP';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -13850,6 +13870,7 @@ const TEMPERS = {
   'Sergeant Vey':   {base: {t: -1},                sens: {violence: 1, law: 2}},
   'Varric':         {base: {a: 0.5},               sens: {violence: 0.3, trade: 1.5}},
   'Hask':           {base: {t: -0.5, f: -0.5},     sens: {violence: 0.2, trade: 1.5, law: 0}},
+  'Tarn':           {base: {a: 0.5, f: -0.5},      sens: {violence: 0.5, stock: 2, trade: 1.2, law: 1}},
 };
 function moodTemper(name){ return TEMPERS[name] || {base: {}, sens: {}}; }
 function moodBase(name){ return Object.assign({t: 0, j: 0, f: 0, a: 0}, moodTemper(name).base || {}); }
@@ -13936,7 +13957,7 @@ function keeperMul(name){
   if(m.t <= -1.5) k *= 1.2;
   return k;
 }
-function shelfPrice(it){ const sh = shopOf(); return Math.max(1, Math.round(it.price * keeperMul(sh && sh.keeper))); }
+function shelfPrice(it, sh){ sh = sh || shopOf(); return Math.max(1, Math.round(it.price * keeperMul(sh && sh.keeper))); }
 // a line chosen by the sector the face is in: the words follow the wheel
 function moodSay(name, lines){
   const nm = moodName(moodOf(name));
@@ -14066,7 +14087,7 @@ function crowdMul(h){
 // who keeps what hours: [open, close], close past 24 runs into the small hours; absent = always about
 const CAST_HOURS = {
   'Erina Jones': [8, 20], 'Hesper Dunmore': [7, 19], 'Kestrel': [8, 20], 'Varric': [7, 21],
-  'Fenn': [16, 28], 'Hask': [12, 27],
+  'Fenn': [16, 28], 'Hask': [12, 27], 'Tarn': [8, 23],
   'Marek': [6, 18], 'Sulla': [14, 26], 'Dren': [6, 18], 'Vask': [14, 26],
 };
 function onDuty(name, h){
@@ -14135,7 +14156,7 @@ function castCivOf(p, cx, cy){
     panic: 0, tx: cx, ty: cy, pace: 20 + Math.random() * 10,
     bob: Math.random() * 6, hood: p.kind === 'worker',
     kind: p.kind, name: p.name, home: {x: p.x * W, y: p.y * H}, homeR: p.homeR,
-    fac: p.fac || null, brave: p.brave || 10,
+    fac: p.fac || null, brave: p.brave || 10, routine: ROUTINES[p.name] ? p.name : null,
   };
 }
 function castBusy(cv){ return !!(cv.chase || cv.respond || cv.hunt || cv.lead || cv.collar || cv.arrest || cv.escort || cv.sweep || cv.scene || cv.attend || cv.held); }
@@ -14153,20 +14174,185 @@ function shiftTick(skip){
       const hx = p.x * W, hy = p.y * H;
       const dr = nearestArch(hx, hy) || {x: hx, y: hy};
       const nc = castCivOf(p, skip ? hx : dr.x, skip ? hy : dr.y);
-      if(!skip) nc.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
+      if(!skip && !nc.routine) nc.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
+      if(skip && nc.routine){ const rt = ROUTINES[p.name]; let i = -1; for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= clockNow()) i = k; if(i >= 0){ nc.plan = planNew(rt, i); nc.plan.done = nc.plan.step !== 'evening'; } }
       state.civs.push(nc);
       if(!skip) addPopup(nc.x, nc.y - 20, p.name.toUpperCase() + ' \u00B7 ON', '#8a93b8');
     }else if(!duty && cv && cv.alive && !cv.ko && !castBusy(cv)){
-      if(skip){ cv.gone = true; }
+      if(skip){ cv.gone = true; if(cv.routine) shopDoorsAtArrival(); }
       else if(!(cv.errand && cv.errand.kind === 'slink')){
         cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
         addPopup(cv.x, cv.y - cv.r - 14, 'CLOSING UP', '#8a93b8');
       }
     }
   }
-  if(skip) state.civs = (state.civs || []).filter(c => !c.gone);
+  if(skip){ state.civs = (state.civs || []).filter(c => !c.gone); shopDoorsAtArrival(); }
 }
 function shopOpenNow(){ const sh = shopOf(); return !!(sh && !sh.keeperDead && onDuty(sh.keeper)); }
+// ---- shops with doors, people with routines (Ben, 29 Oct; Tarn is the first) ----
+// a SHOP: its lock key, its rooms as anchors, the shelves it displays on. A ROUTINE: a day in steps, each a verb from a small vocabulary.
+const SHOPS = {
+  tarn: {keeper: 'Tarn', lock: 'tarn', shelves: [4, 5, 6, 7],
+    anchors: {door_out: {x: 0.19, y: 0.278}, door_in: {x: 0.19, y: 0.238}, counter: {x: 0.18, y: 0.14}, bench: {x: 0.105, y: 0.128},
+      lockers: {x: 0.108, y: 0.215}, workshop: {x: 0.112, y: 0.14}, store: {x: 0.115, y: 0.215}},
+    front: {x0: 0.15, y0: 0.13, x1: 0.23, y1: 0.245}},
+};
+const ROUTINES = {
+  Tarn: {shop: 'tarn', day: [
+    {at: 8 * 60, do: 'open'},
+    {at: 8 * 60 + 2, do: 'stock', n: 4},
+    {at: 8 * 60 + 30, do: 'floor'},
+    {at: 19 * 60 + 50, do: 'close'},
+    {at: 20 * 60, do: 'evening'},
+  ]},
+};
+function anchorPt(shopKey, name){ const a = SHOPS[shopKey].anchors[name]; return {x: a.x * W, y: a.y * H}; }
+function shopLocked(key){ return (state.walls || []).some(w => w.lock === key); }
+function shopLock(key, locked){
+  if(locked === shopLocked(key)) return false;
+  if(locked){
+    const lv = currentLevel();
+    const w0 = (lv.walls || []).find(w => w.lock === key);
+    if(!w0) return false;
+    const w = {x: w0.x * W, y: w0.y * H, w: Math.max(14, w0.w * W), h: Math.max(14, w0.h * H), high: true, lock: key};
+    buildChunks(w);
+    state.walls.push(w);
+  }else state.walls = state.walls.filter(w => w.lock !== key);
+  cnavDirty();
+  return true;
+}
+// which step of the day a routine is on, by the clock
+function routineStepNow(rt){
+  const now = clockNow();
+  let cur = null;
+  for(const st of rt.day) if(st.at <= now) cur = st;
+  return cur;
+}
+// the keeper is on the floor and past opening: the door stands open even if nobody watched him unlock it
+function shopDoorsAtArrival(){
+  for(const key of Object.keys(SHOPS)){
+    const sh = SHOPS[key];
+    const rt = ROUTINES[sh.keeper];
+    const dead = (bz() && bz().deadCast || []).includes(sh.keeper);
+    const st = rt && !dead ? routineStepNow(rt) : null;
+    const open = !!st && ['stock', 'floor'].includes(st.do);
+    shopLock(key, !open);
+  }
+}
+function routineGo(cv, pt, dt, spd){
+  if(Math.hypot(pt.x - cv.x, pt.y - cv.y) < 22){ cv.facing = cv.facing; return true; }
+  civTravel(cv, pt.x, pt.y, spd || civSpd({gait: 0.95}), dt);
+  return false;
+}
+// steps run in order and each runs to its end: the clock says when the next MAY start, never skips one
+function planNew(rt, idx){ const st = rt.day[idx]; return {idx, step: st.do, at: st.at, phase: 0, t: 0, k: 0, done: false}; }
+function routineTick(cv, dt){
+  const rt = ROUTINES[cv.routine]; if(!rt) return false;
+  const now = clockNow();
+  if(!cv.plan || cv.plan.idx == null){
+    let i = -1;
+    for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= now) i = k;
+    if(i < 0) return false;
+    cv.plan = planNew(rt, i);
+    if(cv.plan.step === 'floor' || cv.plan.step === 'close') cv.plan.done = cv.plan.step === 'floor';
+  }
+  let p = cv.plan;
+  if(p.done && p.idx + 1 < rt.day.length && rt.day[p.idx + 1].at <= now) p = cv.plan = planNew(rt, p.idx + 1);
+  const st = rt.day[p.idx];
+  const sk = rt.shop;
+  p.t += dt;
+  if(p.done) return routineIdle(cv, p, sk, dt);
+  if(st.do === 'open'){
+    if(p.phase === 0){ if(routineGo(cv, anchorPt(sk, 'door_out'), dt)) p.phase = 1; return true; }
+    if(p.phase === 1){
+      shopLock(sk, false);
+      addPopup(cv.x, cv.y - cv.r - 14, 'OPEN', '#9fe08e');
+      chronicle('event', cv.name + ' unlocked the shop at ' + clockHHMM() + ', as every day.');
+      moodPush(cv.name, {a: 0.3}, 'opened up for the day', 'trade');
+      p.phase = 2; return true;
+    }
+    if(routineGo(cv, anchorPt(sk, 'counter'), dt)) p.done = true;
+    return true;
+  }
+  if(st.do === 'stock'){
+    const n = st.n || 3;
+    const shelfIdx = SHOPS[sk].shelves[p.k % SHOPS[sk].shelves.length];
+    if(p.k >= n){ p.done = true; cv.carry = null; return true; }
+    if(p.phase === 0){ if(routineGo(cv, anchorPt(sk, 'lockers'), dt)){ p.phase = 1; p.w = 1.2; } return true; }
+    if(p.phase === 1){ p.w -= dt; if(p.w <= 0){ cv.carry = 'CRATE'; addPopup(cv.x, cv.y - cv.r - 14, 'FROM THE LOCKERS', '#8a93b8'); p.phase = 2; } return true; }
+    if(p.phase === 2){
+      const pt = state.shelves[shelfIdx] || anchorPt(sk, 'counter');
+      if(routineGo(cv, {x: pt.x + 18, y: pt.y + 18}, dt)){ p.phase = 3; p.w = 0.8; }
+      return true;
+    }
+    p.w -= dt;
+    if(p.w <= 0){
+      cv.carry = null;
+      shelfRestock(sk, shelfIdx);
+      p.k++; p.phase = 0;
+    }
+    return true;
+  }
+  if(st.do === 'floor'){ p.done = true; return routineIdle(cv, p, sk, dt); }
+  if(st.do === 'close'){
+    if(p.phase === 0){ if(routineGo(cv, anchorPt(sk, 'door_in'), dt)) p.phase = 1; return true; }
+    if(p.phase === 1){ if(routineGo(cv, anchorPt(sk, 'door_out'), dt)) p.phase = 2; return true; }
+    if(p.phase === 2){
+      shopLock(sk, true);
+      addPopup(cv.x, cv.y - cv.r - 14, 'CLOSED', '#8a93b8');
+      chronicle('event', cv.name + ' locked up at ' + clockHHMM() + '.');
+      p.phase = 3; p.done = true;
+    }
+    return true;
+  }
+  if(st.do === 'evening'){
+    if(!p.choice){
+      // after work: the Beacon more often than not, home when the day went badly
+      const m = moodOf(cv.name);
+      p.choice = (m.j < -1 || m.f >= 1.5) ? 'home' : (Math.random() < 0.65 ? 'beacon' : 'home');
+      p.until = 22 * 60 + 30 + Math.floor(Math.random() * 60);
+      if(p.choice === 'beacon') chronicle('event', cv.name + ' went to the Beacon after closing.');
+    }
+    if(p.choice === 'home'){ cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; return true; }
+    const bar = (state.spots || []).find(s2 => s2.kind === 'bar');
+    if(!bar || clockNow() >= p.until || clockNow() < 6 * 60){ cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; return true; }
+    const seat = {x: bar.x + 50, y: bar.y + 44};
+    if(routineGo(cv, seat, dt)){ cv.facing = Math.atan2(bar.y - cv.y, bar.x - cv.x); }
+    return true;
+  }
+  return false;
+}
+// the floor: walk the front room, stop and look, now and then a stint at the workbench
+function routineIdle(cv, p, sk, dt){
+  const sh = SHOPS[sk];
+  if(p.step !== 'floor' && p.step !== 'stock' && p.step !== 'open') return true;   // closed up: stand where you are
+  if(p.bench){
+    p.bench -= dt;
+    if(routineGo(cv, anchorPt(sk, 'bench'), dt) && !p.benchSaid){ p.benchSaid = true; addPopup(cv.x, cv.y - cv.r - 14, 'AT THE BENCH', '#8a93b8'); }
+    if(p.bench <= 0){ p.bench = 0; p.benchSaid = false; p.to = null; }
+    return true;
+  }
+  p.wt = (p.wt || 0) - dt;
+  if(!p.to || p.wt <= 0 || Math.hypot(p.to.x - cv.x, p.to.y - cv.y) < 16){
+    if(Math.random() < 0.08 && p.step === 'floor'){ p.bench = 60 + Math.random() * 60; return true; }   // a job on the bench
+    p.to = {x: (sh.front.x0 + Math.random() * (sh.front.x1 - sh.front.x0)) * W, y: (sh.front.y0 + Math.random() * (sh.front.y1 - sh.front.y0)) * H};
+    p.wt = 3 + Math.random() * 6;
+  }
+  if(p.to) civStep(cv, p.to.x, p.to.y, civSpd(cv) * 0.6, dt);
+  return true;
+}
+// a shelf gets its piece back: what was sold or stolen is replaced from the lockers
+function shelfRestock(sk, shelfIdx){
+  const sh = shopByKeeper(SHOPS[sk].keeper); if(!sh) return false;
+  const j = shelfIdx - (sh.base || 0);
+  const it = sh.stock[j];
+  if(it && !it.gone) return false;
+  const fresh = tarnSeed().stock[j % 4];
+  sh.stock[j] = fresh;
+  addPopup(state.shelves[shelfIdx].x, state.shelves[shelfIdx].y - 16, 'STOCKED', '#9fe08e');
+  shipSave();
+  return true;
+}
 // night on the floor: a blue wash that deepens with the hour, warm light spilling from the venues and the arches
 function drawNight(){
   if(!state.portDock) return;
@@ -14256,6 +14442,9 @@ const CROSS_CAST = [
   {name: 'Hesper Dunmore', kind: 'trader', x: 0.865, y: 0.315, homeR: 30, brave: 17, district: 'cross',
    race: 'MINOTAUR', sex: 'FEMALE', faction: 'THE SHIPPERS',
    bio: 'Runs the Shippers: hulls for hire, pilots for hire, no questions past the deposit. Flew herself until a bad landing on Garn took the nerve out of her left hand. Bets on who comes back, and is usually right.'},
+  {name: 'Tarn', kind: 'trader', x: 0.18, y: 0.14, homeR: 60, brave: 18, district: 'cross',
+   race: 'MINOTAUR', sex: 'MALE', faction: 'TARN\u2019S ARMS \u00B7 GUNSMITH',
+   bio: 'Owns the gun shop by the Warrens arch and opens it himself at eight, every day. Big, well armed, likes a customer who buys and a chat after. Wants, under all of it, to be somebody.'},
   {name: 'Sergeant Vey', kind: 'sergeant', x: 0.5, y: 0.575, homeR: 12, fac: 'constabulary', brave: 18, district: 'station',
    race: 'HUMAN', sex: 'FEMALE', faction: 'PORT CONSTABULARY',
    bio: 'Keeps the front desk of the Cross Constabulary and the keys to nothing: the cells answer to the console, and the console answers to her. Sets bail by the ledger and the look of you.'},
@@ -14825,7 +15014,7 @@ function eqCardClose(){
   simResume();
 }
 function eqCardOpen(i){
-  const sh = shopOf(), it = shelfItem(i);
+  const sh = shopOf(i), it = shelfItem(i);
   if(!sh || !it) return false;
   const c = pc();
   if(!c || !c.def) return false;
@@ -14844,7 +15033,7 @@ function eqCardOpen(i){
   const guildOut = facRepOf('tradersguild') <= -2;
   const cmp = shelfCompareLines(it.key, c, wpnItemMods(it));
   const packFull = (c.def.pack || []).length >= 4;
-  const price = shelfPrice(it);
+  const price = shelfPrice(it, sh);
   const canPay = ship.credits >= price;
   const refuses = !!(sh.keeper && moodRefuses(sh.keeper));
   const km = keeperMul(sh.keeper);
@@ -14898,7 +15087,7 @@ function eqCardOpen(i){
 }
 function showShelfTip(i, cx, cy){
   if(typeof document.getElementById !== 'function') return;
-  const sh = shopOf(), it = shelfItem(i);
+  const sh = shopOf(i), it = shelfItem(i);
   if(!it) return;
   let tip = document.getElementById('npcTip');
   if(!tip){
@@ -15256,6 +15445,30 @@ function portTalk(cv){
       return showEventModal('HASK', '\u201CWarrant rates everywhere today, friend. Even forgetting costs more.\u201D', close);
     }
     return showEventModal('HASK', '\u201CBuy, sell, forget. Those are the services.\u201D', close);
+  }
+  if(cv.name === 'Tarn'){
+    const tp = cv.plan || {};
+    const busy = tp.step === 'stock' || tp.bench > 0 || tp.step === 'open' || tp.step === 'close';
+    if(busy){
+      moodPush('Tarn', {f: -0.3, j: -0.2}, 'was interrupted at his work', 'trade');
+      return showEventModal('TARN', moodSay('Tarn', {
+        anger: '\u201CI am working. You can see I am working. Look at the shelf or look at the door.\u201D',
+        indifferent: 'He does not put the crate down. \u201CIn a minute. Browse.\u201D',
+      }), close);
+    }
+    return showEventModal('TARN', moodSay('Tarn', {
+      love: '\u201CThe one customer I would pour a drink for. What are we fixing today?\u201D',
+      joy: '\u201CGood day for it. Bought anything lately? Then you get the talk and the discount both.\u201D',
+      trust: '\u201CYou pay, you do not haggle, you do not touch what you cannot afford. Come in.\u201D',
+      optimism: '\u201CDelivery due, shelves full, and a crew in the door with money. I will take it.\u201D',
+      anticipation: '\u201CLooking for something in particular, or looking?\u201D He watches your hands the way gunsmiths do.',
+      anger: '\u201CBuy or go. I have shot people for less than loitering and the law agreed with me.\u201D',
+      contempt: '\u201CNot to you. Not at any price. Out.\u201D',
+      fear: 'He stands square behind the counter, both hands on it. \u201CState your business.\u201D',
+      surprise: '\u201CHuh. Did not have you down for that.\u201D',
+      sadness: '\u201CShelf is there. Prices are honest. That is all I have got today.\u201D',
+      indifferent: '\u201CTarn\u2019s Arms. Everything on the shelf works, I made sure of it myself. Pistols, long guns, repairs on the bench. Buy something and I will even talk to you.\u201D',
+    }), close);
   }
   if(cv.name === 'Fenn'){
     const fm = moodOf('Fenn');
@@ -17604,7 +17817,7 @@ function frame(now){
       if(deckLive) crowdTick(realDt);
       for(const cv of s.civs){
         if(!cv.alive || cv.ko) continue;
-        if(cv.panic <= 0 && cv.errand && errandTick(cv, realDt)) continue;
+        if(cv.panic <= 0 && (cv.errand || cv.routine || cv.jailed) && errandTick(cv, realDt)) continue;
         if(cv.kind === 'constable' && s.deckCombat && !s.portFight && cv.panic <= 0 &&
            !(cv.pursue || cv.respond || cv.chase || cv.escort || cv.sweep || cv.hunt)){
           beatTick(cv, realDt);   // irons in the open are not yet the law's problem
@@ -18396,12 +18609,11 @@ function draw(){
     }
   }
   if(s.shelves && s.shelves.length && s.portDock){
-    const sh9 = bz() && bz().shop;
-    if(sh9){
+    if(shopOf()){
       ctx.textAlign = 'center';
       s.shelves.forEach((pt, i9) => {
-        const it9 = sh9.stock[i9];
-        if(!it9 || it9.gone) return;
+        const it9 = shelfItem(i9);
+        if(!it9) return;
         const col = tileColor(it9.key) || '#d4a843';
         ctx.save();
         ctx.translate(pt.x, pt.y);
@@ -18415,9 +18627,10 @@ function draw(){
         ctx.font = "700 7px 'Space Grotesk',sans-serif";
         ctx.fillStyle = 'rgba(232,224,204,.6)';
         ctx.fillText((WPN_NAMES[it9.key] || it9.key).toUpperCase(), pt.x, pt.y + 20);
-        if(!sh9.keeperDead){
+        const sh9 = shopOf(i9);
+        if(sh9 && !sh9.keeperDead){
           ctx.fillStyle = 'rgba(212,168,67,.75)';
-          ctx.fillText(it9.price + ' CR', pt.x, pt.y + 29);
+          ctx.fillText(shelfPrice(it9, sh9) + ' CR', pt.x, pt.y + 29);
         }
       });
     }
@@ -18439,6 +18652,11 @@ function draw(){
         ctx.fillText((dr.to ? 'TO ' : '') + dr.label, dr.x, dr.y + (below ? 30 : -22));
       }
     }
+  }
+  if(s.civs && s.shipDeck) for(const cv of s.civs){
+    if(!cv.carry || !cv.alive) continue;
+    ctx.fillStyle = 'rgba(120,90,50,.95)'; ctx.strokeStyle = 'rgba(212,168,67,.8)'; ctx.lineWidth = 1;
+    ctx.fillRect(cv.x - 7, cv.y - cv.r - 16, 14, 10); ctx.strokeRect(cv.x - 7, cv.y - cv.r - 16, 14, 10);
   }
   // signposts: a soft pulse under anyone a click can reach, so a new hand knows where the game is
   if(s.civs && s.shipDeck && !s.deckCombat) for(const cv of s.civs){
@@ -19908,6 +20126,20 @@ const CROSS_PORT = {
     {x: 0.670, y: 0.2605, w: 0.050, h: 0.0095, high: true},
     {x: 0.570, y: 0.0800, w: 0.006, h: 0.1900, high: true},
     {x: 0.714, y: 0.0800, w: 0.006, h: 0.1900, high: true},
+    // Tarn's Arms: a gunsmith between the Warrens arch and the stalls. Front room east, workshop north-west, store room south-west
+    {x: 0.080, y: 0.0900, w: 0.160, h: 0.0080, high: true},
+    {x: 0.080, y: 0.2520, w: 0.095, h: 0.0080, high: true},
+    {x: 0.205, y: 0.2520, w: 0.035, h: 0.0080, high: true},
+    {x: 0.175, y: 0.2520, w: 0.030, h: 0.0080, high: true, lock: 'tarn'},   // the front door: a wall until Tarn unlocks it
+    {x: 0.080, y: 0.0900, w: 0.005, h: 0.1700, high: true},
+    {x: 0.235, y: 0.0900, w: 0.005, h: 0.1700, high: true},
+    {x: 0.140, y: 0.0900, w: 0.005, h: 0.0300, high: true},
+    {x: 0.140, y: 0.1500, w: 0.005, h: 0.0500, high: true},
+    {x: 0.140, y: 0.2300, w: 0.005, h: 0.0300, high: true},
+    {x: 0.080, y: 0.1750, w: 0.060, h: 0.0080, high: true},
+    {x: 0.150, y: 0.1150, w: 0.060, h: 0.0120},   // the counter
+    {x: 0.090, y: 0.1050, w: 0.030, h: 0.0120},   // the workbench
+    {x: 0.088, y: 0.1900, w: 0.012, h: 0.0500},   // the lockers
     // Guild Representatives
     {x: 0.130, y: 0.4700, w: 0.170, h: 0.0095, high: true},
     {x: 0.130, y: 0.6305, w: 0.170, h: 0.0095, high: true},
@@ -19993,12 +20225,15 @@ const CROSS_PORT = {
     {x: 0.50, y: 0.41, kind: 'bench', label: ''},
     {x: 0.50, y: 0.60, kind: 'bench', label: ''},
     {x: 0.21, y: 0.33, kind: 'shop', label: 'STALLS'},
+    {x: 0.16, y: 0.105, kind: 'shop', label: 'TARN\u2019S ARMS'},
     {x: 0.865, y: 0.335, kind: 'shop', label: 'THE SHIPPERS'},
   ],
   npcs: [],
-  shelves: [{x: 0.565, y: 0.775}, {x: 0.595, y: 0.79}, {x: 0.625, y: 0.79}, {x: 0.655, y: 0.775}],
+  shelves: [{x: 0.565, y: 0.775}, {x: 0.595, y: 0.79}, {x: 0.625, y: 0.79}, {x: 0.655, y: 0.775},
+            {x: 0.165, y: 0.205}, {x: 0.195, y: 0.205}, {x: 0.226, y: 0.19}, {x: 0.226, y: 0.16}],   // 4..7: Tarn's display
   anchors: [
     {x: 0.36, y: 0.17, tags: ['counter', 'bar']},
+    {x: 0.19, y: 0.19, tags: ['shop', 'gunsmith']},
     {x: 0.21, y: 0.33, tags: ['stall', 'market']},
     {x: 0.72, y: 0.49, tags: ['stall', 'food']},
     {x: 0.10, y: 0.86, tags: ['corner', 'quiet']},
