@@ -3058,6 +3058,7 @@ function enterPort(distId, opts){
   }
   if(ship.district === 'station') stationArrive();
   shopDoorsAtArrival();
+  lockerChestPlace();
   refreshDropBtn();
   updateOrbitStatus();
   if(typeof camReset === 'function') camReset();
@@ -4536,6 +4537,8 @@ function deckDown(p){
     if(drC){ doorInspect(drC); return; }
     const bn = (state.spots || []).find(s2 => s2.kind === 'bench' && Math.hypot(s2.x - p.x, s2.y - p.y) < 40);
     if(bn){ benchInspect(bn); return; }
+    const lw = (state.walls || []).find(w => w.lock && Math.hypot(w.x + w.w / 2 - p.x, w.y + w.h / 2 - p.y) < 54);
+    if(lw){ shopDoorInspect(lw.lock); return; }
   }
   // a named face on the concourse: near enough, talk; too far, walk over first
   const ncv = (state.civs || []).find(v => v.name && v.alive && !v.ko &&
@@ -9578,6 +9581,11 @@ function errandTick(cv, dt){
         }
         return true;
       }
+      if(cr && cr.npcOnly){
+        if(tgt.kind === 'constable' && !tgt.respond && !tgt.hunt && !tgt.chase){ tgt.scene = {x: cv.home ? cv.home.x : cv.x, y: cv.home ? cv.home.y : cv.y, what: cr.what}; addPopup(tgt.x, tgt.y - (tgt.r || 14) - 14, 'A COMPLAINT, NO NAME', '#b06ae0'); }
+        if(cv.routine){ cv.errand = {kind: 'home', path: [], leg: 0, waitT: 0}; }   // back to the shop; the routine picks up where it left off
+        return true;
+      }
       if(cr && cr.arrest && tgt.kind === 'constable' && !tgt.arrest && !tgt.lead){
         // the story names a killer: the officer goes to make the arrest
         rapAdd(cr.who, cr.grade, cr.what, true);
@@ -13190,6 +13198,7 @@ function lootTake(c, e, idx){
   if(c.def.pack.length >= 4) return false;
   c.def.pack.push(it);
   e.loot.splice(idx, 1);
+  if(e.locker) lockerTheft(c, e);
   if(lootSpent(e)) e.looted = true;
   shipSave();
   return true;
@@ -13408,10 +13417,55 @@ function erinaSeed(){
     keeper: 'Erina Jones', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, erina: true};
 }
 // Tarn's stock: honest iron, a little of everything, restocked from his lockers every morning
+function tarnItem(k){
+  return {kind: 'weapon', key: k, price: Math.max(10, Math.round((WPN_PRICE[k] || 100) * (0.95 + Math.random() * 0.2))), gone: false,
+    own: 'Tarn \u00B7 shop stock', ownFac: null};
+}
 function tarnSeed(){
-  const keys = ['pistol', 'revolver', 'rifle', 'stdautogun'];
-  return {stock: keys.map(k => ({key: k, price: Math.max(10, Math.round((WPN_PRICE[k] || 100) * (0.95 + Math.random() * 0.2))), gone: false})),
-    keeper: 'Tarn', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, tarn: true, base: 4};
+  // the locker holds the stock; the shelves are empty until he puts the day's display out
+  const keys = ['pistol', 'revolver', 'rifle', 'stdautogun', 'pistol', 'sawnoff', 'carbine', 'revolver'];
+  return {stock: [null, null, null, null], locker: keys.map(tarnItem),
+    keeper: 'Tarn', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, tarn: true, base: 4, lockerSeen: 8};
+}
+// the locker on the floor: a strongbox whose loot IS the shop's locker list, so what is taken from it is gone from it
+function lockerChestPlace(){
+  if(ship.district !== 'cross') return null;
+  const sh = shopOf(4); if(!sh || !sh.locker) return null;
+  let ch = (state.enemies || []).find(e => e.chest && e.locker === 'tarn');
+  const pt = anchorPt('tarn', 'lockers');
+  if(!ch){
+    ch = {cache: true, chest: true, alive: false, looted: false, everSeen: true, visible: true, x: pt.x - 14, y: pt.y, r: 11, type: 'cache',
+      name: 'Tarn\u2019s locker', loot: sh.locker, locker: 'tarn', bob: 0};
+    state.enemies.push(ch);
+  }
+  ch.loot = sh.locker;
+  return ch;
+}
+// the display goes back in the locker at close; a thief who came by night finds bare shelves and a full box
+function tarnDisplayIn(){
+  const sh = shopByKeeper('Tarn'); if(!sh) return 0;
+  let n = 0;
+  for(let j = 0; j < sh.stock.length; j++){
+    const it = sh.stock[j];
+    if(it && !it.gone){ sh.locker.push(it); n++; }
+    sh.stock[j] = null;
+  }
+  sh.lockerSeen = sh.locker.length;
+  return n;
+}
+// a theft from the locker: seen, it is a shout and a complaint; unseen, it is a short count in the morning
+function lockerTheft(c, e){
+  const sh = shopByKeeper('Tarn'); if(!sh) return;
+  const kp = shopKeeperCiv(sh);
+  const seen = kp && !kp.ko && Math.hypot(kp.x - c.x, kp.y - c.y) < 320 && segClearHigh(kp.x, kp.y, c.x, c.y);
+  if(seen){
+    addPopup(kp.x, kp.y - kp.r - 14, 'HOY, THIEF!', '#e0483e');
+    moodPush('Tarn', {t: -2, f: -1.5, a: -1}, 'caught ' + c.name + ' in his locker', 'stock');
+    witnessRun(kp, {who: c.name, grade: 'minor', what: 'theft from Tarn\u2019s Arms'});
+    chronicle('event', 'Tarn saw ' + c.name + ' with a hand in his locker and went for the law.');
+  }else{
+    chronicle('event', c.name + ' took from Tarn\u2019s locker with nobody watching. He counts it every morning.');
+  }
 }
 // which shop a shelf belongs to: on the Cross, shelves 0..3 are Erina's and 4..7 are Tarn's (each shop's stock is indexed from its base)
 function shopOf(i){
@@ -13659,7 +13713,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '29 Oct \u00B7 TARN OPENS UP';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '29 Oct \u00B7 THE LOCKER';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14271,10 +14325,19 @@ function routineTick(cv, dt){
   if(st.do === 'open'){
     if(p.phase === 0){ if(routineGo(cv, anchorPt(sk, 'door_out'), dt)) p.phase = 1; return true; }
     if(p.phase === 1){
-      shopLock(sk, false);
-      addPopup(cv.x, cv.y - cv.r - 14, 'OPEN', '#9fe08e');
-      chronicle('event', cv.name + ' unlocked the shop at ' + clockHHMM() + ', as every day.');
-      moodPush(cv.name, {a: 0.3}, 'opened up for the day', 'trade');
+      const forced = ship.shopForced && ship.shopForced[sk];
+      if(forced){
+        delete ship.shopForced[sk];
+        addPopup(cv.x, cv.y - cv.r - 14, 'THE DOOR WAS FORCED', '#e0483e');
+        moodPush(cv.name, {t: -1.5, f: -1.5, a: -1}, 'found his door forced in the night', 'stock');
+        chronicle('event', cv.name + ' found the door hanging off its frame at ' + clockHHMM() + '. Somebody was in here. He went straight for a badge.');
+        witnessRun(cv, {grade: 'minor', what: 'a break-in at Tarn\u2019s Arms', npcOnly: true});
+      }else{
+        shopLock(sk, false);
+        addPopup(cv.x, cv.y - cv.r - 14, 'OPEN', '#9fe08e');
+        chronicle('event', cv.name + ' unlocked the shop at ' + clockHHMM() + ', as every day.');
+        moodPush(cv.name, {a: 0.3}, 'opened up for the day', 'trade');
+      }
       p.phase = 2; return true;
     }
     if(routineGo(cv, anchorPt(sk, 'counter'), dt)) p.done = true;
@@ -14296,6 +14359,7 @@ function routineTick(cv, dt){
       cv.carry = null;
       shelfRestock(sk, shelfIdx);
       p.k++; p.phase = 0;
+      if(p.k >= n) tarnLockerCount(cv);
     }
     return true;
   }
@@ -14304,9 +14368,10 @@ function routineTick(cv, dt){
     if(p.phase === 0){ if(routineGo(cv, anchorPt(sk, 'door_in'), dt)) p.phase = 1; return true; }
     if(p.phase === 1){ if(routineGo(cv, anchorPt(sk, 'door_out'), dt)) p.phase = 2; return true; }
     if(p.phase === 2){
+      const n = tarnDisplayIn();
       shopLock(sk, true);
       addPopup(cv.x, cv.y - cv.r - 14, 'CLOSED', '#8a93b8');
-      chronicle('event', cv.name + ' locked up at ' + clockHHMM() + '.');
+      chronicle('event', cv.name + ' put ' + n + ' pieces back in the locker and locked up at ' + clockHHMM() + '.');
       p.phase = 3; p.done = true;
     }
     return true;
@@ -14353,10 +14418,69 @@ function shelfRestock(sk, shelfIdx){
   const j = shelfIdx - (sh.base || 0);
   const it = sh.stock[j];
   if(it && !it.gone) return false;
-  const fresh = tarnSeed().stock[j % 4];
+  if(!sh.locker || !sh.locker.length){ addPopup(state.shelves[shelfIdx].x, state.shelves[shelfIdx].y - 16, 'NOTHING LEFT TO PUT OUT', '#e0a33e'); sh.stock[j] = null; return false; }
+  const fresh = sh.locker.shift();   // a real piece, out of the box and onto the shelf
+  fresh.gone = false;
   sh.stock[j] = fresh;
   addPopup(state.shelves[shelfIdx].x, state.shelves[shelfIdx].y - 16, 'STOCKED', '#9fe08e');
   shipSave();
+  return true;
+}
+// the morning count: what the locker held at close against what it holds now, display included
+function tarnLockerCount(cv){
+  const sh = shopByKeeper('Tarn'); if(!sh) return false;
+  const have = sh.locker.length + sh.stock.filter(it => it && !it.gone).length;
+  const expect = sh.lockerSeen != null ? sh.lockerSeen : have;
+  sh.lockerSeen = have;
+  if(have >= expect) return false;
+  const short = expect - have;
+  moodPush('Tarn', {t: -1, f: -1, a: -1, j: -0.5}, 'found the locker ' + short + ' short', 'stock');
+  addPopup(cv.x, cv.y - cv.r - 14, 'THE LOCKER IS ' + short + ' SHORT', '#e0483e');
+  chronicle('event', 'Tarn counted the locker and came up ' + short + ' short. No name to give the law; a colder eye on everyone who browses.');
+  witnessRun(cv, {grade: 'minor', what: 'a theft from Tarn\u2019s Arms, overnight', npcOnly: true});
+  shipSave();
+  return true;
+}
+// ---- the door when he is not there (Ben, 29 Oct): a locked door can be forced; the port hears it, and so does Tarn in the morning ----
+function shopLockWall(key){ return (state.walls || []).find(w => w.lock === key) || null; }
+function shopDoorInspect(key){
+  const lw = shopLockWall(key); if(!lw) return {open: true};
+  const sh = SHOPS[key];
+  const at = {x: lw.x + lw.w / 2, y: lw.y + lw.h};
+  const crew = (state.squad || []).filter(c => c.alive && !c.downed && !c.ko && !c.marched);
+  const near = crew.filter(c => Math.hypot(c.x - at.x, c.y - at.y) < DOOR_NEAR);
+  if(near.length !== crew.length){
+    const c0 = pc(); if(!c0) return {walked: false};
+    state.movePreview = computeMovePreview(at.x, at.y + 60);
+    if(state.movePreview && state.movePreview.valid){ commitMove(); squadFollow(at.x, at.y + 60); }
+    else addPopup(at.x, at.y + 20, 'NO PATH', '#e0a33e');
+    return {walked: true};
+  }
+  const kp = sh.keeper;
+  showEventModal(String(kp).toUpperCase() + '\u2019S DOOR \u00B7 LOCKED',
+    'Shut, barred, and nobody behind the glass. ' + kp + ' keeps ' + hoursLabel(kp) + '. The frame would give to a shoulder, loudly.',
+    [{label: 'FORCE THE DOOR', cb: () => shopForce(key, pc())}, {label: 'LEAVE IT', cb: () => {}}],
+    {sub: hoursLabel(kp).toUpperCase() + ' \u00B7 NOW ' + clockHHMM()});
+  return {asked: true};
+}
+function shopForce(key, c){
+  const lw = shopLockWall(key); if(!lw || !c) return false;
+  const at = {x: lw.x + lw.w / 2, y: lw.y + lw.h / 2};
+  const str = (c.stats && c.stats.strength) || 8;
+  const roll = str + Math.floor(Math.random() * 6);
+  pushNoiseRing(at.x, at.y, 360, false);
+  if(roll < 12){
+    addPopup(at.x, at.y + 22, 'IT HOLDS \u00B7 ' + roll, '#e0a33e');
+    chronicle('event', c.name + ' put a shoulder to ' + SHOPS[key].keeper + '\u2019s door and it held. The street heard it.');
+    bzCrimeWitness(at.x, at.y, {grade: 'minor', who: c.name, what: 'trying ' + SHOPS[key].keeper + '\u2019s door after hours'}, c);
+    return false;
+  }
+  shopLock(key, false);
+  ship.shopForced = ship.shopForced || {};
+  ship.shopForced[key] = {by: c.name, day: ship.day || 0, at: clockHHMM()};
+  addPopup(at.x, at.y + 22, 'THE DOOR GIVES', '#e0483e');
+  chronicle('event', c.name + ' forced ' + SHOPS[key].keeper + '\u2019s door at ' + clockHHMM() + '. Anyone on the street with eyes has a story.');
+  bzCrimeWitness(at.x, at.y, {grade: 'minor', who: c.name, what: 'breaking into ' + SHOPS[key].keeper + '\u2019s Arms'}, c);
   return true;
 }
 // night on the floor: a blue wash that deepens with the hour, warm light spilling from the venues and the arches
@@ -18640,6 +18764,13 @@ function draw(){
         }
       });
     }
+  }
+  if(s.walls && s.portDock) for(const w of s.walls){
+    if(!w.lock) continue;
+    ctx.font = "700 8px 'Space Grotesk',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(224,163,62,.8)';
+    ctx.fillText('LOCKED \u00B7 CLICK TO TRY THE DOOR', w.x + w.w / 2, w.y + w.h + 16);
   }
   if(s.doors && s.doors.length){
     for(const dr of s.doors){
