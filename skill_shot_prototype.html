@@ -9306,6 +9306,7 @@ function errandTick(cv, dt){
     cv.held = null;
   }
   if(cv.jailed) return true;       // four walls and a console: nowhere to go
+  if(cv.debt && !cv.errand){ cv.tx = cv.x; cv.ty = cv.y; return true; }   // the visitor stands in the shop and waits
   if(hailed(cv) && !castBusy(cv)){   // somebody called their name: they stop and turn, for a little while
     const by = (state.squad || []).find(c => c.name === cv.hail.by);
     if(by) cv.facing = Math.atan2(by.y - cv.y, by.x - cv.x);
@@ -13039,6 +13040,8 @@ const MISSIONS = {
   whyme: {name: 'Why Me', kind: 'LEAD', issuer: 'A letter with your name in it',
     waypoint: {port: 'gateway', district: 'cross', x: 0.76, y: 0.855, label: 'TALLOW STREET'}},
   tallow: {name: 'The Tallow Street Crew', kind: 'CONTRACT', issuer: 'No employer \u00B7 the ledger is the pay', waypoint: null},
+  olddebt: {name: 'An Old Debt', kind: 'FAVOUR', issuer: 'Tarn \u00B7 Tarn\u2019s Arms',
+    waypoint: {port: 'gateway', district: 'cross', x: 0.19, y: 0.17, label: 'TARN\u2019S ARMS'}},
   spindle: {name: 'A Brother on Spindle', kind: 'CONTRACT', issuer: 'Oskar Venn \u00B7 a brother',
     waypoint: {port: 'gateway', district: 'cross', x: 0.865, y: 0.335, label: 'THE SHIPPERS'}},
   cleanup: {name: 'Cleanup on Tallow Street', waypoint: null},   // retired 26 Oct; kept so old saves read
@@ -13093,6 +13096,15 @@ function missionNext(id){
     if(left) return 'Clear the unit: ' + left + ' standing. Dace Mortlake in the back room is the point.';
     if(!ledgerHeld()) return 'Take the ledger (a data cube) off Dace Mortlake\u2019s body before you leave.';
     return 'The ledger is yours. Finish the contract and walk out; the door shuts behind you.';
+  }
+  if(id === 'olddebt'){
+    const od = ship.oldDebt || {};
+    if(ms.state !== 'open') return od.outcome === 'runoff' ? 'Done. ' + od.name + ' was run off the Cross; Tarn paid, and did not say thank you.'
+      : od.outcome === 'brokered' ? 'Done. Tarn and ' + od.name + ' spoke. Whatever it was, it is finished, and Tarn is a little less the man he was.'
+      : od.outcome === 'sided' ? 'Done. You took ' + od.name + '\u2019s side. Tarn will not forget that either.' : 'Over.';
+    if(!od.askedVamp && !od.askedTarn) return od.name + ' is standing in Tarn\u2019s shop. Talk to either of them; neither has said why.';
+    if(!(od.askedVamp && od.askedTarn)) return 'You have one side of it. Ask the other before you choose. Or do not, and choose anyway.';
+    return 'You know what lies between them. Run ' + od.name + ' off, broker it, or take their side. Talk to ' + od.name + '.';
   }
   if(id === 'spindle'){
     const ch = ship.charter || {};
@@ -13393,6 +13405,7 @@ function sellOffer(name, it){
   if(kb.keys && !kb.keys.includes(it.key)) return null;
   if(it.own && it.own.indexOf(name + ' \u00B7 shop stock') === 0) return null;   // his own tag: that is not a sale, that is a confession
   if(moodRefuses(name)) return null;
+  const mF = moodFor(name);
   const list = it.kind === 'weapon' ? (WPN_PRICE[it.key] || 60) : (it.value || 20);
   const marked = itemMarked(it);
   if(marked){
@@ -13400,10 +13413,9 @@ function sellOffer(name, it){
     if(kb.marked === 'fence' && roleOf(name) !== 'fence') return null;
     return Math.max(1, Math.round(list * (kb.marked === 'fence' ? 0.45 : (kb.rate || 0.35))));
   }
-  const m = moodOf(name);
   let k = 1;
-  if(m.f >= 2 || m.j >= 1.5) k = 1.1;   // nervous or glad: a little over
-  if(m.t <= -1.5) k = 0.8;              // grudging: a little under
+  if(mF.f >= 2 || mF.j >= 1.5) k = 1.1;   // nervous or glad: a little over
+  if(mF.t <= -1.5) k = 0.8;              // grudging: a little under
   return Math.max(1, Math.round(list * SELL_RATE * k));
 }
 function sellableTo(name, c){
@@ -13900,7 +13912,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '2 Nov \u00B7 HANDS. SLOWLY.';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '2 Nov \u00B7 AN OLD DEBT';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -13925,6 +13937,10 @@ const SITUATIONS = {
   stopsearch: {name: 'Stop and Search', kind: 'ambient', weight: 2, req: {lawMin: 1}},
   // a stranger breaks from the tide with your name in their mouth
   familiarface: {name: 'A Familiar Face', kind: 'ambient', weight: 2},
+  // (Ben, 2 Nov) a vampire walks into Tarn's shop and he goes very still; what lies between them is rolled per run
+  olddebt: {name: 'An Old Debt', kind: 'ambient', weight: 2, cast: ['Tarn'],
+    pinned(){ return !!(ship.oldDebt && ship.oldDebt.state !== 'done'); },
+    done(){ return !!(ship.oldDebt && ship.oldDebt.state === 'done'); }},
 };
 function situationsTick(){
   for(const k of Object.keys(SITUATIONS)){
@@ -14197,7 +14213,7 @@ function rumourSpread(force){
 // the price a keeper gives this crew, in their current mood: fear and gladness discount, disgust surcharges
 function keeperMul(name){
   if(!name) return 1;
-  const m = moodOf(name);
+  const m = moodFor(name);
   let k = 1;
   if(m.f >= 2) k *= 0.85;
   else if(m.j >= 1.5) k *= 0.92;
@@ -14206,10 +14222,45 @@ function keeperMul(name){
 }
 function shelfPrice(it, sh){ sh = sh || shopOf(); return Math.max(1, Math.round(it.price * keeperMul(sh && sh.keeper))); }
 // a line chosen by the sector the face is in: the words follow the wheel
-function moodSay(name, lines){
-  const nm = moodName(moodOf(name));
+function moodSay(name, lines, c){
+  const nm = moodName(moodFor(name, c));
   const sector = nm.top || 'indifferent';
   return lines[nm.word] || lines[sector] || lines.indifferent || '';
+}
+// ---- slants (Ben, 2 Nov): not species against species, but one face's own history with a kind of person ----
+// a slant is a shift on trust (and, when it is a grudge, on anger) toward whoever of that kind is in front of them.
+// It can wear down or harden with what happens, per face, and the card says why.
+const SLANTS = {
+  'Tarn':           [{to: 'VAMPIRE', d: -2, why: 'was mistreated by vampires once, and he was not the kind to forget it'}],
+  'Hesper Dunmore': [{to: 'MINOTAUR', d: 1, why: 'her own kin; she flew with minotaurs'}],
+  'Sulla':          [{to: 'MINOTAUR', d: 1, why: 'kin'}, {to: 'AMAROK', d: -1, why: 'two bad arrests on Garn, both amarok, both her fault and she knows it'}],
+  'Hask':           [{to: 'HUMAN', d: -1, why: 'humans haggle'}],
+  'Fenn':           [{to: 'AMAROK', d: 1, why: 'amarok tip'}],
+};
+function speakerRace(c){ return c && c.def ? String(c.def.kind || '').toUpperCase() : (c && c.race) ? String(c.race).toUpperCase() : ''; }
+function slantOf(name, race){
+  if(!race) return {d: 0, why: null};
+  const base = (SLANTS[name] || []).find(s => s.to === race);
+  const shift = ((ship.slants || {})[name] || {})[race] || 0;
+  const d = (base ? base.d : 0) + shift;
+  return {d, why: base ? base.why : (shift ? 'something that happened between them' : null)};
+}
+function slantShift(name, race, d, why){
+  ship.slants = ship.slants || {}; ship.slants[name] = ship.slants[name] || {};
+  ship.slants[name][race] = +((ship.slants[name][race] || 0) + d).toFixed(2);
+  if(why) lifeNote(name, why);
+  return slantOf(name, race);
+}
+// the wheel as this face reads THIS operator: the crew's standing, shifted by the slant toward the speaker's kind
+function moodFor(name, c){
+  const m = moodOf(name);
+  const sl = slantOf(name, speakerRace(c || pc()));
+  if(!sl.d) return m;
+  const v = Object.assign({}, m);
+  v.t = Math.max(-3, Math.min(3, m.t + sl.d));
+  if(sl.d < 0) v.f = Math.max(-3, Math.min(3, m.f + sl.d * 0.5));   // a grudge is also a short temper
+  v.slant = sl;
+  return v;
 }
 function moodIntensities(m){
   return {joy: Math.max(0, m.j), sadness: Math.max(0, -m.j), trust: Math.max(0, m.t), disgust: Math.max(0, -m.t),
@@ -14232,7 +14283,7 @@ function moodName(m){
   return {word: PLUTCHIK[top][it[top] >= 2.5 ? 2 : it[top] >= 1.5 ? 1 : 0], top};
 }
 // the thresholds behaviour reads
-function moodRefuses(name){ const m = moodOf(name); return m.t <= -2 || m.f <= -2; }    // disgust or anger: no trade, no work
+function moodRefuses(name, c){ const m = moodFor(name, c); return m.t <= -2 || m.f <= -2; }    // disgust or anger: no trade, no work (as they read whoever is asking)
 function moodTrusts(name){ return moodOf(name).t >= 1; }
 function moodAfraid(name){ return moodOf(name).f >= 2; }
 const MOOD_TINT = {joy: '#9fe08e', trust: '#6fd6ff', fear: '#e0a33e', surprise: '#d4a843', sadness: '#8a93b8', disgust: '#b06ae0', anger: '#e0483e', anticipation: '#9fe0d8'};
@@ -14363,7 +14414,17 @@ function dayRolled(){
 function clockMinute(skip){
   ship.clock = clockNow() + 1;
   if(ship.clock >= DAY_MIN){ ship.clock -= DAY_MIN; dayRolled(); }
-  if(state.portDock){ shiftTick(skip); opportunityTick(); }
+  if(state.portDock){ shiftTick(skip); opportunityTick(); oldDebtTick(); oldDebtLeave(skip); }
+}
+function oldDebtLeave(skip){
+  const d = ship.oldDebt; if(!d || d.state !== 'open') return;
+  if(clockNow() !== 19 * 60 + 30) return;
+  const v = (state.civs || []).find(c => c.name === d.name && !c.gone);
+  if(!v) return;
+  if(skip){ v.gone = true; state.civs = state.civs.filter(c => !c.gone); return; }
+  v.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
+  civSay(v, 'Tomorrow, then.', 8);
+  chronicle('event', d.name + ' left Tarn\u2019s shop at closing without a word, the way they came. Tomorrow, then.');
 }
 function clockTick(realDt){
   if(!state.portDock || state.deckCombat || !ship || ship.clockHold) return;   // clockHold: the harness and the designer can stop the hours
@@ -14491,7 +14552,7 @@ const TARN_DEF = {name: 'Tarn', kind: 'minotaur', cls: 'breaker', sex: 'm', colo
 function standoff(cv, c, opts){
   opts = opts || {};
   const name = cv.name;
-  const m = moodOf(name);
+  const m = moodFor(name, c);
   const owned = (c.def && c.def.pack || []).filter(it => it.own && it.own.indexOf(name + ' \u00B7 shop stock') === 0);
   const fight = () => { opts.fight && opts.fight(); };
   const handBack = () => {
@@ -14767,6 +14828,146 @@ function lifeArrest(name){
   showBanner(name.toUpperCase() + ' \u00B7 TAKEN IN', '#e0483e');
   popOver(cv, 'COME ALONG, ' + name.toUpperCase(), '#b06ae0');
   return true;
+}
+// ---- the Old Debt: a face from Tarn's past, and the crew in the middle ----
+const DEBT_NAMES = [{name: 'Corvin Ashe', sex: 'MALE'}, {name: 'Lisbet Vane', sex: 'FEMALE'}, {name: 'Mordecai Hull', sex: 'MALE'}];
+const DEBT_TRUTHS = {
+  tarnWronged: {broker: true, tarn: '\u201CThey held my brother\u2019s shop on Garn for a debt he had already paid, and they took it anyway, and he died a year later in a room above a bar. That one was there. That one held the door.\u201D',
+    vamp: '\u201CI was twenty and I held a door. I have thought about that door for thirty years. I came to say so, and he will not let me.\u201D'},
+  vampWronged: {broker: true, tarn: '\u201CI sold them a piece that I knew was wrong. I was hungry and they were a vampire and I told myself it evened out. It did not. Somebody died with it in their hand.\u201D',
+    vamp: '\u201CHe sold my sister a pistol with a cracked frame and it took her eye. He knows. Look at him. He knows.\u201D'},
+  debtTarn: {broker: true, tarn: '\u201CI owe them money. Old money, with old interest. I have not got it and I am not going to pretend I have.\u201D',
+    vamp: '\u201CFour hundred, eleven years ago, and I have never asked for a credit of interest. I am asking for the four hundred. Politely, so far.\u201D'},
+  debtVamp: {broker: true, tarn: '\u201CThey owe me. Not money. A name I gave them when they needed one, and they used it and ran. I do not want it back. I want them gone.\u201D',
+    vamp: '\u201CI owe him. I know it. I came to pay it and found out that the only coin he wants is not seeing my face.\u201D'},
+  death: {broker: false, tarn: '\u201CTheir brother and my brother went into the same alley on Garn and only one of them came out. Mine. They have come to look at me. Make them stop looking.\u201D',
+    vamp: '\u201CHis brother killed mine in an alley on Garn and the law called it a fair fight. I am not here for a fight. I am here so he has to see me.\u201D'},
+};
+function oldDebt(){ return ship.oldDebt || null; }
+// the trigger: a quiet hour on the Cross, Tarn at his counter and not already in trouble, the crew on the floor
+function oldDebtTick(){
+  if(ship.district !== 'cross' || !state.portDock || state.deckCombat) return;
+  if(!situationLive('olddebt')) return;
+  const od = ship.oldDebt;
+  if(od && od.state === 'done') return;
+  const tarn = (state.civs || []).find(c => c.name === 'Tarn' && c.alive && !c.ko && !c.gone);
+  if(!tarn || roleOf('Tarn') === 'lockup') return;
+  if(!od){
+    if(clockNow() !== 11 * 60 || (ship.day || 0) < 1 || pingsQuiet() || moodOf('Tarn').t < -1) return;
+    const who = DEBT_NAMES[Math.floor(Math.random() * DEBT_NAMES.length)];
+    const truths = Object.keys(DEBT_TRUTHS);
+    ship.oldDebt = {state: 'open', name: who.name, sex: who.sex, truth: truths[Math.floor(Math.random() * truths.length)], day: ship.day || 0, askedVamp: false, askedTarn: false, outcome: null, started: false};
+  }
+  const d = ship.oldDebt;
+  if(d.state !== 'open') return;
+  if((state.civs || []).some(c => c.name === d.name && !c.gone)) return;
+  if(clockNow() < 11 * 60 || clockNow() > 19 * 60) return;   // visiting hours
+  oldDebtArrive(tarn);
+}
+function oldDebtArrive(tarn){
+  const d = ship.oldDebt; const sk = 'tarn';
+  const arch = nearestArch(anchorPt(sk, 'door_out').x, anchorPt(sk, 'door_out').y) || anchorPt(sk, 'door_out');
+  const post = {x: anchorPt(sk, 'counter').x + 90, y: anchorPt(sk, 'counter').y + 120};
+  const cv = {x: arch.x, y: arch.y, r: 9, alive: true, ko: false, panic: 0, tx: arch.x, ty: arch.y, pace: 22, bob: Math.random() * 6, hood: false, tide: false,
+    kind: 'visitor', name: d.name, race: 'VAMPIRE', sex: d.sex, faction: 'NO FACTION \u00B7 FROM GARN', brave: 14, debt: true, home: post, homeR: 20,
+    bio: 'Came a long way to stand in a gun shop and not buy anything.',
+    errand: {kind: 'approach', path: [], leg: 0, waitT: 0, spd: civSpd({gait: 0.9}), target: tarn, then: () => oldDebtLand(tarn)}};
+  state.civs.push(cv);
+  cv.errand.target = tarn;
+  chronicle('event', d.name + ', a vampire nobody on the Cross knows, came through the arch and walked straight to Tarn\u2019s Arms.');
+  return cv;
+}
+function oldDebtLand(tarn){
+  const d = ship.oldDebt; if(!d) return;
+  const cv = (state.civs || []).find(c => c.name === d.name);
+  if(cv){ cv.errand = null; cv.home = {x: cv.x, y: cv.y}; cv.homeR = 10; }
+  tarn.held = performance.now() + 6000;
+  civSay(tarn, '...', 6);
+  popOver(tarn, 'HE HAS GONE VERY STILL', '#e0a33e', 3);
+  moodPush('Tarn', {f: 1, a: -1.5, j: -0.5}, d.name + ' walked into his shop', 'stock');
+  if(!d.started){
+    d.started = true;
+    spotlightOn(tarn, {label: 'AN OLD DEBT', hold: 4000});
+    showEventModal('AN OLD DEBT',
+      'A vampire has walked into Tarn\u2019s Arms and stopped in the middle of the floor, hands empty, saying nothing. Tarn has stopped too, mid-sentence, mid-everything. ' +
+      'Neither of them is looking at anything but the other. Whatever this is, it is older than the shop.',
+      [{label: 'UNDERSTOOD', cb: () => {}}], {sub: d.name.toUpperCase() + ' \u00B7 TARN\u2019S ARMS'});
+    chronicle('event', 'Tarn froze with a customer at the counter. The vampire in his doorway did not say a word, and neither did he.');
+  }
+}
+// the ways out
+function oldDebtResolve(how, c){
+  const d = ship.oldDebt; if(!d || d.state !== 'open') return false;
+  const tarn = (state.civs || []).find(x => x.name === 'Tarn' && x.alive);
+  const v = (state.civs || []).find(x => x.name === d.name && x.alive);
+  const race = 'VAMPIRE';
+  d.state = 'done'; d.outcome = how; d.by = c ? c.name : null;
+  if(how === 'runoff'){
+    if(v){ v.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; civSay(v, 'Tell him he can stop looking over his shoulder. I will not come back.', 10); }
+    slantShift('Tarn', race, -1, 'watched the crew run ' + d.name + ' off, and felt right about it');
+    moodPush('Tarn', {t: 1, f: 1, a: -1}, 'the crew made ' + d.name + ' go away', 'stock');
+    d.due = Math.min(120, Math.max(40, (shopByKeeper('Tarn') || {}).till || 120));
+    missionEnd('olddebt', 'done');
+    chronicle('event', d.name + ' left the Cross. Tarn breathed out for the first time in an hour and reached for his till.');
+  }else if(how === 'brokered'){
+    if(v){ v.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; civSay(v, 'That is all I came for. Thank you.', 10); }
+    if(tarn) civSay(tarn, 'Go on, then. Go.', 8);
+    slantShift('Tarn', race, 2, 'spoke with ' + d.name + ' because the crew made him, and something old came loose');
+    moodPush('Tarn', {t: 2, j: 1, f: 0.5, a: -1}, 'was made to face ' + d.name + ' and lived', 'stock');
+    lifeNote('Tarn', 'thanked ' + (c ? c.name : 'the crew') + ', in his way, for the thing with ' + d.name);
+    facRepAdd('constabulary', 0);
+    missionEnd('olddebt', 'done');
+    chronicle('event', 'Tarn and ' + d.name + ' talked for a quarter of an hour with the shop door shut. Nobody heard it. Both of them looked older after, and lighter.');
+  }else if(how === 'sided'){
+    if(v){ v.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; civSay(v, 'You are the first one on this port who listened. Here. For that.', 10); }
+    slantShift('Tarn', race, -1, 'watched the crew take ' + d.name + '\u2019s side in his own shop');
+    moodPush('Tarn', {t: -2, f: -1.5, j: -1}, 'the crew took ' + d.name + '\u2019s side against him', 'stock');
+    const give = {kind: 'weapon', key: 'revolver', own: d.name, bias: 1};
+    if(c && c.def){ (c.def.pack = c.def.pack || []); if(c.def.pack.length < 4) c.def.pack.push(give); else ship.credits += 90; }
+    missionEnd('olddebt', 'done');
+    chronicle('event', 'The crew stood with ' + d.name + ' in Tarn\u2019s own shop. ' + d.name + ' left a revolver with them and the Cross; Tarn left the counter and did not come back for an hour.');
+  }
+  shipSave();
+  return true;
+}
+function oldDebtTalkVamp(cv){
+  const d = ship.oldDebt; const c = pc(); const close = [{label: 'LEAVE', cb: () => {}}];
+  if(!d || d.state !== 'open') return showEventModal(cv.name.toUpperCase(), '\u201CIt is done. One way or the other.\u201D', close);
+  const T = DEBT_TRUTHS[d.truth];
+  const known = d.askedVamp && d.askedTarn;
+  const btns = [];
+  btns.push({label: 'WHAT HAPPENED BETWEEN YOU?', cb: () => { d.askedVamp = true; shipSave(); showEventModal(cv.name.toUpperCase(), T.vamp + (d.askedTarn ? '' : ' \u201CAsk him. See if he tells it the same.\u201D'), close); }});
+  btns.push({label: 'LEAVE THE CROSS. NOW.', cb: () => {
+    const st = c && c.stats || {};
+    const roll = (st.strength || 8) * 0.5 + (st.bravery || 10) * 0.3 + Math.floor(Math.random() * 8);
+    if(roll >= 13 || d.truth === 'debtVamp'){ oldDebtResolve('runoff', c); }
+    else { civSay(cv, 'I will go when he looks me in the eye. Not before.', 10); moodPush('Tarn', {a: -0.3}, 'watched the crew fail to move ' + d.name, 'stock'); chronicle('event', c.name + ' told ' + d.name + ' to leave and was looked at until they stopped talking.'); }
+  }});
+  if(known && T.broker) btns.push({label: 'I WILL BRING HIM OUT. TALK TO HIM.', cb: () => oldDebtResolve('brokered', c)});
+  if(known && !T.broker) btns.push({label: 'SOME THINGS DO NOT BROKER', cb: () => { showEventModal(cv.name.toUpperCase(), '\u201CNo. They do not.\u201D', close); }});
+  if(d.askedVamp) btns.push({label: 'I AM WITH YOU IN THIS', cb: () => oldDebtResolve('sided', c)});
+  return showEventModal(cv.name.toUpperCase(), '\u201CYou work for him?\u201D A glance at the counter. \u201CNo. You work for whoever is paying. He will be paying you to make me leave. He has not told you why.\u201D', btns.concat(close));
+}
+function oldDebtTalkTarn(cv){
+  const d = ship.oldDebt; const c = pc(); const close = [{label: 'LEAVE', cb: () => {}}];
+  const T = DEBT_TRUTHS[d.truth];
+  const m = moodFor('Tarn', c);
+  if(d.state === 'done' && d.outcome === 'runoff' && d.due){
+    return showEventModal('TARN', '\u201CGone?\u201D He does not wait for the answer. \u201CGood.\u201D The till opens. \u201CDo not ask me about it. Ever.\u201D',
+      [{label: 'TAKE IT \u00B7 ' + d.due + ' CR', cb: () => { ship.credits += d.due; const sh = shopByKeeper('Tarn'); if(sh) sh.till = Math.max(0, (sh.till || 0) - d.due); d.due = 0; shipCreditsRefresh && shipCreditsRefresh(); shipSave(); }}].concat(close));
+  }
+  if(d.state === 'done') return null;
+  if(!ship.missions || !ship.missions.olddebt){
+    return showEventModal('TARN', 'He does not look at you. He looks past you, at the vampire standing in his shop. \u201CMake them go away. I will pay. Do not ask me why.\u201D',
+      [{label: 'WE WILL SEE TO IT', cb: () => { missionStart('olddebt'); moodPush('Tarn', {a: 1}, 'asked the crew to make ' + d.name + ' leave', 'stock'); chronicle('event', 'Tarn asked the crew to make the vampire leave, and would not say why.'); }},
+       {label: 'NOT OUR BUSINESS', cb: () => { moodPush('Tarn', {t: -0.5}, 'was refused by the crew when it mattered', 'stock'); }}]);
+  }
+  const btns = [];
+  btns.push({label: 'WHAT HAPPENED BETWEEN YOU?', cb: () => {
+    if(m.t >= 1){ d.askedTarn = true; shipSave(); showEventModal('TARN', T.tarn, close); }
+    else showEventModal('TARN', '\u201CI said do not ask.\u201D' + (m.slant && m.slant.d < 0 ? ' He looks at ' + c.name + ' the way he looks at the vampire. \u201CNot you. Not ever.\u201D' : ' \u201CEarn it first.\u201D'), close);
+  }});
+  return showEventModal('TARN', '\u201CStill here.\u201D He means the vampire. He has not moved from behind the counter in an hour.', btns.concat(close));
 }
 function anchorPt(shopKey, name){ const a = SHOPS[shopKey].anchors[name]; return {x: a.x * W, y: a.y * H}; }
 function shopLocked(key){ return (state.walls || []).some(w => w.lock === key); }
@@ -16053,6 +16254,7 @@ function showNpcTip(cv, cx, cy){
     '<p>' + (cast.bio || '') + '</p>' +
     '<i>DISPOSITION \u00B7 <em style="color:' + att.tint + '">' + att.word + '</em></i>' +
     (ml ? '<i>FEELS \u00B7 <em style="color:' + ml.tint + '">' + ml.word + '</em>' + (ml.last ? ' \u00B7 ' + ml.last.toUpperCase() : '') + '</i>' : '') +
+    (ml && pc() && moodFor(cv.name, pc()).slant ? (() => { const v = moodFor(cv.name, pc()); const nmv = moodName(v); return '<i>TO ' + pc().name.toUpperCase() + ' \u00B7 <em style="color:' + (nmv.top ? MOOD_TINT[nmv.top] : 'rgba(232,224,204,.7)') + '">' + nmv.word.toUpperCase() + '</em> \u00B7 ' + (v.slant.d < 0 ? 'DOES NOT CARE FOR ' : 'WARMS TO ') + speakerRace(pc()) + 'S' + (v.slant.why ? ' \u00B7 ' + v.slant.why.toUpperCase() : '') + '</i>'; })() : '') +
     (DRIVES[cv.name] ? '<i>IS \u00B7 <em style="color:#d4a843">' + (ROLE_WORD[roleOf(cv.name)] || roleOf(cv.name).toUpperCase()) + '</em>' + ((lifeOf(cv.name).record || []).length ? ' \u00B7 ' + lifeOf(cv.name).record[lifeOf(cv.name).record.length - 1].text.toUpperCase() : '') + '</i>' : '');
   tip.style.left = (cx + 18) + 'px';
   tip.style.top = (cy - 10) + 'px';
@@ -16267,8 +16469,8 @@ function portTalk(cv){
     if(j && j.state === 'open'){
       return showEventModal('ERINA JONES', '\u201CThe hatch is on the freight side, by the east arch. Darts, not lead. Come back with it breathing.\u201D', close);
     }
-    if(moodRefuses('Erina Jones')){
-      const em = moodOf('Erina Jones');
+    if(moodRefuses('Erina Jones', pc())){
+      const em = moodFor('Erina Jones', pc());
       return showEventModal('ERINA JONES', em.f <= -2
         ? '\u201CNot you. Not for money, not for anything.\u201D She does not come round the counter. \u201CI saw what you are. Get off my floor.\u201D'
         : '\u201CNo.\u201D The word sits there. \u201CI do not deal with your kind of trouble, and I have stopped pretending I might.\u201D', close);
@@ -16363,6 +16565,9 @@ function portTalk(cv){
     }
     return showEventModal('HASK', '\u201CBuy, sell, forget. Those are the services.\u201D', sellBtn(cv).concat(close));
   }
+  if(cv.kind === 'visitor' && cv.debt) return oldDebtTalkVamp(cv);
+  if(cv.name === 'Tarn' && ship.oldDebt && ship.oldDebt.state === 'open' && (state.civs || []).some(x => x.name === ship.oldDebt.name && x.alive && !x.gone)) return oldDebtTalkTarn(cv);
+  if(cv.name === 'Tarn' && ship.oldDebt && ship.oldDebt.state === 'done' && ship.oldDebt.outcome === 'runoff' && ship.oldDebt.due){ const r = oldDebtTalkTarn(cv); if(r !== null) return r; }
   if(cv.kind === 'courier'){
     return showEventModal('SABLE', '\u201CI carry things. Sometimes words. None of them are for you.\u201D', close);
   }
@@ -16598,7 +16803,7 @@ function shipSave(){
       erinaJob: ship.erinaJob || null,
       charter: ship.charter || null,
       lockup: (ship.lockup || []).slice(), evidence: (ship.evidence || []).slice(),
-      moods: ship.moods || {}, clock: clockNow(), lives: ship.lives || {},
+      moods: ship.moods || {}, clock: clockNow(), lives: ship.lives || {}, slants: ship.slants || {}, oldDebt: ship.oldDebt || null,
     }));
   }catch(err){ /* storage unavailable: the run lives for this session only */ }
 }
@@ -16627,6 +16832,8 @@ function shipLoad(){
     ship.moods = (d.moods && typeof d.moods === 'object') ? d.moods : {};
     ship.clock = typeof d.clock === 'number' ? d.clock : CLOCK_START;
     ship.lives = (d.lives && typeof d.lives === 'object') ? d.lives : {};
+    ship.slants = (d.slants && typeof d.slants === 'object') ? d.slants : {};
+    ship.oldDebt = (d.oldDebt && typeof d.oldDebt === 'object') ? d.oldDebt : null;
     if(Array.isArray(d.roster) && d.roster.length){
       SQUAD_DEFS.length = 0;
       for(const r of d.roster) SQUAD_DEFS.push(r);
@@ -16648,7 +16855,7 @@ function doShipReset(){
   ship.missions = {};
   ship.erinaJobs = false; ship.erinaJob = null; hatchPending = null; state.quietUntil = 0; state.camTourUntil = 0; state._hatchRun = null; state._denRun = null;
   ship.charter = null; state.charterGround = false; state.charterZone = null; state.charterShow = false;
-  ship.lockup = []; ship.evidence = []; state.cellsOpen = {}; ship.moods = {}; ship.clock = CLOCK_START; ship._clockAcc = 0; ship.lives = {}; ship.shopForced = {};
+  ship.lockup = []; ship.evidence = []; state.cellsOpen = {}; ship.moods = {}; ship.clock = CLOCK_START; ship._clockAcc = 0; ship.lives = {}; ship.shopForced = {}; ship.slants = {}; ship.oldDebt = null;
   state.districts = {}; state.arrivals = [];
   ship.armoury.length = 0; ship.graves.length = 0;
   ship.chronicle = chronicleSeed();
