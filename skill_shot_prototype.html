@@ -13374,6 +13374,80 @@ function packDrop(c, pi){
   return true;
 }
 function sellable(it){ return !it.kind || it.kind === 'trinket'; }
+// ---- selling across every counter (Ben, 2 Nov): each keeper buys certain things, pays half of list moved by their mood,
+// and the piece goes into their stock. Marked goods are refused by the honest and bought cheap by the rest. ----
+const KEEPER_BUYS = {
+  'Tarn':        {kinds: ['weapon'], marked: 'fence', line: 'Iron. I buy iron, if it works. Show me.'},
+  'Kestrel':     {kinds: ['weapon', 'gear'], marked: 'refuse', line: 'Guild rates for guild goods. Nothing with a name on it that is not yours.'},
+  'Erina Jones': {kinds: ['weapon'], keys: ['dart', 'goad', 'screamer'], marked: 'refuse', line: 'Catching kit only. I have no use for a cannon.'},
+  'Hask':        {kinds: ['weapon', 'gear', 'trinket'], marked: 'any', rate: 0.35, line: 'Anything. Especially the kind of anything with somebody else\u2019s name on it.'},
+  'Fenn':        {kinds: [], line: 'I pour. I do not buy. Try Tarn, or Hask if it is warm.'},
+  'Hesper Dunmore': {kinds: [], line: 'Hulls and pilots. When you have a hull to sell, we talk.'},
+};
+function keeperBuys(name){ return KEEPER_BUYS[name] || null; }
+function itemMarked(it){ return !!(it.own && !/shop stock/.test(it.own)) || !!it.ownFac; }
+// what this keeper would give for this piece, or null if they will not have it
+function sellOffer(name, it){
+  const kb = keeperBuys(name); if(!kb || !it) return null;
+  if(!kb.kinds.includes(it.kind)) return null;
+  if(kb.keys && !kb.keys.includes(it.key)) return null;
+  if(moodRefuses(name)) return null;
+  const list = it.kind === 'weapon' ? (WPN_PRICE[it.key] || 60) : (it.value || 20);
+  const marked = itemMarked(it);
+  if(marked){
+    if(kb.marked === 'refuse') return null;
+    if(kb.marked === 'fence' && roleOf(name) !== 'fence') return null;
+    return Math.max(1, Math.round(list * (kb.marked === 'fence' ? 0.45 : (kb.rate || 0.35))));
+  }
+  const m = moodOf(name);
+  let k = 1;
+  if(m.f >= 2 || m.j >= 1.5) k = 1.1;   // nervous or glad: a little over
+  if(m.t <= -1.5) k = 0.8;              // grudging: a little under
+  return Math.max(1, Math.round(list * SELL_RATE * k));
+}
+function sellableTo(name, c){
+  const d = c && c.def; if(!d) return [];
+  return (d.pack || []).map((it, i) => ({it, i, price: sellOffer(name, it)})).filter(x => x.price != null);
+}
+// the sale: credits across, the piece into the keeper's stock (a shelf slot that is empty, or Tarn's locker), the drive fed
+function sellTo(name, c, idx){
+  const d = c && c.def; if(!d) return false;
+  const it = (d.pack || [])[idx]; if(!it) return false;
+  const price = sellOffer(name, it); if(price == null) return false;
+  const marked = itemMarked(it);
+  if(marked && keeperBuys(name).marked === 'fence') return tarnFenceSell(c, it);
+  d.pack.splice(idx, 1);
+  ship.credits += price;
+  const sh = shopByKeeper(name);
+  if(sh && it.kind === 'weapon'){
+    const stockIt = {kind: 'weapon', key: it.key, mods: it.mods, price: Math.round((WPN_PRICE[it.key] || 60) * 0.9), gone: false, own: name + ' \u00B7 shop stock', ownFac: null, hot: marked || undefined};
+    if(sh.locker){ sh.locker.push(stockIt); sh.lockerSeen = (sh.lockerSeen || 0) + 1; }
+    else { const j = sh.stock.findIndex(s2 => !s2 || s2.gone); if(j >= 0) sh.stock[j] = stockIt; else sh.stock.push(stockIt); }
+  }
+  moodPush(name, {j: 0.2, t: 0.2}, 'bought a ' + lootLabelOf(it) + ' off ' + c.name, 'trade');
+  if(DRIVES[name]) lifeSale(name);
+  addPopup(c.x, c.y - c.r - 16, '+' + price + ' CR \u00B7 SOLD TO ' + name.toUpperCase(), '#d4a843');
+  chronicle('trade', c.name + ' sold a ' + lootLabelOf(it) + ' to ' + name + ' for ' + price + ' CR.');
+  shipCreditsRefresh && shipCreditsRefresh();
+  shipSave();
+  return true;
+}
+// the SELL conversation: what the keeper will take out of the operator's pack, with a price on each
+function sellTalk(cv){
+  const name = cv.name; const kb = keeperBuys(name); const c = pc();
+  const close = [{label: 'LEAVE', cb: () => {}}];
+  if(!kb || !kb.kinds.length) return showEventModal(name.toUpperCase(), '\u201C' + kb.line + '\u201D', close);
+  if(moodRefuses(name)) return showEventModal(name.toUpperCase(), '\u201CNot from you.\u201D', close);
+  const offers = sellableTo(name, c);
+  const refused = ((c && c.def && c.def.pack) || []).filter(it => sellOffer(name, it) == null && kb.kinds.includes(it.kind) && (!kb.keys || kb.keys.includes(it.key)) && itemMarked(it));
+  const btns = offers.slice(0, 4).map(o => ({label: 'SELL ' + lootLabelOf(o.it).toUpperCase() + ' \u00B7 ' + o.price + ' CR', cb: () => { sellTo(name, c, o.i); }}));
+  const body = offers.length ? '\u201C' + kb.line + '\u201D' + (refused.length ? ' A look at the rest: \u201CThose have names on them. Not here.\u201D' : '')
+    : refused.length ? '\u201C' + kb.line + '\u201D He turns the piece over and reads the tag. \u201CSomebody else\u2019s. Not here, and I will remember you offered.\u201D'
+    : '\u201C' + kb.line + '\u201D Nothing in ' + (c ? c.name + '\u2019s' : 'the') + ' pack is the kind of thing.';
+  if(!offers.length && refused.length) moodPush(name, {t: -0.4}, 'was offered marked goods by ' + (c ? c.name : 'the crew'), 'trade');
+  return showEventModal(name.toUpperCase() + ' \u00B7 BUYING', body, btns.concat(close));
+}
+function sellBtn(cv){ const kb = keeperBuys(cv.name); return kb ? [{label: 'SELL', cb: () => sellTalk(cv)}] : []; }
 function packTotal(){
   let n = 0, v = 0;
   for(const d of SQUAD_DEFS){
@@ -13816,7 +13890,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '2 Nov \u00B7 WITHIN HAILING';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '2 Nov \u00B7 OVER THE COUNTER';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15947,7 +16021,7 @@ function portTalk(cv){
     if(shT && shT.counted){
       return showEventModal('KESTREL', '\u201CSomebody\u2019s been light-fingered on my floor. The guild knows, the law knows, and I count TWICE now. Browse with your hands where I can see them.\u201D', close);
     }
-    return showEventModal('KESTREL', '\u201CThe shelves are the stock, walk them, read the tags, pay me from wherever you stand. Guild prices, guild paper. And I know my own count to the bolt.\u201D', close);
+    return showEventModal('KESTREL', '\u201CThe shelves are the stock, walk them, read the tags, pay me from wherever you stand. Guild prices, guild paper. And I know my own count to the bolt.\u201D', sellBtn(cv).concat(close));
   }
   if(cv.kind === 'porter'){
     return showEventModal(String(cv.name || 'PORTER').toUpperCase(), '\u201CPaid to carry, not to talk.\u201D', close);
@@ -16118,7 +16192,7 @@ function portTalk(cv){
       disgust: '\u201CBuy and go.\u201D She does not look up from the ledger.',
       anger: '\u201CYou have a nerve coming in here.\u201D The hand below the counter stays there.',
       indifferent: '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D',
-    }), [offer].concat(close));
+    }), [offer].concat(sellBtn(cv)).concat(close));
   }
   if(cv.name === 'Hesper Dunmore'){
     const st = charterSt();
@@ -16144,7 +16218,7 @@ function portTalk(cv){
       sadness: '\u201CHulls for hire.\u201D Flat. \u201CPilots too, if any are left who will fly you.\u201D',
       indifferent: null,
     });
-    if(hesperLine) return showEventModal('HESPER DUNMORE', hesperLine, close);
+    if(hesperLine) return showEventModal('HESPER DUNMORE', hesperLine, sellBtn(cv).concat(close));
     return showEventModal('HESPER DUNMORE', '\u201CHulls for hire, pilots for hire. Spindle is extra and the deposit is in advance, on account of the odds. Nobody is paying your way today.\u201D', close);
   }
   if(cv.name === 'Hask'){
@@ -16166,7 +16240,7 @@ function portTalk(cv){
     if(b.heat){
       return showEventModal('HASK', '\u201CWarrant rates everywhere today, friend. Even forgetting costs more.\u201D', close);
     }
-    return showEventModal('HASK', '\u201CBuy, sell, forget. Those are the services.\u201D', close);
+    return showEventModal('HASK', '\u201CBuy, sell, forget. Those are the services.\u201D', sellBtn(cv).concat(close));
   }
   if(cv.kind === 'courier'){
     return showEventModal('SABLE', '\u201CI carry things. Sometimes words. None of them are for you.\u201D', close);
@@ -16215,7 +16289,7 @@ function portTalk(cv){
       surprise: '\u201CHuh. Did not have you down for that.\u201D',
       sadness: '\u201CShelf is there. Prices are honest. That is all I have got today.\u201D',
       indifferent: '\u201CTarn\u2019s Arms. Everything on the shelf works, I made sure of it myself. Pistols, long guns, repairs on the bench. Buy something and I will even talk to you.\u201D',
-    }), close);
+    }), sellBtn(cv).concat(close));
   }
   if(cv.name === 'Fenn'){
     const fm = moodOf('Fenn');
@@ -16238,7 +16312,7 @@ function portTalk(cv){
       moodPush('Fenn', {j: 0.3}, 'the crew paid for the gossip', 'trade');
       showEventModal('FENN', 'He leans in. \u201C' + heard.map(x => x.what.replace(/^heard that /, '')).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join('. ') + '. That is what the floor says, anyway.\u201D', close);
     }});
-    return showEventModal('FENN', greet, btns.concat(close));
+    return showEventModal('FENN', greet, btns.concat(sellBtn(cv)).concat(close));
   }
   if(cv.kind === 'constable' && state.sawDeal && lifeOf(state.sawDeal.who).role !== 'lockup'){
     const sd = state.sawDeal;
