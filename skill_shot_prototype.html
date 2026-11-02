@@ -3119,7 +3119,7 @@ function collarWake(cop, perp){
   perp.errand = {kind: 'led', who: cop, path: [], leg: 0, waitT: 0};
   cop.collar = null; cop.chase = null; cop.pursue = true;
   cop.lead = {who: perp, op: false};
-  addPopup(perp.x, perp.y - perp.r - 14, 'ON YOUR FEET', '#b06ae0');
+  popOver(perp, 'ON YOUR FEET', '#b06ae0');
   chronicle('event', cop.name + ' got ' + (perp.name || 'the thief') + ' up off the floor and walked them towards the station.');
   const op = perp.koBy ? (state.squad || []).find(c => c.name === perp.koBy && c.alive) : null;
   if(op && !perp.credited && Math.hypot(op.x - cop.x, op.y - cop.y) < 360){
@@ -3153,7 +3153,7 @@ function arrestAsk(cop, c){
   const close = () => {};
   const march = () => arrestMarch(cop, c);
   const deny = () => {
-    addPopup(cop.x, cop.y - cop.r - 14, 'SEEN', '#e0483e');
+    popOver(cop, 'SEEN', '#e0483e');
     chronicle('event', c.name + ' denied it. ' + cop.name + ' had seen enough not to care.');
     showEventModal('CONSTABLE ' + String(cop.name).toUpperCase(), '\u201C' + seen + ' Hands where I can see them. We are walking.\u201D',
       [{label: 'GO QUIETLY', cb: march}, {label: 'DRAW', cb: () => arrestDraw(cop)}]);
@@ -3250,7 +3250,7 @@ function cellOpen(n, how){
       if(sgt){
         moodPush(sgt.name, {t: -2, f: -2, a: -1}, 'heard the cell doors open', 'law');
         rapAdd(c.name, 'major', 'breaking out of the Cross lockup');
-        addPopup(sgt.x, sgt.y - sgt.r - 14, 'THE DESK HEARD THAT', '#e0483e');
+        popOver(sgt, 'THE DESK HEARD THAT', '#e0483e');
       }else chronicle('event', c.name + ' walked out of cell ' + n + ' with nobody at the desk to see it.');
     }
   }
@@ -3337,7 +3337,7 @@ function lawTick(dt){
     if(cv.down > 0) continue;
     cv.ko = false; cv.down = 0; cv.sed = 0;
     if(cv.crook) crookLeave(cv); else if(cv.routine){ cv.errand = null; cv.plan = null; } else cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
-    addPopup(cv.x, cv.y - cv.r - 14, 'CAME ROUND', '#e0a33e');
+    popOver(cv, 'CAME ROUND', '#e0a33e');
     chronicle('event', (cv.name || 'The thief') + ' came round on the floor, found nobody standing over them, and left.');
   }
   for(const c of state.squad){
@@ -3394,7 +3394,7 @@ function lawTick(dt){
       if(!(p.alive && p.ko && p.down > 0 && !p.collared && p.kind === 'cutpurse')) continue;
       if(Math.hypot(p.x - cv.x, p.y - cv.y) > 340 || !segClearHigh(cv.x, cv.y, p.x, p.y)) continue;
       cv.collar = p; cv.pursue = true;
-      addPopup(cv.x, cv.y - cv.r - 14, 'ONE ON THE FLOOR', '#b06ae0');
+      popOver(cv, 'ONE ON THE FLOOR', '#b06ae0');
       break;
     }
   }
@@ -4544,18 +4544,18 @@ function deckDown(p){
     const lw = (state.walls || []).find(w => w.lock && Math.hypot(w.x + w.w / 2 - p.x, w.y + w.h / 2 - p.y) < 54);
     if(lw){ shopDoorInspect(lw.lock); return; }
   }
-  // a named face on the concourse: near enough, talk; too far, walk over first
-  const ncv = (state.civs || []).find(v => v.name && v.alive && !v.ko &&
+  // a named face on the concourse: near enough, talk; too far, the crew walks to wherever they are and hails them on the way
+  const ncv = (state.portDock || state.shipDeck) && !state.deckCombat ? npcPick(p.x, p.y, 48) : (state.civs || []).find(v => v.name && v.alive && !v.ko &&
     Math.hypot(v.x - p.x, v.y - p.y) < 20);
   if(ncv && !unitAtPoint(state.squad, p.x, p.y, 22)){
     const c0 = pc();
-    if(c0 && Math.hypot(c0.x - ncv.x, c0.y - ncv.y) <= 110){
+    if(c0 && Math.hypot(c0.x - ncv.x, c0.y - ncv.y) <= TALK_RANGE){
       portTalk(ncv);
     }else if(c0){
       state.movePreview = computeMovePreview(ncv.x + 34, ncv.y + 10);
       if(state.movePreview && state.movePreview.valid){
-        c0.npcGoal = ncv.name;
-        commitMove();
+        talkGoalSet(c0, ncv);
+        state._goalMove = true; commitMove(); state._goalMove = false;
         squadFollow(ncv.x + 34, ncv.y + 10);
       }else{
         addPopup(ncv.x, ncv.y - 24, 'NO PATH', '#e0a33e');
@@ -7695,10 +7695,8 @@ function onMove(e){
     if(briefOpen || sysOpen || askPending) return;
     const hp2 = toLocal(e);
     const u = unitAtPoint([...state.enemies.filter(x => x.alive && x.visible), ...state.squad.filter(x => x.alive)], hp2.x, hp2.y, 8);
-    const nc = (!u && state.shipDeck && !state.deckCombat)
-      ? (state.civs || []).find(v => v.name && v.alive && !v.ko &&
-          Math.hypot(v.x - hp2.x, v.y - hp2.y) < 15)
-      : null;
+    const nc = (!u && state.shipDeck && !state.deckCombat) ? npcPick(hp2.x, hp2.y, 36) : null;
+    if(canvas && canvas.style) canvas.style.cursor = nc ? 'pointer' : '';
     let si9 = -1;
     if(!u && !nc && state.shipDeck && !state.deckCombat && state.portDock &&
        state.shelves && state.shelves.length && shopOf()){
@@ -8420,6 +8418,7 @@ function commitMove(){
   if(!mp || !mp.valid || mp.dist < 6) return; // no path or a non-move: don't spend the action
   const c = pc();
   if(c && c.marched){ addPopup(c.x, c.y - c.r - 14, 'IN CUSTODY', '#e0483e'); return; }
+  if(c && !state._goalMove) talkGoalClear(c);   // a fresh order is a change of mind
   if(state.shipDeck && !state.deckCombat && c.friskT && performance.now() < c.friskT){
     addPopup(c.x, c.y - c.r - 16, 'HOLD STILL, BEING SEARCHED', '#e0a33e');
     return;
@@ -9018,7 +9017,7 @@ function openGround(x, y, r){
 // a stride at the civilian scale: set against the crew's own walk, never above it
 function civSpd(cv){
   const ref = Math.min(LW, LH) * 0.3 * TUNE.runSpeedMul * 2;   // the crew's deck walk
-  return ref * (cv.gait || 0.8);
+  return ref * (cv.gait || 0.8) * (cv && cv.name && !cv.tide ? 0.85 : 1);   // the named have somewhere to be; the tide has somewhere to be first
 }
 // ---- walking the port: one procedural nav grid, rebuilt from what is standing right now ----
 // A clearance grid: a cell is free only if a walker of CNAV.clr radius can stand anywhere in it.
@@ -9110,6 +9109,7 @@ const NPC_PACE = 0.5;
 function civStep(cv, tx, ty, speed, dt){
   const dx = tx - cv.x, dy = ty - cv.y;
   const d = Math.hypot(dx, dy) || 1;
+  if(state.hoverNpc === cv) speed *= 0.35;   // eye contact: a face under the cursor slows to a dawdle
   const step = Math.min(d, speed * NPC_PACE * dt);
   const base = Math.atan2(dy, dx);
   const look = Math.min(d, step + 30);
@@ -9306,6 +9306,13 @@ function errandTick(cv, dt){
     cv.held = null;
   }
   if(cv.jailed) return true;       // four walls and a console: nowhere to go
+  if(hailed(cv) && !castBusy(cv)){   // somebody called their name: they stop and turn, for a little while
+    const by = (state.squad || []).find(c => c.name === cv.hail.by);
+    if(by) cv.facing = Math.atan2(by.y - cv.y, by.x - cv.x);
+    cv.tx = cv.x; cv.ty = cv.y;
+    return true;
+  }
+  if(cv.hail && performance.now() >= cv.hail.until){ cv.hail = null; cv.hailSaid = false; }
   if(cv.routine && !cv.errand && !castBusy(cv) && state.portDock && !state.deckCombat) return routineTick(cv, dt);
   const er = cv.errand;
   if(!er) return false;
@@ -9351,7 +9358,7 @@ function errandTick(cv, dt){
     if(Math.hypot(gx - cv.x, gy - cv.y) < 72){
       if(cv.carryKey){
         ship.armoury.push(armEntry(cv.carryKey, {mods: cv.carryMods}));
-        addPopup(cv.x, cv.y - cv.r - 14, 'DELIVERED TO THE ORRIX', '#9fe08e');
+        popOver(cv, 'DELIVERED TO THE ORRIX', '#9fe08e');
         chronicle('trade', 'The porter set the ' + (WPN_NAMES[cv.carryKey] || 'piece') + ' inside the Orrix\u2019s ramp. Paid for, carried, delivered.');
         cv.carryKey = null;
         shipSave();
@@ -9388,7 +9395,7 @@ function errandTick(cv, dt){
       cv.stolen = {kind: 'weapon', key: mk.carryKey, own: 'the crew of the Orrix', mods: mk.carryMods || null};
       mk.carryKey = null;
       mk.panic = 2.2;
-      addPopup(cv.x, cv.y - cv.r - 14, 'SNATCHED!', '#e0483e');
+      popOver(cv, 'SNATCHED!', '#e0483e');
       cv.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
       chronicle('event', cv.name + ' snatched the crew\u2019s paid-for ' + (WPN_NAMES[cv.stolen.key] || 'delivery') + ' off the porter\u2019s back and bolted for the arches.');
       const cop9 = (state.civs || []).find(c3 => c3.kind === 'constable' && c3.alive && !c3.ko && !c3.respond &&
@@ -9433,7 +9440,7 @@ function errandTick(cv, dt){
     if(state.deckCombat && (state.enemies || []).some(e => e.alive && !e.ko)){
       cv.spooked = true; cv.tide = true;
       cv.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
-      addPopup(cv.x, cv.y - cv.r - 14, '!!', '#e0483e');
+      popOver(cv, '!!', '#e0483e');
       return true;
     }
     if(er.t > (er.life || 180)){
@@ -9485,7 +9492,7 @@ function errandTick(cv, dt){
       cv.bag = (cv.bag || 0) + 1;
       if(bd.list === 'civs') state.civs = state.civs.filter(c3 => c3 !== bd.obj);
       else state.enemies = state.enemies.filter(e3 => e3 !== bd.obj);
-      addPopup(cv.x, cv.y - cv.r - 14, 'BAGGED \u00B7 ' + (bd.obj.name || 'UNKNOWN').toUpperCase(), '#b06ae0');
+      popOver(cv, 'BAGGED \u00B7 ' + (bd.obj.name || 'UNKNOWN').toUpperCase(), '#b06ae0');
       return true;
     }
     civTravel(cv, bd.obj.x, bd.obj.y, 60, dt);
@@ -9556,7 +9563,7 @@ function errandTick(cv, dt){
     if(stg && Math.hypot(cv.x - stg.x, cv.y - stg.y) < 90){
       cv.errand = null;
       ship.credits += 120;
-      addPopup(cv.x, cv.y - cv.r - 14, '+120 CR \u00B7 THE MANAGER PAYS', '#d4a843');
+      popOver(cv, '+120 CR \u00B7 THE MANAGER PAYS', '#d4a843');
       chronicle('trade', 'Delivered Caruso Veil to The Pit upright and nearly singing. His manager paid 120 CR and apologised to nobody.');
       shipCreditsRefresh && shipCreditsRefresh();
       return true;
@@ -9757,7 +9764,7 @@ function bzNpcCrimeAct(perp, mk){
   c.mark = null;
   c.stage = 'prowl';
   perp.errand = {kind: 'prowl', path: [], leg: 0, waitT: 0, wt: CUT_GAP_S};
-  if(mk){ mk.panic = 2.2; addPopup(mk.x, mk.y - mk.r - 14, 'CUTPURSE!', '#e0a33e'); }
+  if(mk){ mk.panic = 2.2; popOver(mk, 'CUTPURSE!', '#e0a33e'); }
   chronicle('event', (perp.name || 'A cutpurse') + ' lifted a dock-hand\u2019s pay pouch on the open concourse. Lift ' + c.lifts + '.');
   if(c.lifts >= CUT_LIFTS){
     crookLeave(perp);
@@ -9771,7 +9778,7 @@ function bzNpcCrimeAct(perp, mk){
     if(!segClearHigh(cv.x, cv.y, perp.x, perp.y)) continue;
     cv.chase = perp;
     seenByLaw = true;
-    addPopup(cv.x, cv.y - cv.r - 14, 'HOY!', '#b06ae0');
+    popOver(cv, 'HOY!', '#b06ae0');
     break;
   }
   // failing that, a bystander: the odds climb with every lift, and a noticed thief is told on
@@ -9783,7 +9790,7 @@ function bzNpcCrimeAct(perp, mk){
       if(!segClearHigh(w2.x, w2.y, perp.x, perp.y)) continue;
       witnessRun(w2, {npc: true, perp});
       c.noticed = true;
-      addPopup(w2.x, w2.y - w2.r - 14, '!', '#e0a33e');
+      popOver(w2, '!', '#e0a33e');
       chronicle('event', 'Somebody in the crowd saw ' + perp.name + '\u2019s hand in a pocket and went to find a badge.');
       break;
     }
@@ -10237,11 +10244,72 @@ function bounce(b){
   return false;
 }
 
-function addPopup(x, y, txt, color, vx, vy){
+function addPopup(x, y, txt, color, vx, vy, follow){
   state.popups.push({x, y, txt, t:0, life:0.8, color,
     vx: vx === undefined ? 0 : vx,
-    vy: vy === undefined ? -34 : vy});
+    vy: vy === undefined ? -34 : vy, follow: follow || null, rise: 0});
 }
+// (Ben, 2 Nov) a word over a person rides with them and stays long enough to read
+function popOver(o, txt, color, life){
+  if(!o) return;
+  state.popups.push({x: o.x, y: o.y - (o.r || 9) - 14, txt, t: 0, life: life || (o.name ? 1.8 : 0.9), color, vx: 0, vy: -16, follow: o, rise: 0});
+}
+// the forgiving pick: the nearest clickable face within a radius that grows as the camera pulls back; named faces first
+function npcPick(x, y, r){
+  const zoom = (typeof cam !== 'undefined' && cam && cam.zoom) ? cam.zoom : 1;
+  const rr = (r || 48) / Math.max(0.5, Math.min(1.6, zoom));
+  let best = null, bd = 1e9;
+  for(const v of (state.civs || [])){
+    if(!v.name || !v.alive || v.ko || v.gone) continue;
+    const d = Math.hypot(v.x - x, v.y - y) - (v.tide ? 0 : 10);   // a named face wins a tie by a body's width
+    if(d < rr && d < bd){ bd = d; best = v; }
+  }
+  return best;
+}
+// a click on a person is an intention, not a destination: the crew keeps walking to where they are now,
+// hails them when close enough to be heard (they stop and turn), and the conversation opens on arrival
+const HAIL_RANGE = 170, TALK_RANGE = 110;
+function talkGoalSet(c, cv){
+  if(!c || !cv) return false;
+  c.talkGoal = cv.name; c.talkT = 0;
+  addPopup(cv.x, cv.y - cv.r - 26, 'WALKING TO ' + cv.name.toUpperCase(), '#d4a843', 0, -10, cv);
+  return true;
+}
+function talkGoalClear(c){ if(c){ c.talkGoal = null; } }
+function talkGoalTick(dt){
+  if(!state.portDock || state.deckCombat) return;
+  for(const c of (state.squad || [])){
+    if(!c.talkGoal || !c.alive) continue;
+    const cv = (state.civs || []).find(v => v.name === c.talkGoal && v.alive && !v.gone);
+    if(!cv){ c.talkGoal = null; continue; }
+    const d = Math.hypot(cv.x - c.x, cv.y - c.y);
+    if(d <= TALK_RANGE){
+      c.talkGoal = null; c.run = null; c.moving = false;
+      if(cv.hail) cv.hail.until = performance.now() + 1500;
+      portTalk(cv);
+      continue;
+    }
+    if(d <= HAIL_RANGE && !(cv.hail && cv.hail.by === c.name)) hail(cv, c);
+    // re-plan every half second toward where they are now; only the operator in hand walks on their own orders
+    c.talkT = (c.talkT || 0) + dt;
+    if(c.talkT >= 0.5 && pc() === c && !(c.run && c.run.path)){
+      c.talkT = 0;
+      state.movePreview = computeMovePreview(cv.x + 30, cv.y + 10);
+      if(state.movePreview && state.movePreview.valid){ state._goalMove = true; commitMove(); state._goalMove = false; }
+    }
+  }
+}
+function hail(cv, c){
+  if(!cv.name) return false;
+  if(cv.tide && cv.hailNo === undefined) cv.hailNo = Math.random() < 0.4;   // some of the tide has somewhere to be
+  if(cv.hailNo) return false;
+  if(castBusy(cv) || cv.crook || cv.panic > 0 || cv.collared || cv.marched){ if(!cv.hailSaid){ cv.hailSaid = true; civSay(cv, 'Not now.', 4); } return false; }
+  cv.hail = {by: c.name, until: performance.now() + 10000};
+  cv.facing = Math.atan2(c.y - cv.y, c.x - cv.x);
+  civSay(cv, cv.kind === 'constable' ? 'Yes? Make it quick.' : cv.kind === 'trader' || cv.kind === 'barkeep' ? 'Yes?' : 'Hm?', 5);
+  return true;
+}
+function hailed(cv){ return !!(cv.hail && performance.now() < cv.hail.until); }
 
 function wpnCritMul(b){ return b.critMul || 2; }
 
@@ -11045,7 +11113,7 @@ function denLookoutTick(cv){
   const tg = (state.squad || []).find(c => c.alive && c.name === ms.target);
   if(!tg || Math.hypot(tg.x - cv.x, tg.y - cv.y) > 260 || !segClearHigh(cv.x, cv.y, tg.x, tg.y)) return;
   cv.alarm = true; cv.tide = false;
-  addPopup(cv.x, cv.y - cv.r - 14, '!!', '#e0483e');
+  popOver(cv, '!!', '#e0483e');
   chronicle('event', 'The lookout on Tallow Street took one look at ' + tg.name + ', shouted something through the door, and ran for it.');
   const dr = (state.doors || []).find(d => d.den === 'whyme');
   cv.errand = {kind: 'inside', path: [], leg: 0, waitT: 0, at: dr ? {x: dr.x, y: dr.y + 30} : {x: cv.x, y: cv.y}};
@@ -12117,7 +12185,7 @@ function faceTrigger(forceKey, forceCv){
   cv.tide = false; cv.kind = 'face'; cv.face = key; cv.crook = null;
   cv.brave = key === 'fan' ? 20 : (cv.brave || 10);
   bzSet({ff: {n: b.visit.n, face: key, name: cv.name, state: 'coming', outcome: null}});
-  addPopup(cv.x, cv.y - cv.r - 14, '!', '#e0a33e');
+  popOver(cv, '!', '#e0a33e');
   chronicle('event', 'A face in the tide stopped dead, stared at ' + tg.name + ', and started to run.');
   cv.errand = {kind: 'approach', path: [], leg: 0, waitT: 0, spd: civSpd({gait: 1.7}), then: (cvA, tgA) => faceArrive(cvA, tgA)};
   spotlightOn(cv);                 // the player is shown who, before the running starts
@@ -12243,7 +12311,7 @@ function faceTick(){
     // the first shot fired anywhere near is enough: a fan bolts the moment irons are out and live
     if(cv && cv.alive && !cv.spooked && state.deckCombat && (state.enemies || []).some(e => e.alive && !e.ko)){
       cv.spooked = true; cv.tide = true; cv.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
-      addPopup(cv.x, cv.y - cv.r - 14, '!!', '#e0483e');
+      popOver(cv, '!!', '#e0483e');
     }
     if(!cv || cv.gone) return void faceResolve('gone', b.ff.name + ' gave up and drifted off to tell everyone they met ' + (b.ff.famous || 'somebody') + '. Nobody will believe it. Nobody needs to.');
     if(!cv.alive) return void faceResolve('dead', b.ff.name + ' is dead. They thought you were ' + (b.ff.famous || 'somebody famous') + '. That is all they ever thought.');
@@ -12427,7 +12495,7 @@ function tickProps(dt){
           const d9 = Math.hypot(bd.obj.x - cv.x, bd.obj.y - cv.y);
           if(d9 > 300 || !segClearHigh(cv.x, cv.y, bd.obj.x, bd.obj.y)) continue;
           bd.obj.lawSeen = true;
-          addPopup(cv.x, cv.y - cv.r - 14, 'A BODY', '#e0483e');
+          popOver(cv, 'A BODY', '#e0483e');
           chronicle('event', cv.name + ' found ' + (bd.obj.name || 'a stranger') + ' dead on the concourse. Nobody is saying who. The recovery crew is called; the question stays open.');
           cleanupCall();
           break;
@@ -12528,7 +12596,7 @@ function tickProps(dt){
             sh9.grudge = null;
             moodPush(kp9.name, {t: -2, f: -1, a: -1}, 'woke with the thief\u2019s name on her lips', 'stock');
             shipSave();
-            addPopup(kp9.x, kp9.y - kp9.r - 14, 'SHE REMEMBERS', '#e0483e');
+            popOver(kp9, 'SHE REMEMBERS', '#e0483e');
             facRepAdd('tradersguild', -1);
             witnessRun(kp9, {who: g9.who, grade: 'minor', what: g9.what});
             chronicle('event', 'Kestrel came round with one name on her lips and went straight for the law.');
@@ -12553,7 +12621,7 @@ function tickProps(dt){
             cv.escort = null;
             cv.sweep = {x: kp.home ? kp.home.x : kp.x, y: kp.home ? kp.home.y : kp.y,
                         until: performance.now() + 60000, at: null};
-            addPopup(cv.x, cv.y - cv.r - 14, 'THE LAW WORKS THE SHOPFRONT', '#b06ae0');
+            popOver(cv, 'THE LAW WORKS THE SHOPFRONT', '#b06ae0');
             chronicle('event', 'The constable reached the shopfront and started working it, face by face. The keeper watches her shelves.');
           }else{
             cv.pursue = true;
@@ -12745,7 +12813,7 @@ function tickProps(dt){
            Math.hypot(prC.x - cv.x, prC.y - cv.y) < CUT_SEE_LAW && segClearHigh(prC.x, prC.y, cv.x, cv.y)){
           prC.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
           if(prC.crook) prC.crook.stage = 'bolt';
-          addPopup(prC.x, prC.y - prC.r - 14, 'RUMBLED', '#e0a33e');
+          popOver(prC, 'RUMBLED', '#e0a33e');
           chronicle('event', (prC.name || 'The cutpurse') + ' saw the badge coming and ran for the arch.');
         }
         if(Math.hypot(prC.x - cv.x, prC.y - cv.y) < 30){
@@ -13116,7 +13184,8 @@ function nextStripTick(){
   if(typeof document.getElementById !== 'function') return;
   let el = document.getElementById('nextStrip');
   const show = state.shipDeck && state.portDock && !state.deckCombat && !briefOpen;
-  const top = show ? journalTop() : null;
+  const goal = show && pc() && pc().talkGoal ? pc().talkGoal : null;
+  const top = goal ? {name: 'Walking to ' + goal, next: 'Any other order changes your mind.'} : (show ? journalTop() : null);
   if(!top){ if(el && el.style) el.style.display = 'none'; return; }
   if(!el){
     if(!document.body || !document.body.appendChild) return;
@@ -13521,7 +13590,7 @@ function shopBuy(i, cName){
   if(!sh || !it || sh.keeperDead) return false;
   if(facRepOf('tradersguild') <= -2) return false;   // guild paper: nobody trades
   if(!onDuty(sh.keeper)) return false;   // shut: the shelf is behind glass until the hours say otherwise
-  if(sh.keeper && moodRefuses(sh.keeper)){ const kp = shopKeeperCiv(sh); if(kp) addPopup(kp.x, kp.y - kp.r - 14, 'NOT TO YOU', '#e0483e'); return false; }
+  if(sh.keeper && moodRefuses(sh.keeper)){ const kp = shopKeeperCiv(sh); if(kp) popOver(kp, 'NOT TO YOU', '#e0483e'); return false; }
   const c = (state.squad || []).find(c2 => c2.alive && c2.name === (cName || (pc() && pc().name)));
   if(!c || !c.def) return false;
   const price = shelfPrice(it, sh);
@@ -13583,7 +13652,7 @@ function shopSteal(i, cName){
     return tarnDraws(c, 'caught ' + c.name + ' lifting a ' + (WPN_NAMES[it.key] || it.key) + ' off his shelf');
   }
   if(seen){
-    addPopup(keeper.x, keeper.y - keeper.r - 14, 'HOY, THIEF!', '#e0483e');
+    popOver(keeper, 'HOY, THIEF!', '#e0483e');
     facRepAdd('tradersguild', -1);
     witnessRun(keeper, {who: c.name, grade: 'minor', what: 'theft from ' + (sh.tarn ? 'Tarn\u2019s Arms' : sh.erina ? 'Erina\u2019s Exotics' : 'Kestrel Outfitters')});
     chronicle('event', 'Kestrel watched ' + c.name + ' lift a ' + (WPN_NAMES[it.key] || it.key) + ' off her own shelf, and went for the law at a dead run.');
@@ -13747,7 +13816,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '29 Oct \u00B7 CLOSING TIME';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '2 Nov \u00B7 WITHIN HAILING';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14033,7 +14102,7 @@ function rumourSpread(force){
         for(const k of MOOD_AXES) if(item.d[k]) d[k] = item.d[k] * 0.5;
         moodPush(hearer, d, story, item.kind);
         const cv = (state.civs || []).find(c => c.name === hearer && c.alive);
-        if(cv) addPopup(cv.x, cv.y - cv.r - 14, 'HEARD SOMETHING', '#b06ae0');
+        if(cv) popOver(cv, 'HEARD SOMETHING', '#b06ae0');
         told++;
       }
     }
@@ -14279,12 +14348,12 @@ function shiftTick(skip){
       if(!skip && !nc.routine) nc.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
       if(skip && nc.routine){ const rt = ROUTINES[p.name]; let i = -1; for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= clockNow()) i = k; if(i >= 0){ nc.plan = planNew(rt, i); nc.plan.done = nc.plan.step !== 'evening'; if(nc.plan.step === 'close' || nc.plan.step === 'evening') tarnDisplayIn(); } }
       state.civs.push(nc);
-      if(!skip) addPopup(nc.x, nc.y - 20, p.name.toUpperCase() + ' \u00B7 ON', '#8a93b8');
+      if(!skip) popOver(nc, p.name.toUpperCase() + ' \u00B7 ON', '#8a93b8');
     }else if(!duty && cv && cv.alive && !cv.ko && !castBusy(cv)){
       if(skip){ cv.gone = true; if(cv.routine) shopDoorsAtArrival(); }
       else if(!(cv.errand && cv.errand.kind === 'slink')){
         cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
-        addPopup(cv.x, cv.y - cv.r - 14, 'CLOSING UP', '#8a93b8');
+        popOver(cv, 'CLOSING UP', '#8a93b8');
       }
     }
   }
@@ -14516,18 +14585,18 @@ function dealHandover(cv, courier){
   courier.carry = null; cv.carry = 'CRATE';
   lifeNote(cv.name, 'took a crate off a grey market courier at the Beacon');
   moodPush(cv.name, {j: 0.5, a: -0.5, f: 0.3}, 'took a crate off the courier', 'trade');
-  addPopup(cv.x, cv.y - cv.r - 14, 'A CRATE CHANGES HANDS', '#e0a33e');
+  popOver(cv, 'A CRATE CHANGES HANDS', '#e0a33e');
   chronicle('event', cv.name + ' and a courier shared a table at the Beacon for about a minute. The crate left with him.');
   // who saw it: a badge in sight writes it down; the crew in sight learns something
   for(const w of (state.civs || [])){
     if(w.kind !== 'constable' || !w.alive || w.ko) continue;
     if(Math.hypot(w.x - cv.x, w.y - cv.y) > 340 || !segClearHigh(w.x, w.y, cv.x, cv.y)) continue;
     lifeHeat(cv.name, 1, w.name + ' saw a crate change hands at the Beacon');
-    addPopup(w.x, w.y - w.r - 14, 'NOTED', '#b06ae0');
+    popOver(w, 'NOTED', '#b06ae0');
     break;
   }
   const seer = (state.squad || []).find(c => c.alive && Math.hypot(c.x - cv.x, c.y - cv.y) < 320 && segClearHigh(c.x, c.y, cv.x, cv.y));
-  if(seer){ state.sawDeal = {who: cv.name, by: seer.name, day: ship.day || 0}; addPopup(seer.x, seer.y - seer.r - 14, 'YOU SAW THAT', '#e0a33e'); }
+  if(seer){ state.sawDeal = {who: cv.name, by: seer.name, day: ship.day || 0}; popOver(seer, 'YOU SAW THAT', '#e0a33e'); }
 }
 // heat on a face: enough of it and the law comes for them the way it comes for the crew
 function lifeHeat(name, d, why){
@@ -14546,7 +14615,7 @@ function lifeArrest(name){
   cop.lead = {who: cv, op: false}; cop.pursue = true;
   roleSet(name, 'lockup', 'was walked to the Constabulary by ' + cop.name + ' over the crates');
   showBanner(name.toUpperCase() + ' \u00B7 TAKEN IN', '#e0483e');
-  addPopup(cv.x, cv.y - cv.r - 14, 'COME ALONG, ' + name.toUpperCase(), '#b06ae0');
+  popOver(cv, 'COME ALONG, ' + name.toUpperCase(), '#b06ae0');
   return true;
 }
 function anchorPt(shopKey, name){ const a = SHOPS[shopKey].anchors[name]; return {x: a.x * W, y: a.y * H}; }
@@ -14616,13 +14685,13 @@ function routineTick(cv, dt){
       const forced = ship.shopForced && ship.shopForced[sk];
       if(forced){
         delete ship.shopForced[sk];
-        addPopup(cv.x, cv.y - cv.r - 14, 'THE DOOR WAS FORCED', '#e0483e');
+        popOver(cv, 'THE DOOR WAS FORCED', '#e0483e');
         moodPush(cv.name, {t: -1.5, f: -1.5, a: -1}, 'found his door forced in the night', 'stock');
         chronicle('event', cv.name + ' found the door hanging off its frame at ' + clockHHMM() + '. Somebody was in here. He went straight for a badge.');
         witnessRun(cv, {grade: 'minor', what: 'a break-in at Tarn\u2019s Arms', npcOnly: true});
       }else{
         shopLock(sk, false);
-        addPopup(cv.x, cv.y - cv.r - 14, 'OPEN', '#9fe08e');
+        popOver(cv, 'OPEN', '#9fe08e');
         chronicle('event', cv.name + ' unlocked the shop at ' + clockHHMM() + ', as every day.');
         moodPush(cv.name, {a: 0.3}, 'opened up for the day', 'trade');
       }
@@ -14636,7 +14705,7 @@ function routineTick(cv, dt){
     const shelfIdx = SHOPS[sk].shelves[p.k % SHOPS[sk].shelves.length];
     if(p.k >= n){ p.done = true; cv.carry = null; return true; }
     if(p.phase === 0){ if(routineGo(cv, anchorPt(sk, 'lockers'), dt)){ p.phase = 1; p.w = 1.2; } return true; }
-    if(p.phase === 1){ p.w -= dt; if(p.w <= 0){ cv.carry = 'CRATE'; addPopup(cv.x, cv.y - cv.r - 14, 'FROM THE LOCKERS', '#8a93b8'); p.phase = 2; } return true; }
+    if(p.phase === 1){ p.w -= dt; if(p.w <= 0){ cv.carry = 'CRATE'; popOver(cv, 'FROM THE LOCKERS', '#8a93b8'); p.phase = 2; } return true; }
     if(p.phase === 2){
       const pt = state.shelves[shelfIdx] || anchorPt(sk, 'counter');
       if(routineGo(cv, {x: pt.x + 18, y: pt.y + 18}, dt)){ p.phase = 3; p.w = 0.8; }
@@ -14660,7 +14729,7 @@ function routineTick(cv, dt){
       if(inside.length && !p.warned){
         p.warned = true;
         civSay(cv, 'We are closed. Finish up and out, please.', 10);
-        addPopup(cv.x, cv.y - cv.r - 14, 'CLOSING \u00B7 OUT, PLEASE', '#e0a33e');
+        popOver(cv, 'CLOSING \u00B7 OUT, PLEASE', '#e0a33e');
       }
       const shelves = SHOPS[sk].shelves;
       let j = -1;
@@ -14686,7 +14755,7 @@ function routineTick(cv, dt){
         if(!p.ordered){
           p.ordered = true; p.grace = 30;
           civSay(cv, 'Out. Now. I lock this door in a minute, with or without you, and then I fetch a badge.', 12);
-          addPopup(cv.x, cv.y - cv.r - 14, 'OUT. NOW.', '#e0483e');
+          popOver(cv, 'OUT. NOW.', '#e0483e');
           moodPush(cv.name, {t: -0.5, f: -0.5}, 'had to order ' + inside[0].name + ' out at closing', 'trade');
           return true;
         }
@@ -14707,7 +14776,7 @@ function routineTick(cv, dt){
     if(p.phase === 3){ if(routineGo(cv, anchorPt(sk, 'door_out'), dt)) p.phase = 4; return true; }
     if(p.phase === 4){
       shopLock(sk, true);
-      addPopup(cv.x, cv.y - cv.r - 14, 'CLOSED', '#8a93b8');
+      popOver(cv, 'CLOSED', '#8a93b8');
       chronicle('event', cv.name + ' put ' + (p.tidied || 0) + ' pieces back in the locker and locked up at ' + clockHHMM() + (inside.length ? ', with ' + inside[0].name + ' still inside.' : '.'));
       p.phase = 5; p.done = true;
     }
@@ -14715,7 +14784,7 @@ function routineTick(cv, dt){
   }
   if(st.do === 'beat'){
     // the deputy: a badge for the afternoon, a circuit of the Cross, and the law's own eyes
-    if(!p.onBeat){ p.onBeat = true; cv.kind = 'constable'; cv.wpnKey = 'revolver'; cv.deputy = true; addPopup(cv.x, cv.y - cv.r - 14, 'ON THE BEAT', '#b06ae0'); }
+    if(!p.onBeat){ p.onBeat = true; cv.kind = 'constable'; cv.wpnKey = 'revolver'; cv.deputy = true; popOver(cv, 'ON THE BEAT', '#b06ae0'); }
     if(castBusy(cv)) return true;
     const pts = beatPoints();
     p.bi = p.bi || 0;
@@ -14774,7 +14843,7 @@ function routineTick(cv, dt){
       p.watchT = near ? (p.watchT || 0) + dt : 0;
       if(near && p.watchT > 20 && !p.clocked){
         p.clocked = true;
-        addPopup(cv.x, cv.y - cv.r - 14, 'HE CLOCKED YOU', '#e0a33e');
+        popOver(cv, 'HE CLOCKED YOU', '#e0a33e');
         moodPush(cv.name, {a: -0.7, t: -0.3}, 'noticed the crew watching him at the Beacon', 'trade');
         chronicle('event', cv.name + ' looked up from his drink at the Beacon and straight at the crew. He did not look away first.');
       }
@@ -14832,12 +14901,12 @@ function tarnPeople(cv, p, sk, dt){
       for(const it of crate.loot) sh.locker.push(it);
       sh.lockerSeen = (sh.lockerSeen || 0) + crate.loot.length;
       moodPush('Tarn', {j: 1, a: -1, t: 0.3}, 'took delivery of ' + crate.loot.length + ' pieces', 'trade');
-      addPopup(cv.x, cv.y - cv.r - 14, 'DELIVERY IN \u00B7 ' + crate.loot.length, '#9fe08e');
+      popOver(cv, 'DELIVERY IN \u00B7 ' + crate.loot.length, '#9fe08e');
       chronicle('event', 'Tarn carried the crate through to the lockers himself. A good morning.');
       cv.carry = 'CRATE'; p.carryTo = anchorPt(sk, 'lockers');
     }else{
       moodPush('Tarn', {j: -1, f: -1, t: -1, a: -1}, 'found his delivery crate emptied at his own door', 'stock');
-      addPopup(cv.x, cv.y - cv.r - 14, 'EMPTY. SOMEBODY HAD IT.', '#e0483e');
+      popOver(cv, 'EMPTY. SOMEBODY HAD IT.', '#e0483e');
       chronicle('event', 'Tarn found the delivery crate at his door, open and empty. He did not say anything for a long time.');
       witnessRun(cv, {grade: 'minor', what: 'a crate lifted from Tarn\u2019s door', npcOnly: true});
     }
@@ -14852,7 +14921,7 @@ function tarnPeople(cv, p, sk, dt){
   }
   // waiting on the crate: a glance at the door now and then
   const d = sh.delivery;
-  if(d && !d.sent && !p.bench){ p.waitT = (p.waitT || 0) + dt; if(p.waitT > 50){ p.waitT = 0; addPopup(cv.x, cv.y - cv.r - 14, 'WHERE IS THAT CRATE', '#e0a33e'); } }
+  if(d && !d.sent && !p.bench){ p.waitT = (p.waitT || 0) + dt; if(p.waitT > 50){ p.waitT = 0; popOver(cv, 'WHERE IS THAT CRATE', '#e0a33e'); } }
   // customers: the tide buys, now and then, and the till rings
   p.custT = (p.custT || 0) + dt;
   if(p.custT > 20){
@@ -14867,7 +14936,7 @@ function tarnPeople(cv, p, sk, dt){
       sh.till = (sh.till || 0) + it.price;
       lifeSale('Tarn');
       moodPush('Tarn', {j: 0.15, a: 0.1}, 'sold a ' + (WPN_NAMES[it.key] || it.key) + ' to a customer', 'trade');
-      addPopup(o.x, o.y - o.r - 14, 'SOLD \u00B7 ' + (WPN_NAMES[it.key] || it.key).toUpperCase(), '#9fe08e');
+      popOver(o, 'SOLD \u00B7 ' + (WPN_NAMES[it.key] || it.key).toUpperCase(), '#9fe08e');
       break;
     }
   }
@@ -14879,7 +14948,7 @@ function tarnPeople(cv, p, sk, dt){
     const sayAt = (k, when, text, delta, what) => {
       if(t >= when && !p['said_' + k + '_' + c.name]){
         p['said_' + k + '_' + c.name] = true;
-        addPopup(cv.x, cv.y - cv.r - 14, text, k === 'out' ? '#e0483e' : k === 'eye' ? '#e0a33e' : '#8a93b8');
+        popOver(cv, text, k === 'out' ? '#e0483e' : k === 'eye' ? '#e0a33e' : '#8a93b8');
         civSay(cv, k === 'ask' ? 'Looking for something, ' + c.name + '? Everything on the shelf works.' : k === 'eye' ? 'I have got my eye on you. Buy or browse somewhere else.' : 'Out. Now. I will not say it twice.', 10);
         if(delta) moodPush('Tarn', delta, what, 'trade');
         if(k !== 'ask') p.to = {x: c.x + 40, y: c.y};   // he comes over
@@ -14890,7 +14959,7 @@ function tarnPeople(cv, p, sk, dt){
     sayAt('ask', 45, 'LOOKING FOR SOMETHING, ' + c.name.toUpperCase() + '?', null, null);
     sayAt('eye', 100, 'I HAVE MY EYE ON YOU', {t: -0.5, f: -0.3}, 'watched ' + c.name + ' hang about his shop');
     if(sayAt('out', 160, 'OUT. NOW.', {t: -0.5, f: -0.8}, 'told ' + c.name + ' to get out')) chronicle('event', 'Tarn told ' + c.name + ' to get out of his shop. He did not raise his voice; he did not need to.');
-    if(t > 220 && (!p.outAgainT || t - p.outAgainT > 60)){ p.outAgainT = t; addPopup(cv.x, cv.y - cv.r - 14, 'I SAID OUT.', '#e0483e'); civSay(cv, 'I said out, ' + c.name + '. Do not make me come round the counter.', 10); moodPush('Tarn', {f: -0.4}, c.name + ' would not leave', 'trade'); }
+    if(t > 220 && (!p.outAgainT || t - p.outAgainT > 60)){ p.outAgainT = t; popOver(cv, 'I SAID OUT.', '#e0483e'); civSay(cv, 'I said out, ' + c.name + '. Do not make me come round the counter.', 10); moodPush('Tarn', {f: -0.4}, c.name + ' would not leave', 'trade'); }
   }
   return false;
 }
@@ -14921,7 +14990,7 @@ function routineIdle(cv, p, sk, dt){
   if(p.step === 'floor' && cv.name === 'Tarn' && tarnPeople(cv, p, sk, dt)) return true;
   if(p.bench){
     p.bench -= dt;
-    if(routineGo(cv, anchorPt(sk, 'bench'), dt) && !p.benchSaid){ p.benchSaid = true; addPopup(cv.x, cv.y - cv.r - 14, 'AT THE BENCH', '#8a93b8'); }
+    if(routineGo(cv, anchorPt(sk, 'bench'), dt) && !p.benchSaid){ p.benchSaid = true; popOver(cv, 'AT THE BENCH', '#8a93b8'); }
     if(p.bench <= 0){ p.bench = 0; p.benchSaid = false; p.to = null; }
     return true;
   }
@@ -14957,7 +15026,7 @@ function tarnLockerCount(cv){
   if(have >= expect) return false;
   const short = expect - have;
   moodPush('Tarn', {t: -1, f: -1, a: -1, j: -0.5}, 'found the locker ' + short + ' short', 'stock');
-  addPopup(cv.x, cv.y - cv.r - 14, 'THE LOCKER IS ' + short + ' SHORT', '#e0483e');
+  popOver(cv, 'THE LOCKER IS ' + short + ' SHORT', '#e0483e');
   chronicle('event', 'Tarn counted the locker and came up ' + short + ' short. No name to give the law; a colder eye on everyone who browses.');
   witnessRun(cv, {grade: 'minor', what: 'a theft from Tarn\u2019s Arms, overnight', npcOnly: true});
   shipSave();
@@ -15423,13 +15492,13 @@ function bzCrimeWitness(x, y, crime, op){
     if(!segClearHigh(cv.x, cv.y, x, y)) continue;
     if(crime.grade === 'brawl'){   // not the crew's gunfire: the badge goes to the sound of it
       cv.scene = {x, y, what: crime.what};
-      addPopup(cv.x, cv.y - cv.r - 14, 'SHOTS', '#b06ae0');
+      popOver(cv, 'SHOTS', '#b06ae0');
       return;
     }
     if(crime.grade === 'defence'){
       // the badge saw who drew first: no paper moves, but the officer wants a word, and the floor wants clearing
       cv.attend = crime.who;
-      addPopup(cv.x, cv.y - cv.r - 14, 'SEEN \u00B7 SELF-DEFENCE', '#6fd6ff');
+      popOver(cv, 'SEEN \u00B7 SELF-DEFENCE', '#6fd6ff');
       chronicle('event', cv.name + ' watched ' + crime.what + ' and saw the knife come out first. No charge. A conversation, and a search, are still coming.');
       cleanupCall();
       return;
@@ -15462,7 +15531,7 @@ function bzCrimeWitness(x, y, crime, op){
     if(!witnessNerve(w2, op, crime.grade).tells) continue;
     witnessRun(w2, crime);
     state.respScene = {x, y};
-    addPopup(w2.x, w2.y - w2.r - 14, '!', '#e0a33e');
+    popOver(w2, '!', '#e0a33e');
     chronicle('event', (w2.name || 'A bystander') + ' saw ' + crime.what + ', and broke for the law. Stop them, or the name sticks.');
     break;   // one story runs on one pair of legs
   }
@@ -15863,12 +15932,12 @@ function portTalk(cv){
           if(intim >= (cv.brave || 10)){
             crimeStepIn(cv, op2, true);
             crookLeave(cv);
-            addPopup(cv.x, cv.y - cv.r - 14, 'HANDED IT OVER', '#9fe08e');
+            popOver(cv, 'HANDED IT OVER', '#9fe08e');
             chronicle('event', (cv.name || 'The thief') + ' weighed ' + op2.name + '\u2019s reach and handed the pouch over. Marked goods, freely given.');
           }else{
             cv.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
             if(cv.crook) cv.crook.stage = 'bolt';
-            addPopup(cv.x, cv.y - cv.r - 14, 'TRY IT, LONG-LEGS', '#e0a33e');
+            popOver(cv, 'TRY IT, LONG-LEGS', '#e0a33e');
             chronicle('event', (cv.name || 'The thief') + ' laughed at the demand and bolted for the arches.');
           }
         }}].concat(close));
@@ -15971,7 +16040,7 @@ function portTalk(cv){
         'Neither hand has left the crate.',
         [{label: 'BACK ' + porter.name.split(' ')[0].toUpperCase(), cb: () => waBack('porter')},
          {label: 'BACK ' + recipient.name.split(' ')[0].toUpperCase(), cb: () => waBack('recipient')},
-         {label: 'BUY IT \u00B7 ' + WA_BUY + ' CR', cb: () => { if(!waBuy()) addPopup(cv.x, cv.y - cv.r - 14, 'NOT ENOUGH CREDITS', '#e0a33e'); }},
+         {label: 'BUY IT \u00B7 ' + WA_BUY + ' CR', cb: () => { if(!waBuy()) popOver(cv, 'NOT ENOUGH CREDITS', '#e0a33e'); }},
          {label: 'WALK AWAY', cb: () => {}}]);
     }
     if(carrier && wa && wa.state === 'done'){
@@ -18185,7 +18254,7 @@ function frame(now){
   if(state && state.shipDeck && state.squad) deckSeparate();
   camGlideTick(); spotlightTick();
   if(state && state.squad && !editorOn && ((state._stripT || 0) + 400 < performance.now())){ state._stripT = performance.now(); nextStripTick(); }
-  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ clockTick(realDt); waTick(realDt); houndTick(realDt); lawTick(realDt); }
+  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ clockTick(realDt); waTick(realDt); houndTick(realDt); lawTick(realDt); talkGoalTick(realDt); }
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();
   if(state && state.squad && !editorOn){
@@ -18451,8 +18520,13 @@ function frame(now){
   for(let i=s.popups.length-1;i>=0;i--){
     const pp = s.popups[i];
     pp.t += realDt;
-    pp.x += realDt * (pp.vx || 0);
-    pp.y += realDt * (pp.vy === undefined ? -34 : pp.vy);
+    if(pp.follow){
+      pp.rise += realDt * -(pp.vy === undefined ? -34 : pp.vy);
+      pp.x = pp.follow.x; pp.y = pp.follow.y - (pp.follow.r || 9) - 14 - pp.rise;
+    }else{
+      pp.x += realDt * (pp.vx || 0);
+      pp.y += realDt * (pp.vy === undefined ? -34 : pp.vy);
+    }
     if(pp.t > pp.life) s.popups.splice(i,1);
   }
   if(s.barks){
@@ -19365,9 +19439,11 @@ function draw(){
     if(!poiLive(cv)) continue;
     const ph = (performance.now() / 1400 + (cv.bob || 0) / 6) % 1;
     const rr = cv.r + 4 + ph * 14;
-    ctx.strokeStyle = 'rgba(212,168,67,' + (0.5 * (1 - ph)).toFixed(3) + ')';
-    ctx.lineWidth = 1.5;
+    const hot = s.hoverNpc === cv || (s.squad || []).some(c => c.talkGoal === cv.name);
+    ctx.strokeStyle = hot ? 'rgba(255,224,140,' + (0.95 * (1 - ph * 0.5)).toFixed(3) + ')' : 'rgba(212,168,67,' + (0.5 * (1 - ph)).toFixed(3) + ')';
+    ctx.lineWidth = hot ? 2.5 : 1.5;
     ctx.beginPath(); ctx.arc(cv.x, cv.y, rr, 0, Math.PI * 2); ctx.stroke();
+    if(hot){ ctx.strokeStyle = 'rgba(255,224,140,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cv.x, cv.y, cv.r + 3, 0, Math.PI * 2); ctx.stroke(); }
   }
   drawSpotlight();
   // the crowd: soft grey figures, bobbing, oblivious until they aren't
