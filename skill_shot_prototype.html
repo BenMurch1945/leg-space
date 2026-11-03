@@ -2880,7 +2880,7 @@ function enterPort(distId, opts){
   {
     const sd = (ship.world && ship.world.seed) || 0;
     const nm = node ? (node.port ? node.port + ', ' + node.name : node.name) : ship.at;
-    if(fromDist && ddef) chronicle('event', 'Through the arch into ' + ddef.name + '.');
+    if(fromDist && ddef) chronicle('event', (ddef.cage ? 'Through the fold into ' : 'Through the arch into ') + ddef.name + '.');
     else if(ddef && !ddef.ship) chronicle('event', 'On the floor of ' + ddef.name + ', ' + nm + '. Port roll ' + sd.toString(36).toUpperCase() + '. Build ' + BUILD + '.');
     else chronicle('event', 'Docked at ' + nm + '. Port roll ' + sd.toString(36).toUpperCase() + '. Build ' + BUILD + '.');
   }
@@ -2999,7 +2999,7 @@ function enterPort(distId, opts){
   // the port's own life: arches people arrive through, places worth standing at
   state.shipZone = lvl.shipZone ? {x0: lvl.shipZone.x0 * W, y0: lvl.shipZone.y0 * H,
     x1: lvl.shipZone.x1 * W, y1: lvl.shipZone.y1 * H} : null;
-  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null, den: d.den || null, noCrowd: !!d.noCrowd, needs: d.needs || null,
+  state.doors = (lvl.doors || []).map(d => ({x: d.x * W, y: d.y * H, to: d.to || null, label: d.label || null, den: d.den || null, noCrowd: !!d.noCrowd, needs: d.needs || null, cage: d.cage || null, back: !!d.back,
     armed: !(fromDist && d.to === fromDist)}));
   state.shelves = (lvl.shelves || []).map(p9 => ({x: p9.x * W, y: p9.y * H}));
   state.anchors = portAnchors(lvl);
@@ -3062,6 +3062,7 @@ function enterPort(distId, opts){
     }
   }
   if(ship.district === 'station') stationArrive();
+  if(ddef && ddef.cage) cageArrive(ddef.cage);
   shopDoorsAtArrival();
   lockerChestPlace();
   refreshDropBtn();
@@ -9311,7 +9312,113 @@ function crookDrift(cv, er, dt){
   }
   if(er.to) civStep(cv, er.to.x, er.to.y, civSpd(cv) * 0.7, dt);
 }
+// ---- the beasts (Ben, 3 Nov): what lives in the cages. Not people: they graze, they roam, they bolt from anything that comes at
+// them fast, and they come to look at anyone who stands still long enough. Nothing in a cage is for sale. ----
+const BEASTS = {
+  hound: {label: 'Glass Hound', race: 'GLASS HOUND', r: 11, spook: 80, curious: 300, still: 5, near: 44, pace: 1.3, tint: 'rgba(159,224,216,.85)', edge: 'rgba(220,250,245,.9)',
+    bio: 'Big as a dog, hide like frosted glass, bites to hold. The crew brought it up out of the warren breathing, and it has not forgotten the smell of whoever carried it.'},
+  miraj: {label: 'Al-mi\u2019raj', race: 'AL-MI\u2019RAJ', r: 6, spook: 120, curious: 260, still: 7, near: 56, pace: 1.6, tint: 'rgba(222,190,120,.9)', edge: 'rgba(255,240,200,.9)',
+    bio: 'A hare the colour of the sand with one black horn a hand long. Curious as a cat and twice as quick to leave. Erina named every one of them.'},
+};
+const MIRAJ_NAMES = ['Burr', 'Tansy', 'Nettle', 'Sorrel', 'Dock', 'Clover', 'Thistle', 'Scrap'];
+function beastMake(kind, x, y, name){
+  const B = BEASTS[kind];
+  return {x, y, r: B.r, alive: true, ko: false, panic: 0, tx: x, ty: y, pace: 22, bob: Math.random() * 6, hood: false, tide: false,
+    kind: 'beast', beast: {kind, state: 'graze', t: 2 + Math.random() * 4, stillT: 0, watch: null}, name: name || B.label,
+    race: B.race, sex: kind === 'hound' ? 'MALE' : (Math.random() < 0.5 ? 'FEMALE' : 'MALE'), faction: 'ERINA\u2019S EXOTICS \u00B7 ' + (currentLevel().name || 'THE CAGES').toUpperCase(),
+    bio: B.bio, brave: 2, home: {x, y}, homeR: 400};
+}
+// the first time the crew walks a cage its animals are put down in it; after that they live in the parked floor
+function cageBeastsSeed(kind){
+  if((state.civs || []).some(cv => cv.beast)) return 0;
+  const rng = rngFor('beasts|' + kind + '|' + (ship.day || 0));
+  const spot = (tries) => { for(let t = 0; t < (tries || 40); t++){ const x = (0.3 + rng() * 0.6) * W, y = (0.15 + rng() * 0.7) * H; if(openGround(x, y, 14)) return {x, y}; } return {x: W * 0.6, y: H * 0.5}; };
+  let n = 0;
+  if(kind === 'grass' && houndHome()){ const p = spot(); state.civs.push(beastMake('hound', p.x, p.y)); n++; }
+  if(kind === 'desert'){
+    const c = spot();
+    for(let i = 0; i < 8; i++){ const a = rng() * Math.PI * 2, r = 30 + rng() * 90; let x = c.x + Math.cos(a) * r, y = c.y + Math.sin(a) * r; if(!openGround(x, y, 10)){ const p = spot(); x = p.x; y = p.y; } state.civs.push(beastMake('miraj', x, y, MIRAJ_NAMES[i])); n++; }
+  }
+  return n;
+}
+function beastsOf(kind){ return (state.civs || []).filter(cv => cv.beast && cv.beast.kind === kind && cv.alive); }
+// one animal, one tick: graze, roam, bolt, or come and look
+function beastTick(cv, dt){
+  const b = cv.beast; const B = BEASTS[b.kind];
+  const crew = (state.squad || []).filter(c => c.alive && !c.downed);
+  let nearC = null, nd = 1e9;
+  for(const c of crew){ const d = Math.hypot(c.x - cv.x, c.y - cv.y); if(d < nd){ nd = d; nearC = c; } }
+  // fast is measured, not flagged: how far the nearest crew member moved since the last tick
+  let fast = false;
+  if(nearC){
+    const pv = b.prev;
+    if(pv && pv.who === nearC.name && dt > 0) fast = Math.hypot(nearC.x - pv.x, nearC.y - pv.y) / dt > 110;
+    b.prev = {who: nearC.name, x: nearC.x, y: nearC.y};
+    if(state.ironsOut) fast = true;
+  }
+  // a bolt: something came at it, or a gun came out within sight
+  if(nearC && nd < B.spook && (fast || state.ironsOut) && b.state !== 'flee'){
+    b.state = 'flee'; b.t = 2.5 + Math.random() * 1.5; b.stillT = 0; b.from = {x: nearC.x, y: nearC.y};
+    popOver(cv, b.kind === 'hound' ? 'BOLTS' : 'GONE', '#e0a33e');
+    if(nearC && !b.spookedBy) { b.spookedBy = nearC.name; }
+  }
+  if(b.state === 'flee'){
+    b.t -= dt;
+    const ax = cv.x - (b.from ? b.from.x : cv.x), ay = cv.y - (b.from ? b.from.y : cv.y); const al = Math.hypot(ax, ay) || 1;
+    let tx = cv.x + ax / al * 120, ty = cv.y + ay / al * 120;
+    if(!openGround(tx, ty, cv.r + 2)){ const a = Math.atan2(ay, ax) + (Math.random() - 0.5) * 2.2; tx = cv.x + Math.cos(a) * 120; ty = cv.y + Math.sin(a) * 120; }
+    civStep(cv, tx, ty, civSpd({gait: 1.0}) * B.pace * 2.1, dt);
+    if(b.t <= 0){ b.state = 'graze'; b.t = 3 + Math.random() * 4; }
+    return true;
+  }
+  // curiosity: a crew member still for a while, within sight, draws it over
+  if(nearC && nd < B.curious && nd > B.near && !fast){
+    const lp = b.lastPos;
+    if(lp && lp.who === nearC.name && Math.hypot(lp.x - nearC.x, lp.y - nearC.y) < 6 * Math.max(1, dt * 20)) b.stillT += dt; else b.stillT = 0;
+    b.lastPos = {who: nearC.name, x: nearC.x, y: nearC.y};
+    if(b.stillT > B.still && b.state !== 'look' && segClearHigh(cv.x, cv.y, nearC.x, nearC.y)){ b.state = 'look'; b.watch = nearC.name; b.t = 14; }
+  }else if(!nearC || nd >= B.curious) b.stillT = 0;
+  if(b.state === 'look'){
+    const who = crew.find(c => c.name === b.watch);
+    b.t -= dt;
+    if(!who || b.t <= 0){ b.state = 'graze'; b.t = 3 + Math.random() * 4; b.watch = null; return true; }
+    const d = Math.hypot(who.x - cv.x, who.y - cv.y);
+    if(d > B.near){ civStep(cv, who.x, who.y, civSpd({gait: 0.6}) * B.pace, dt); }
+    else if(!b.said){
+      b.said = true;
+      const carried = b.kind === 'hound' && ship.erinaJob && ship.erinaJob.carrier === who.name;
+      popOver(cv, carried ? 'KNOWS YOU' : (b.kind === 'hound' ? 'SNIFFS AT ' + who.name.toUpperCase() : 'LOOKS UP AT ' + who.name.toUpperCase()), '#9fe08e');
+      chronicle('event', (b.kind === 'hound' ? 'The Glass Hound' : cv.name + ' the al-mi\u2019raj') + ' came up to ' + who.name + (carried ? ' and leaned on their leg. It knew them.' : ' and looked, and that was all.'));
+    }
+    return true;
+  }
+  if(b.state === 'graze'){
+    b.t -= dt;
+    cv.tx = cv.x; cv.ty = cv.y;
+    if(b.t <= 0){
+      b.state = 'roam'; b.said = false;
+      // the drove keeps together: a hare far from the others heads back toward them
+      let cx = cv.x, cy = cv.y;
+      if(b.kind === 'miraj'){ const others = beastsOf('miraj').filter(o => o !== cv); if(others.length){ cx = others.reduce((s, o) => s + o.x, 0) / others.length; cy = others.reduce((s, o) => s + o.y, 0) / others.length; } }
+      const far = Math.hypot(cx - cv.x, cy - cv.y) > 220;
+      for(let t = 0; t < 8; t++){
+        const a = far ? Math.atan2(cy - cv.y, cx - cv.x) + (Math.random() - 0.5) : Math.random() * Math.PI * 2;
+        const r = 60 + Math.random() * 200;
+        const x = cv.x + Math.cos(a) * r, y = cv.y + Math.sin(a) * r;
+        if(x > W * 0.04 && x < W * 0.96 && y > H * 0.05 && y < H * 0.95 && openGround(x, y, cv.r + 4)){ b.to = {x, y}; break; }
+      }
+      b.t = 6;
+    }
+    return true;
+  }
+  // roam
+  b.t -= dt;
+  if(!b.to || b.t <= 0 || Math.hypot(b.to.x - cv.x, b.to.y - cv.y) < 10){ b.state = 'graze'; b.t = 2 + Math.random() * 5; b.to = null; return true; }
+  civStep(cv, b.to.x, b.to.y, civSpd({gait: 0.5}) * B.pace, dt);
+  return true;
+}
 function errandTick(cv, dt){
+  if(cv.beast) return beastTick(cv, dt);
   if(cv.panic > 0) return false;   // terror outranks every errand; flee movement handles it
   if(cv.held){                     // the spotlight: the moment has to land before they move
     if(performance.now() < cv.held) return true;
@@ -10286,7 +10393,7 @@ function npcPick(x, y, r){
   const rr = (r || 48) / Math.max(0.5, Math.min(1.6, zoom));
   let best = null, bd = 1e9;
   for(const v of (state.civs || [])){
-    if(!v.name || !v.alive || v.ko || v.gone) continue;
+    if(!v.name || !v.alive || v.ko || v.gone || v.hidden) continue;
     const d = Math.hypot(v.x - x, v.y - y) - (v.tide ? 0 : 10);   // a named face wins a tie by a body's width
     if(d < rr && d < bd){ bd = d; best = v; }
   }
@@ -10879,8 +10986,12 @@ function districtGo(to){
   if(!ddef || state.deckCombat) return false;
   const from = ship.district;
   const parked = districtPark() || {carry: [], followers: []};
+  if(ddef.cage && parked.followers.length){   // nobody follows the crew into a cage: they wait on the Cross
+    const snap = state.districts && state.districts[from]; if(snap) snap.civs = snap.civs.concat(parked.followers);
+    parked.followers = [];
+  }
   const names = state.squad.filter(c => c.alive).map(c => c.name).join(', ');
-  chronicle('event', names + ' went through the arch to ' + ddef.name + '.');
+  chronicle('event', names + (ddef.cage ? ' stepped through the distortion into ' : ' went through the arch to ') + ddef.name + '.');
   // bodies are rebuilt by the floor; what the walk cost them is not
   const vitals = {};
   for(const c of state.squad) vitals[c.name] = {hp: c.hp, stress: c.stress, morale: c.morale, armor: c.armor, mag: c.mag,
@@ -10897,8 +11008,35 @@ function districtGo(to){
   ship.where = 'port'; shipSave();
   return true;
 }
+// the cages: Erina lets the crews she trusts walk them. Trust above her resting suspicion, no contempt, and the shop open.
+function cageAllowed(){
+  const c = pc();
+  if(!keeperAtCounter('Erina Jones')) return {ok: false, why: 'shut', note: 'The Exotics is shut. The cages open when the counter does.'};
+  if(moodRefuses('Erina Jones', c)) return {ok: false, why: 'refused', note: 'Erina will not have this crew on her floor, let alone in her cages.'};
+  const m = moodFor('Erina Jones', c);
+  if(m.t <= -1) return {ok: false, why: 'trust', note: 'Erina lets the crews she trusts walk her cages. You are not there yet: trade with her, or bring her something back breathing.'};
+  return {ok: true, why: null, note: 'Erina trusts the crew this far. Walk it, do not run at anything, and come back the way you went in.'};
+}
+function cageDoorStatus(dr){
+  if(dr.cage === 'empty') return {title: dr.label, line: 'DARK', tint: 'rgba(232,224,204,.45)', note: 'A distortion with nothing folded into it yet. Erina fills these one contract at a time.'};
+  const C = CAGES[dr.cage];
+  const ok = cageAllowed();
+  const who = cageContents(dr.cage);
+  return {title: C.door, line: ok.ok ? 'OPEN TO THE CREW' : ok.why === 'shut' ? 'SHUT' : 'NOT FOR YOU', tint: ok.ok ? '#9fe08e' : '#e0a33e',
+    note: C.blurb + ' ' + who + ' ' + ok.note};
+}
+// what is in a cage, in a line: the beasts Erina keeps there, and whether she is in there herself
+function cageContents(kind){
+  if(kind === 'grass') return houndHome() ? 'The Glass Hound is in there.' : 'Nothing lives in it yet. The Glass Hound would, if it came home.';
+  if(kind === 'desert') return 'Eight al-mi\u2019raj live in it.';
+  if(kind === 'forest') return 'Nothing lives in it yet.';
+  return '';
+}
+function houndHome(){ const j = ship.erinaJob; return !!(j && j.state === 'paid' && j.alive); }
 // what a door would say if you asked it: title, state, and what it takes
 function doorStatus(dr){
+  if(dr.cage) return cageDoorStatus(dr);
+  if(dr.back && currentLevel().cage) return {title: 'THE DISTORTION', line: 'BACK TO THE ZOO ROOM', tint: '#6fd6ff', note: 'The fold you came through. The crew goes back together; stand everyone on it.'};
   if(dr.den === 'warren'){
     const hf = hatchFacts();
     if(hf.open) return {title: dr.label, line: 'OPEN', tint: '#9fe0d8', note: 'Erina\u2019s warren. The crew goes down together. Stand everyone at the hatch.'};
@@ -10934,6 +11072,20 @@ function doorAsk(dr){
     title = 'BEGIN CONTRACT?'; sub = 'THE TALLOW STREET CREW';
     body = 'Going through starts the contract: the unit, the crew inside it, and ' + (whyme ? 'the man who sent the knife' : 'the man who runs the street') + ' in the back room, with the ledger on him. The door shuts behind you for good.';
     go = 'START CONTRACT'; enter = denEnter;
+  }else if(dr.cage){
+    const ok = cageAllowed();
+    if(!ok.ok){
+      dr.asked = false; dr.armed = false;
+      return showEventModal('THE ' + dr.label.replace(/^THE /, ''), ok.note, [{label: 'STEP BACK', cb: () => {}}], {sub: 'ERINA\u2019S EXOTICS \u00B7 THE CAGES'});
+    }
+    const C = CAGES[dr.cage];
+    title = 'STEP INTO THE CAGE?'; sub = C.door + ' \u00B7 A SPACE DISTORTION';
+    body = C.blurb + ' ' + cageContents(dr.cage) + ' The crew goes in together and comes back through the same fold; the port keeps moving while you are inside.';
+    go = 'STEP THROUGH'; enter = () => districtGo(dr.to);
+  }else if(dr.back && currentLevel().cage){
+    title = 'LEAVE THE CAGE?'; sub = 'BACK TO THE ZOO ROOM';
+    body = 'The fold back into Erina\u2019s zoo room. The crew goes together.';
+    go = 'STEP THROUGH'; enter = () => districtGo(dr.to);
   }else{
     const dd = districtDef(ship.at, dr.to);
     title = 'MOVE TO A NEW AREA?'; sub = (dd ? dd.name : dr.label).toUpperCase();
@@ -11007,7 +11159,7 @@ function showDoorTip(dr, cx, cy){
     tip = document.createElement('div'); tip.id = 'npcTip'; document.body.appendChild(tip);
   }
   const st = doorStatus(dr);
-  tip.innerHTML = '<u class="tipVerb">' + (dr.den ? 'CLICK TO INSPECT THE DOOR' : dr.to ? 'CLICK FOR THE WAY THROUGH' : 'CLOSED') + '</u>' +
+  tip.innerHTML = '<u class="tipVerb">' + (dr.cage ? (dr.to ? 'CLICK TO LOOK INTO THE CAGE' : 'DARK') : dr.den ? 'CLICK TO INSPECT THE DOOR' : dr.to ? 'CLICK FOR THE WAY THROUGH' : 'CLOSED') + '</u>' +
     '<b style="color:' + st.tint + '">' + st.title + '</b><span>' + st.line + '</span><p>' + st.note + '</p>';
   tip.style.left = (cx + 18) + 'px';
   tip.style.top = (cy - 10) + 'px';
@@ -11021,7 +11173,7 @@ function districtDoorTick(){
   for(const dr of (state.doors || [])){
     if(!dr.label) continue;
     const near = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < DOOR_NEAR);
-    if(!near.length){ dr.armed = true; dr.asked = false; continue; }
+    if(!near.length){ dr.armed = true; dr.asked = false; dr.toldNo = false; continue; }
     if(dr.armed === false) continue;   // the arch you just came through waits until you have stepped clear
     // the door explains itself on hover (doorStatus); here it only acts, and a contract door asks first
     if(dr.den === 'warren'){
@@ -11039,6 +11191,11 @@ function districtDoorTick(){
     }
     if(!dr.to) continue;
     if(dr.needs && !doorNeedsMet(dr)) continue;   // a locked arch: nobody goes through until the facts say so
+    if(dr.cage){
+      const close = crew.filter(c => Math.hypot(c.x - dr.x, c.y - dr.y) < 34);
+      if(close.length !== crew.length) continue;
+      if(!cageAllowed().ok){ if(!dr.toldNo){ dr.toldNo = true; addPopup(dr.x, dr.y - 24, 'NOT FOR YOU', '#e0a33e'); } continue; }
+    }
     if(near.length === crew.length && !dr.asked){ doorAsk(dr); return; }
   }
   // whoever followed you through comes out of the arch a few strides behind
@@ -11676,9 +11833,11 @@ function houndCarrier(){ const p = houndProp(); return p && p.holder ? (state.sq
 function erinaSettle(){
   const j = ship.erinaJob; if(!j || (j.state !== 'carrying' && j.state !== 'dead')) return false;
   if(j.state === 'carrying'){
-    if(!houndCarrier()) return false;
+    const hc = houndCarrier();
+    if(!hc) return false;
+    j.carrier = hc.name; j.alive = true;   // (3 Nov) it goes into the grassland cage, and it remembers who carried it
     state.props = state.props.filter(p => !(p.kind === 'hound' && p.erina));
-  }
+  }else j.alive = false;
   const due = j.due != null ? j.due : 25;
   ship.credits += due;
   if(j.state === 'carrying') moodPush('Erina Jones', {t: 1, j: 1, a: -1}, 'the hound came home breathing', 'trade');
@@ -13977,7 +14136,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '3 Nov \u00B7 JUNI';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '3 Nov \u00B7 THE CAGES';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14008,6 +14167,7 @@ const SITUATIONS = {
     done(){ return !!(ship.oldDebt && ship.oldDebt.state === 'done'); }},
 };
 function situationsTick(){
+  if(currentLevel().cage) return;   // nothing is dealt inside a cage
   for(const k of Object.keys(SITUATIONS)){
     const s9 = SITUATIONS[k];
     if(s9.tick) s9.tick();
@@ -14621,6 +14781,24 @@ const SHOPS = {
 // the shop record for a SHOPS key, created if the floor has not been looked at yet
 function shopRec(sk){ const S = SHOPS[sk]; if(!S) return null; return ship.district === 'cross' ? shopOf(S.shelves[0]) : shopByKeeper(S.keeper); }
 function shopKeyOf(name){ return Object.keys(SHOPS).find(k => SHOPS[k].keeper === name || SHOPS[k].helper === name) || null; }
+// where a cage door stands on the Cross
+function cageDoorPt(kind){ const d = (state.doors || []).find(dr => dr.cage === kind); return d ? {x: d.x, y: d.y} : anchorPt('erina', 'zoo'); }
+// the crew walks into a cage: its animals are there, and so is Erina if she went in before them
+function cageArrive(kind){
+  state.civs = (state.civs || []).filter(cv => !cv.cageVisit);
+  cageBeastsSeed(kind);
+  const park = state.districts && state.districts.cross;
+  const er = park && (park.civs || []).find(cv => cv.name === 'Erina Jones' && cv.alive);
+  if(er && er.plan && er.plan.bench > 0 && er.plan.cage === kind){
+    const p = CROSS_CAST.find(c => c.name === 'Erina Jones');
+    const beasts = (state.civs || []).filter(cv => cv.beast);
+    const at = beasts.length ? beasts[0] : {x: W * 0.5, y: H * 0.5};
+    const nc = castCivOf(p, at.x + 40, at.y + 20);
+    nc.routine = null; nc.cageVisit = true; nc.home = {x: at.x, y: at.y}; nc.homeR = 160;
+    state.civs.push(nc);
+    chronicle('event', 'Erina was already in there, among them, moving the way she does not move on the Cross.');
+  }
+}
 function helperCiv(sk){ const h = SHOPS[sk] && SHOPS[sk].helper; return h ? (state.civs || []).find(c => c.name === h && c.alive && !c.ko && !c.gone) || null : null; }
 // the eyes in a shop: the keeper, and the helper if there is one
 function shopWatchers(sh){
@@ -14630,7 +14808,7 @@ function shopWatchers(sh){
   const hp = sk ? helperCiv(sk) : null; if(hp) out.push(hp);
   return out;
 }
-function seesFrom(w, x, y){ return !!w && w.alive && !w.ko && Math.hypot(w.x - x, w.y - y) < 320 && segClearHigh(w.x, w.y, x, y); }
+function seesFrom(w, x, y){ return !!w && w.alive && !w.ko && !w.hidden && Math.hypot(w.x - x, w.y - y) < 320 && segClearHigh(w.x, w.y, x, y); }
 // the keeper is away from the floor: gone, down, busy with the law, or through the back
 function keeperAway(sk){
   const S = SHOPS[sk];
@@ -15694,8 +15872,14 @@ function routineIdle(cv, p, sk, dt){
   if(p.step === 'floor' && (cv.name === 'Tarn' ? tarnPeople(cv, p, sk, dt) : shopPeople(cv, p, sk, dt))) return true;
   if(p.bench){
     p.bench -= dt;
-    if(routineGo(cv, anchorPt(sk, 'bench'), dt) && !p.benchSaid){ p.benchSaid = true; popOver(cv, sh.benchLabel || 'AT THE BENCH', '#8a93b8'); }
-    if(p.bench <= 0){ p.bench = 0; p.benchSaid = false; p.to = null; }
+    if(sk === 'erina' && !p.cage) p.cage = houndHome() && Math.random() < 0.5 ? 'grass' : ['grass', 'forest', 'desert'][Math.floor(Math.random() * 3)];
+    const bpt = sk === 'erina' ? cageDoorPt(p.cage) : anchorPt(sk, 'bench');
+    if(routineGo(cv, bpt, dt) && !p.benchSaid){
+      p.benchSaid = true;
+      if(sk === 'erina'){ cv.hidden = true; popOver(cv, 'INTO ' + CAGES[p.cage].door, '#8a93b8'); chronicle('event', 'Erina went through the back and into ' + CAGES[p.cage].name.toLowerCase() + '. The door did not open; she just was not there.'); }
+      else popOver(cv, sh.benchLabel || 'AT THE BENCH', '#8a93b8');
+    }
+    if(p.bench <= 0){ p.bench = 0; p.benchSaid = false; p.to = null; if(cv.hidden){ cv.hidden = false; popOver(cv, 'BACK FROM ' + CAGES[p.cage].door, '#8a93b8'); } p.cage = null; }
     return true;
   }
   p.wt = (p.wt || 0) - dt;
@@ -16710,6 +16894,7 @@ function showNpcTip(cv, cx, cy){
 }
 // the verb a click on this person resolves to, for the signpost line at the top of their card
 function poiVerb(cv){
+  if(cv.kind === 'beast') return 'CLICK TO LOOK CLOSER';
   if(cv.kind === 'lookout') return 'CLICK TO SPEAK TO THE LOOKOUT';
   if(cv.kind === 'constable') return 'CLICK TO SPEAK TO THE LAW';
   if(cv.kind === 'trader' || cv.name === 'Kestrel') return 'CLICK TO TRADE';
@@ -16897,6 +17082,13 @@ function portTalk(cv){
     return showEventModal(String(cv.name).toUpperCase(),
       cv.wa === 'porter' ? '\u201CFour years without a lost crate. Four years.\u201D' : '\u201CIt was addressed to my door. Everything else is noise.\u201D', close);
   }
+  if(cv.beast){
+    const B = BEASTS[cv.beast.kind]; const c = pc();
+    const carried = cv.beast.kind === 'hound' && ship.erinaJob && c && ship.erinaJob.carrier === c.name;
+    const st = cv.beast.state === 'flee' ? 'It is going, fast, and will not stop for a while.' : cv.beast.state === 'look' ? 'It is looking at ' + cv.beast.watch + ', head on one side.' : cv.beast.state === 'graze' ? 'It is feeding, or pretending to, with one eye on the crew.' : 'It is on the move, in no hurry.';
+    return showEventModal(cv.name.toUpperCase(), B.bio + ' ' + st + (carried ? ' It came to ' + c.name + ' on its own, which Erina says it does for nobody.' : '') + ' Nothing in here is for sale, and Erina would know.',
+      [{label: 'LEAVE IT BE', cb: () => {}}], {sub: 'ERINA\u2019S EXOTICS \u00B7 ' + String(currentLevel().name || 'A CAGE').toUpperCase()});
+  }
   if(cv.name === 'Juni'){
     const away = keeperAway('erina');
     return showEventModal('JUNI', moodSay('Juni', {
@@ -16911,6 +17103,14 @@ function portTalk(cv){
         ? '\u201CShe is through the back with the animals. I can sell you anything on the shelf; I cannot sell you anything that is not.\u201D'
         : '\u201CErina is at the counter. I just set things out and keep them tidy.\u201D She nods at the kit, laid out square to the edge.',
     }), [{label: 'LEAVE', cb: () => {}}]);
+  }
+  if(cv.name === 'Erina Jones' && cv.cageVisit){
+    const kind = currentLevel().cage;
+    return showEventModal('ERINA JONES', kind === 'grass' && houndHome()
+      ? 'She has the hound\u2019s head under one hand and does not look up. \u201CYou are allowed in here. That does not mean you are expected. Walk slowly and it will come to you; run and it will not come to anyone for a week.\u201D'
+      : kind === 'desert' ? 'She is sitting in the sand with two of the hares in her lap. \u201CDo not run at them. Do not reach for them. Sit, and they decide.\u201D She looks, for once, like someone who is not counting anything.'
+      : '\u201CI come in here to think. It is empty, and it will not be, and I wanted to see it before.\u201D She does not say what is coming. \u201CShop is Juni\u2019s for the hour. She is better at it than she thinks.\u201D',
+      [{label: 'LEAVE HER TO IT', cb: () => {}}], {sub: String(currentLevel().name || '').toUpperCase()});
   }
   if(cv.name === 'Erina Jones'){
     const wa = waFacts();
@@ -19451,7 +19651,7 @@ function frame(now){
       if(deckLive) crowdTick(realDt);
       for(const cv of s.civs){
         if(!cv.alive || cv.ko) continue;
-        if(cv.panic <= 0 && (cv.errand || cv.routine || cv.jailed) && errandTick(cv, realDt)) continue;
+        if(cv.panic <= 0 && (cv.errand || cv.routine || cv.jailed || cv.beast) && errandTick(cv, realDt)) continue;
         if(cv.kind === 'constable' && s.deckCombat && !s.portFight && cv.panic <= 0 &&
            !(cv.pursue || cv.respond || cv.chase || cv.escort || cv.sweep || cv.hunt)){
           beatTick(cv, realDt);   // irons in the open are not yet the law's problem
@@ -19666,6 +19866,33 @@ function drawMoraleGlyph(u, x, y){
 // walls: low = sandbag-style cover, high = solid structure with height
 function drawWall(r, high, selColor){
   const crystalTheme = currentLevel().theme === 'arachne';
+  const bio = currentLevel().biome;
+  if(bio && !r.lock && !r.den && !r.cell){
+    // trees, rocks, dunes and scrub: round things, with the collision box they really have underneath
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const longWall = Math.max(r.w, r.h) > 2.2 * Math.min(r.w, r.h);
+    if(longWall){
+      // the edge of the fold, a hedge, a dune: a long thing, not a round one
+      ctx.fillStyle = high ? 'rgba(0,0,0,.35)' : 'rgba(0,0,0,.2)'; if(high) ctx.fillRect(r.x + 4, r.y + 6, r.w, r.h);
+      ctx.fillStyle = high ? bio.high : bio.low; ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.fillStyle = high ? bio.highTop : 'rgba(255,255,255,.08)'; ctx.fillRect(r.x, r.y, r.w, Math.min(4, r.h * 0.4));
+      if(selColor){ ctx.strokeStyle = selColor; ctx.lineWidth = 2.5; ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1); }
+      return;
+    }
+    if(high){
+      const rr = Math.max(r.w, r.h) * 0.62;
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(cx + 6, cy + 8, rr, rr * 0.8, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = bio.high; ctx.beginPath(); ctx.ellipse(cx, cy, rr, rr * 0.9, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = bio.highTop; ctx.beginPath(); ctx.ellipse(cx - rr * 0.25, cy - rr * 0.3, rr * 0.5, rr * 0.4, -0.4, 0, 7); ctx.fill();
+      if(selColor){ ctx.strokeStyle = selColor; ctx.lineWidth = 2.5; ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1); }
+    }else{
+      ctx.fillStyle = bio.low;
+      ctx.beginPath(); ctx.ellipse(cx, cy, r.w / 2 + 3, r.h / 2 + 2, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(cx, cy + 2, r.w / 2 + 3, r.h / 2 + 2, 0, 0, 7); ctx.stroke();
+      if(selColor){ ctx.strokeStyle = selColor; ctx.lineWidth = 2.5; ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1); }
+    }
+    return;
+  }
   if(high){
     // drop shadow + extruded top face to read as tall
     ctx.fillStyle = 'rgba(0,0,0,.45)';
@@ -19790,8 +20017,31 @@ function draw(){
     ctx.globalAlpha = 1;
   }
 
+  // a cage: ground, not plating. Two tones of earth and a seeded scatter of tufts, ripples or leaf litter
+  const bio = currentLevel().biome;
+  if(s.shipDeck && deckMask && bio){
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.clip();
+    ctx.fillStyle = bio.ground;
+    ctx.fillRect(0, 0, W, H);
+    for(let i = 0; i < 60; i++){
+      const seed = i * 71.7;
+      ctx.fillStyle = bio.ground2; ctx.globalAlpha = 0.5 + (seed % 3) * 0.15;
+      ctx.beginPath(); ctx.ellipse((seed * 13.1) % W, (seed * 7.9) % H, 90 + (seed % 7) * 30, 50 + (seed % 5) * 20, (seed % 6) * 0.5, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = bio.tuft; ctx.lineWidth = 1.5;
+    for(let i = 0; i < 420; i++){
+      const seed = i * 37.3 + 11;
+      const x = (seed * 17.3) % W, y = (seed * 9.7) % H;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 3 + (seed % 5), y - 5 - (seed % 7)); ctx.moveTo(x + 4, y); ctx.lineTo(x + 2 - (seed % 3), y - 6); ctx.stroke();
+    }
+    ctx.restore();
+  }
   // the Orrix's floor: plating, seams, wear, a ship underfoot, not a field
-  if(s.shipDeck && deckMask){
+  if(s.shipDeck && deckMask && !bio){
     ctx.save();
     ctx.beginPath();
     for(const r of deckMask.int) ctx.rect(r.x, r.y, r.w, r.h);
@@ -19935,9 +20185,9 @@ function draw(){
   }
   // the named folk wear their names, in peace and under the clock alike
   if(s.civs && s.shipDeck) for(const cv of s.civs){
-    if(!cv.name || !cv.alive) continue;
+    if(!cv.name || !cv.alive || cv.hidden) continue;
     const tint = cv.kind === 'constable' ? '#b06ae0' : cv.kind === 'trader' ? '#6fd6ff'
-      : cv.kind === 'barkeep' ? '#9fe08e' : 'var(--brass)';
+      : cv.kind === 'barkeep' ? '#9fe08e' : cv.kind === 'beast' ? 'rgba(200,230,170,.85)' : 'var(--brass)';
     ctx.strokeStyle = tint;
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(cv.x, cv.y, cv.r + 3, 0, 7); ctx.stroke();
@@ -20279,6 +20529,23 @@ function draw(){
   if(s.doors && s.doors.length){
     for(const dr of s.doors){
       const g = 0.35 + 0.2 * Math.sin(performance.now() / 600);
+      if(dr.cage){
+        // a space distortion: rings that do not quite close, lit if there is a country behind them
+        const lit = !!dr.to; const tt = performance.now() / 900;
+        const col = lit ? (dr.cage === 'grass' ? '120,200,110' : dr.cage === 'forest' ? '70,150,90' : '220,170,90') : '120,120,130';
+        for(let k = 0; k < 3; k++){
+          const ph = (tt + k * 0.33) % 1;
+          ctx.strokeStyle = 'rgba(' + col + ',' + (lit ? (0.7 * (1 - ph)).toFixed(3) : '0.18') + ')';
+          ctx.lineWidth = lit ? 2 : 1;
+          ctx.beginPath(); ctx.ellipse(dr.x, dr.y, 10 + ph * 16, 6 + ph * 10, 0.3, 0.2 + ph, Math.PI * 1.9 + ph); ctx.stroke();
+        }
+        ctx.fillStyle = lit ? 'rgba(' + col + ',.35)' : 'rgba(0,0,0,.4)';
+        ctx.beginPath(); ctx.ellipse(dr.x, dr.y, 9, 5, 0.3, 0, 7); ctx.fill();
+        ctx.fillStyle = lit ? 'rgba(' + col + ',.8)' : 'rgba(232,224,204,.3)';
+        ctx.font = "700 10px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+        ctx.fillText(dr.label, dr.x, dr.y + 26);
+        continue;
+      }
       ctx.strokeStyle = 'rgba(111,214,255,' + g + ')';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(dr.x, dr.y, 15, Math.PI, 0); ctx.stroke();
@@ -20301,7 +20568,7 @@ function draw(){
   }
   // signposts: a soft pulse under anyone a click can reach, so a new hand knows where the game is
   if(s.civs && s.shipDeck && !s.deckCombat) for(const cv of s.civs){
-    if(!poiLive(cv)) continue;
+    if(!poiLive(cv) || cv.hidden || cv.beast) continue;
     const ph = (performance.now() / 1400 + (cv.bob || 0) / 6) % 1;
     const rr = cv.r + 4 + ph * 14;
     const hot = s.hoverNpc === cv || (s.squad || []).some(c => c.talkGoal === cv.name);
@@ -20322,7 +20589,19 @@ function draw(){
       ctx.stroke();
       continue;
     }
+    if(cv.hidden) continue;   // through the back and into a cage: not on this floor
     const cb = Math.sin(performance.now()/300 + cv.bob) * 1.5;
+    if(cv.beast){
+      const B = BEASTS[cv.beast.kind];
+      const lean = cv.beast.state === 'flee' ? 1.35 : 1;
+      ctx.fillStyle = B.tint;
+      ctx.beginPath(); ctx.ellipse(cv.x, cv.y + cb * 0.5, cv.r * lean, cv.r * 0.72, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = B.edge; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(cv.x, cv.y + cb * 0.5, cv.r * lean, cv.r * 0.72, 0, 0, 7); ctx.stroke();
+      if(cv.beast.kind === 'miraj'){ ctx.strokeStyle = 'rgba(20,14,8,.95)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(cv.x + 2, cv.y - 3 + cb * 0.5); ctx.lineTo(cv.x + 5, cv.y - 12 + cb * 0.5); ctx.stroke(); }
+      else { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(cv.x - 3, cv.y - 3, 3, 1.6, -0.5, 0, 7); ctx.fill(); }
+      continue;
+    }
     ctx.fillStyle = cv.ko ? 'rgba(140,150,165,.45)' : (cv.panic > 0 ? 'rgba(190,196,210,.9)' : 'rgba(158,166,182,.8)');
     ctx.beginPath();
     ctx.arc(cv.x, cv.y + (cv.ko ? 0 : cb), cv.r, 0, 7);
@@ -21861,6 +22140,12 @@ const CROSS_PORT = {
     {x: 0.875, y: 0.845, to: null, den: 'warren', label: 'SERVICE HATCH'},
     {x: 0.925, y: 0.335, to: 'hangar', label: 'HANGAR DOOR', needs: 'charter'},
     {x: 0.820, y: 0.066, to: 'station', label: 'CONSTABULARY', noCrowd: true},   // the tide does not come and go through a police station
+    // (Ben, 3 Nov) Erina's zoo room: five space-distortion cages, each a whole country folded into a cupboard. Three are lit.
+    {x: 0.628, y: 0.852, to: 'cage_grass', label: 'THE GRASSLAND', noCrowd: true, cage: 'grass'},
+    {x: 0.662, y: 0.852, to: 'cage_forest', label: 'THE FOREST', noCrowd: true, cage: 'forest'},
+    {x: 0.628, y: 0.895, to: 'cage_desert', label: 'THE DESERT', noCrowd: true, cage: 'desert'},
+    {x: 0.662, y: 0.895, label: 'AN EMPTY CAGE', noCrowd: true, cage: 'empty'},
+    {x: 0.645, y: 0.930, label: 'AN EMPTY CAGE', noCrowd: true, cage: 'empty'},
   ],
   spots: [
     {x: 0.36, y: 0.17, kind: 'bar', label: 'THE BEACON'},
@@ -21956,12 +22241,78 @@ function buildStationPort(){
   };
 }
 const STATION_PORT = buildStationPort();
+// ---- the cages (Ben, 3 Nov): Erina's space-distortion enclosures. Each is a free-roam country with no tide, no cast and no law,
+// only what she keeps in it. The crew may walk them when she trusts the crew; nobody else may walk them at all. ----
+const CAGES = {
+  grass:  {name: 'The Grassland', door: 'THE GRASSLAND', world: {w: 3200, h: 2200},
+    biome: {ground: '#2a3b22', ground2: '#223019', tuft: 'rgba(120,160,70,.35)', high: '#3d5a2c', highTop: '#5a7d3c', low: 'rgba(90,120,60,.6)', fog: '#101a0c'},
+    blurb: 'Long grass to the waist, a slow wind that comes from nowhere, and the sky the wrong colour at the edges where the fold shows. The Glass Hound\u2019s country, if it ever comes home.'},
+  forest: {name: 'The Forest', door: 'THE FOREST', world: {w: 3600, h: 2400},
+    biome: {ground: '#1d2a1c', ground2: '#162014', tuft: 'rgba(80,120,70,.3)', high: '#2f4a2a', highTop: '#4a7040', low: 'rgba(70,100,60,.6)', fog: '#0a120a'},
+    blurb: 'Old trees, close together, and glades where the light gets in. Empty, and kept empty: Erina is waiting for something to put in it.'},
+  desert: {name: 'The Desert', door: 'THE DESERT', world: {w: 3600, h: 2200},
+    biome: {ground: '#6b5636', ground2: '#5a4729', tuft: 'rgba(230,200,140,.18)', high: '#7a5a3a', highTop: '#a07a4e', low: 'rgba(200,170,110,.5)', fog: '#201808'},
+    blurb: 'Red sand, dune on dune, heat that is not quite real, and a drove of al-mi\u2019raj: horned hares the colour of the sand, curious as cats and gone like smoke if you run at them.'},
+};
+function buildCage(kind){
+  const C = CAGES[kind];
+  const rng = rngFor('cage|' + kind);
+  const walls = [
+    {x: 0.000, y: 0.000, w: 1.000, h: 0.030, high: true}, {x: 0.000, y: 0.970, w: 1.000, h: 0.030, high: true},
+    {x: 0.000, y: 0.000, w: 0.022, h: 1.000, high: true}, {x: 0.978, y: 0.000, w: 0.022, h: 1.000, high: true},
+  ];
+  const start = {x: 0.10, y: 0.50};
+  const clear = (x, y, w, h) => Math.hypot(x + w / 2 - start.x, y + h / 2 - start.y) > 0.13 &&
+    !walls.some(o => x < o.x + o.w + 0.012 && x + w + 0.012 > o.x && y < o.y + o.h + 0.012 && y + h + 0.012 > o.y);
+  const put = (w, h, high, tries) => {
+    for(let t = 0; t < (tries || 30); t++){
+      const x = 0.04 + rng() * (0.92 - w), y = 0.05 + rng() * (0.90 - h);
+      if(clear(x, y, w, h)){ const o = {x, y, w, h}; if(high) o.high = true; walls.push(o); return o; }
+    }
+    return null;
+  };
+  const glades = [];
+  if(kind === 'grass'){
+    for(let i = 0; i < 22; i++) put(0.02 + rng() * 0.03, 0.012 + rng() * 0.01, false);   // tussocks and low scrub
+    for(let i = 0; i < 9; i++) put(0.012 + rng() * 0.008, 0.016 + rng() * 0.01, true);     // lone trees
+    for(let i = 0; i < 3; i++) put(0.03 + rng() * 0.02, 0.02, false);                      // boulders in the grass
+  }else if(kind === 'forest'){
+    // stands of trees round open glades: the glades are where things will live
+    for(let g = 0; g < 6; g++){
+      const gx = 0.22 + rng() * 0.62, gy = 0.15 + rng() * 0.70;
+      glades.push({x: gx, y: gy});
+      for(let i = 0; i < 14; i++){
+        const a = rng() * Math.PI * 2, r = 0.07 + rng() * 0.08;
+        const x = gx + Math.cos(a) * r * 0.75, y = gy + Math.sin(a) * r;
+        const w = 0.011 + rng() * 0.008, h = 0.015 + rng() * 0.01;
+        if(x > 0.04 && y > 0.05 && x + w < 0.96 && y + h < 0.95 && clear(x, y, w, h)) walls.push({x, y, w, h, high: true});
+      }
+    }
+    for(let i = 0; i < 40; i++) put(0.011 + rng() * 0.008, 0.015 + rng() * 0.01, true, 10);
+    for(let i = 0; i < 10; i++) put(0.02 + rng() * 0.02, 0.012, false);                   // fallen trunks
+  }else{
+    for(let i = 0; i < 14; i++) put(0.06 + rng() * 0.08, 0.012 + rng() * 0.006, false);  // dunes
+    for(let i = 0; i < 9; i++) put(0.018 + rng() * 0.014, 0.024 + rng() * 0.016, true);   // outcrops
+  }
+  return {
+    name: C.name, world: C.world, crowd: 0, cage: kind, biome: C.biome, glades,
+    player: start,
+    walls,
+    doors: [{x: 0.045, y: 0.50, to: 'cross', label: 'THE DISTORTION', noCrowd: true, back: true}],
+    stations: [], spots: [], npcs: [], shelves: [], anchors: [],
+  };
+}
+const CAGE_LEVELS = {grass: null, forest: null, desert: null};
+function cageLevel(kind){ if(!CAGE_LEVELS[kind]) CAGE_LEVELS[kind] = buildCage(kind); return CAGE_LEVELS[kind]; }
 const DISTRICTS = {
   gateway: {
     cross: {plan: CROSS_PORT, name: 'The Cross', ship: false},
     lanes: {plan: CROSSPORT_PORT, name: 'Market Lanes', ship: true},
     hangar: {plan: HANGAR_PORT, name: 'The Shippers\u2019 Hangar', ship: false},
     station: {plan: STATION_PORT, name: 'The Cross Constabulary', ship: false},
+    cage_grass:  {get plan(){ return cageLevel('grass'); }, name: 'the Grassland cage', ship: false, cage: 'grass'},
+    cage_forest: {get plan(){ return cageLevel('forest'); }, name: 'the Forest cage', ship: false, cage: 'forest'},
+    cage_desert: {get plan(){ return cageLevel('desert'); }, name: 'the Desert cage', ship: false, cage: 'desert'},
   },
 };
 const PORT_HOME = {gateway: 'cross'};          // where a new run first stands
@@ -21992,6 +22343,7 @@ function buildDistrict(def, node, dname){
     shelves: (def.shelves || []).map(p9 => ({...p9})),
     anchors: (def.anchors || []).map(a9 => ({...a9, tags: (a9.tags || []).slice()})),
     crowd: def.crowd || 0,
+    cage: def.cage || null, biome: def.biome || null, glades: (def.glades || []).map(g => ({...g})),   // a cage carries its country with it
   };
 }
 // park the hull inside any drawn port: pad decides where, hatches carve themselves
