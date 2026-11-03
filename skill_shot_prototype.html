@@ -3351,6 +3351,7 @@ function lawTick(dt){
   }
   for(const cv of state.civs){
     if(cv.kind !== 'constable' || !cv.alive || cv.ko) continue;
+    if(cv.inv){ invTick(cv, dt); continue; }
     if(cv.lead){
       const who = cv.lead.who;
       const gone = cv.lead.op ? (!who.alive || !state.squad.includes(who)) : (!who.alive || who.gone || !state.civs.includes(who));
@@ -9274,6 +9275,15 @@ function errandNew(cv){
     const sp = spots[Math.floor(Math.random() * spots.length)];
     const path = [];
     if(sp.gx != null) path.push({x: sp.gx, y: sp.gy});
+    // a shop visit is a visit to a shelf: they go to the goods and look at them
+    if(sp.kind === 'shop' && state.shelves && state.shelves.length){
+      const near = state.shelves.map((pt, i) => ({pt, i})).filter(o => Math.hypot(o.pt.x - sp.x, o.pt.y - sp.y) < 420 && shelfItem(o.i));
+      if(near.length){
+        const o = near[Math.floor(Math.random() * near.length)];
+        path.push({x: o.pt.x + 18 + Math.random() * 10, y: o.pt.y + 26});
+        return {kind: 'visit', path, leg: 0, waitT: 0, dwell: 6 + Math.random() * 10, face: {x: o.pt.x, y: o.pt.y}, shelf: o.i};
+      }
+    }
     const a = Math.random() * Math.PI * 2;
     path.push({x: sp.x + Math.cos(a) * 18, y: sp.y + Math.sin(a) * 14});
     return {kind: 'visit', path, leg: 0, waitT: 0,
@@ -9611,6 +9621,19 @@ function errandTick(cv, dt){
             if(cp9.kind === 'constable' && cp9.alive && !cp9.ko && !cp9.respond) cp9.chase = cr.perp;
           addPopup(tgt.x, tgt.y - (tgt.r || 14) - 14, 'WORD OF A CUTPURSE', '#b06ae0');
         }
+        return true;
+      }
+      if(cr && cr.inv){
+        // a keeper with a complaint: the officer comes back with them and works the scene
+        if(tgt.kind === 'constable' && !tgt.inv && !tgt.lead && !tgt.arrest){
+          tgt.inv = Object.assign({keeper: cv.name, step: 'toDoor', t: 0, asked: [], found: [], named: null}, cr.inv);
+          tgt.pursue = true;
+          popOver(tgt, 'RIGHT. SHOW ME.', '#b06ae0');
+          civSay(tgt, 'Right. Show me the door.', 6);
+          showBanner('INVESTIGATION \u00B7 ' + cv.name.toUpperCase() + '\u2019S', '#b06ae0');
+          chronicle('event', tgt.name + ' took ' + cv.name + '\u2019s complaint and walked back with him to look at the shop.');
+        }else popOver(tgt, 'NO BADGE FREE', '#8a93b8');
+        if(cv.routine){ cv.errand = {kind: 'home', path: [], leg: 0, waitT: 0}; }
         return true;
       }
       if(cr && cr.npcOnly){
@@ -13425,6 +13448,7 @@ function sellableTo(name, c){
 // the sale: credits across, the piece into the keeper's stock (a shelf slot that is empty, or Tarn's locker), the drive fed
 function sellTo(name, c, idx){
   const d = c && c.def; if(!d) return false;
+  if(!keeperAtCounter(name)) return false;
   const it = (d.pack || [])[idx]; if(!it) return false;
   const price = sellOffer(name, it); if(price == null) return false;
   const marked = itemMarked(it);
@@ -13459,6 +13483,7 @@ function sellTalk(cv){
     return showEventModal(name.toUpperCase(), '\u201CThat is my tag. That is my ' + lootLabelOf(own).toLowerCase() + '.\u201D The counter is suddenly very wide. \u201CGet out, and the law can decide whether you walk back in.\u201D', close);
   }
   if(!kb || !kb.kinds.length) return showEventModal(name.toUpperCase(), '\u201C' + kb.line + '\u201D', close);
+  if(!keeperAtCounter(name)) return showEventModal(name.toUpperCase(), '\u201CNot here, not now. Come to the counter in hours and I will look.\u201D', close);
   if(moodRefuses(name)) return showEventModal(name.toUpperCase(), '\u201CNot from you.\u201D', close);
   const offers = sellableTo(name, c);
   const refused = ((c && c.def && c.def.pack) || []).filter(it => sellOffer(name, it) == null && kb.kinds.includes(it.kind) && (!kb.keys || kb.keys.includes(it.key)) && itemMarked(it));
@@ -13470,6 +13495,14 @@ function sellTalk(cv){
   return showEventModal(name.toUpperCase() + ' \u00B7 BUYING', body, btns.concat(close));
 }
 function sellBtn(cv){ const kb = keeperBuys(cv.name); return kb ? [{label: 'SELL', cb: () => sellTalk(cv)}] : []; }
+// trade happens at the counter, in hours: the keeper on the floor, on duty, and in their own shop
+function keeperAtCounter(name){
+  const cv = (state.civs || []).find(c => c.name === name && c.alive && !c.ko && !c.gone);
+  if(!cv || !onDuty(name)) return false;
+  const sk = Object.keys(SHOPS).find(k => SHOPS[k].keeper === name);
+  if(sk) return shopInside(sk, cv) && !shopLocked(sk);
+  return cv.home ? Math.hypot(cv.home.x - cv.x, cv.home.y - cv.y) < 300 : true;
+}
 function packTotal(){
   let n = 0, v = 0;
   for(const d of SQUAD_DEFS){
@@ -13685,7 +13718,7 @@ function shopBuy(i, cName){
   const sh = shopOf(i), it = shelfItem(i);
   if(!sh || !it || sh.keeperDead) return false;
   if(facRepOf('tradersguild') <= -2) return false;   // guild paper: nobody trades
-  if(!onDuty(sh.keeper)) return false;   // shut: the shelf is behind glass until the hours say otherwise
+  if(!onDuty(sh.keeper) || !keeperAtCounter(sh.keeper)) return false;   // shut, or nobody behind the counter: the shelf is behind glass
   if(sh.keeper && moodRefuses(sh.keeper)){ const kp = shopKeeperCiv(sh); if(kp) popOver(kp, 'NOT TO YOU', '#e0483e'); return false; }
   const c = (state.squad || []).find(c2 => c2.alive && c2.name === (cName || (pc() && pc().name)));
   if(!c || !c.def) return false;
@@ -13912,7 +13945,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '2 Nov \u00B7 AN OLD DEBT';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '3 Nov \u00B7 THE WALK-ROUND';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -14283,7 +14316,7 @@ function moodName(m){
   return {word: PLUTCHIK[top][it[top] >= 2.5 ? 2 : it[top] >= 1.5 ? 1 : 0], top};
 }
 // the thresholds behaviour reads
-function moodRefuses(name, c){ const m = moodFor(name, c); return m.t <= -2 || m.f <= -2; }    // disgust or anger: no trade, no work (as they read whoever is asking)
+function moodRefuses(name, c){ const m = moodFor(name, c); return m.t <= -2 || (m.f <= -2 && m.t < 0); }    // disgust, or anger with no trust to carry it: no trade, no work (as they read whoever is asking)
 function moodTrusts(name){ return moodOf(name).t >= 1; }
 function moodAfraid(name){ return moodOf(name).f >= 2; }
 const MOOD_TINT = {joy: '#9fe08e', trust: '#6fd6ff', fear: '#e0a33e', surprise: '#d4a843', sadness: '#8a93b8', disgust: '#b06ae0', anger: '#e0483e', anticipation: '#9fe0d8'};
@@ -14474,7 +14507,7 @@ function castCivOf(p, cx, cy){
     fac: p.fac || null, brave: p.brave || 10, routine: ROUTINES[p.name] ? p.name : null,
   };
 }
-function castBusy(cv){ return !!(cv.chase || cv.respond || cv.hunt || cv.lead || cv.collar || cv.arrest || cv.escort || cv.sweep || cv.scene || cv.attend || cv.held); }
+function castBusy(cv){ return !!(cv.chase || cv.respond || cv.hunt || cv.lead || cv.collar || cv.arrest || cv.inv || cv.escort || cv.sweep || cv.scene || cv.attend || cv.held); }
 function shiftTick(skip){
   const bzf = bz();
   if(!bzf || !bzf.active || bzf.at !== ship.at) return;
@@ -14492,7 +14525,7 @@ function shiftTick(skip){
       const dr = nearestArch(hx, hy) || {x: hx, y: hy};
       const nc = castCivOf(p, skip ? hx : dr.x, skip ? hy : dr.y);
       if(!skip && !nc.routine) nc.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
-      if(skip && nc.routine){ const rt = ROUTINES[p.name]; let i = -1; for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= clockNow()) i = k; if(i >= 0){ nc.plan = planNew(rt, i); nc.plan.done = nc.plan.step !== 'evening'; if(nc.plan.step === 'close' || nc.plan.step === 'evening') tarnDisplayIn(); } }
+      if(skip && nc.routine){ const rt = ROUTINES[p.name]; let i = -1; for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= clockNow()) i = k; if(i >= 0){ nc.plan = planNew(rt, i); nc.plan.done = nc.plan.step !== 'evening'; if(nc.plan.step === 'close' || nc.plan.step === 'evening'){ tarnDisplayIn(); const o = anchorPt(rt.shop, 'door_out'); nc.x = o.x; nc.y = o.y + 20; nc.tx = nc.x; nc.ty = nc.y; } } }
       state.civs.push(nc);
       if(!skip) popOver(nc, p.name.toUpperCase() + ' \u00B7 ON', '#8a93b8');
     }else if(!duty && cv && cv.alive && !cv.ko && !castBusy(cv)){
@@ -14847,13 +14880,15 @@ function oldDebt(){ return ship.oldDebt || null; }
 // the trigger: a quiet hour on the Cross, Tarn at his counter and not already in trouble, the crew on the floor
 function oldDebtTick(){
   if(ship.district !== 'cross' || !state.portDock || state.deckCombat) return;
-  if(!situationLive('olddebt')) return;
   const od = ship.oldDebt;
   if(od && od.state === 'done') return;
   const tarn = (state.civs || []).find(c => c.name === 'Tarn' && c.alive && !c.ko && !c.gone);
   if(!tarn || roleOf('Tarn') === 'lockup') return;
   if(!od){
-    if(clockNow() !== 11 * 60 || (ship.day || 0) < 1 || pingsQuiet() || moodOf('Tarn').t < -1) return;
+    // any quiet minute between eleven and three, once the crew has been on the Cross a day or done business with him
+    const known = (ship.day || 0) >= 1 || (lifeOf('Tarn').sales || []).reduce((a, s) => a + s.n, 0) >= 2 || (moodOf('Tarn').mem || []).some(x => /crew/.test(x.what));
+    if(clockNow() < 11 * 60 || clockNow() > 15 * 60 || !known || pingsQuiet() || state.deckCombat || moodOf('Tarn').t < -1) return;
+    if(!(tarn.plan && tarn.plan.step === 'floor')) return;
     const who = DEBT_NAMES[Math.floor(Math.random() * DEBT_NAMES.length)];
     const truths = Object.keys(DEBT_TRUTHS);
     ship.oldDebt = {state: 'open', name: who.name, sex: who.sex, truth: truths[Math.floor(Math.random() * truths.length)], day: ship.day || 0, askedVamp: false, askedTarn: false, outcome: null, started: false};
@@ -15002,6 +15037,7 @@ function shopDoorsAtArrival(){
     const cv = (state.civs || []).find(c => c.name === sh.keeper && c.alive && !c.gone);
     // open only when the keeper is in and past the walk to the door: a keeper still coming up the street finds it locked
     const open = !!st && ['open', 'stock', 'floor'].includes(st.do) && !!cv && (shopInside(key, cv) || (cv.plan && cv.plan.idx > 0) || (cv.plan && cv.plan.step === 'open' && cv.plan.phase >= 2));
+    if(!open && cv && shopInside(key, cv)){ shopLock(key, false); continue; }   // whatever the hour, he is not locked in his own shop
     shopLock(key, !open);
   }
 }
@@ -15037,9 +15073,9 @@ function routineTick(cv, dt){
       if(forced){
         delete ship.shopForced[sk];
         popOver(cv, 'THE DOOR WAS FORCED', '#e0483e');
-        moodPush(cv.name, {t: -1.5, f: -1.5, a: -1}, 'found his door forced in the night', 'stock');
+        moodPush(cv.name, {f: -0.5, j: -0.5, a: -1}, 'found his door forced in the night', 'stock');   // (stock weighs double for him)
         chronicle('event', cv.name + ' found the door hanging off its frame at ' + clockHHMM() + '. Somebody was in here. He went straight for a badge.');
-        witnessRun(cv, {grade: 'minor', what: 'a break-in at Tarn\u2019s Arms', npcOnly: true});
+        complaintRun(cv, sk, 'a break-in at Tarn\u2019s Arms', {forced: true});
       }else{
         shopLock(sk, false);
         popOver(cv, 'OPEN', '#9fe08e');
@@ -15077,10 +15113,16 @@ function routineTick(cv, dt){
     const inside = (state.squad || []).filter(c => c.alive && shopInside(sk, c));
     // phase 0: the display back into the lockers, one shelf at a time, with a word for anyone still browsing
     if(p.phase === 0){
-      if(inside.length && !p.warned){
+      if(!p.warned){
         p.warned = true;
         civSay(cv, 'We are closed. Finish up and out, please.', 10);
         popOver(cv, 'CLOSING \u00B7 OUT, PLEASE', '#e0a33e');
+        // the customers go when told
+        for(const o of (state.civs || [])){
+          if(o === cv || !o.alive || o.ko || o.debt || !shopInside(sk, o)) continue;
+          if(o.name && !o.tide){ o.errand = {kind: 'home', path: [], leg: 0, waitT: 0}; continue; }
+          o.errand = {kind: 'cross', path: [{x: anchorPt(sk, 'door_out').x, y: anchorPt(sk, 'door_out').y + 60}, {x: (nearestArch(o.x, o.y) || o).x, y: (nearestArch(o.x, o.y) || o).y}], leg: 0, waitT: 0};
+        }
       }
       const shelves = SHOPS[sk].shelves;
       let j = -1;
@@ -15124,8 +15166,20 @@ function routineTick(cv, dt){
       }
       p.phase = 3; return true;
     }
-    if(p.phase === 3){ if(routineGo(cv, anchorPt(sk, 'door_out'), dt)) p.phase = 4; return true; }
+    if(p.phase === 3){
+      p.outT = (p.outT || 0) + dt;
+      if(routineGo(cv, anchorPt(sk, 'door_out'), dt) && !shopInside(sk, cv)) p.phase = 4;
+      else if(p.outT > 20){ const o = anchorPt(sk, 'door_out'); cv.x = o.x; cv.y = o.y + 10; cv.tx = cv.x; cv.ty = cv.y; p.phase = 4; }   // jammed in his own doorway: he shoulders through
+      return true;
+    }
     if(p.phase === 4){
+      if(shopInside(sk, cv)){ p.phase = 3; return true; }   // never from the inside
+      // anyone else still in there slips out as he pulls the door
+      for(const o of (state.civs || [])){
+        if(o === cv || !o.alive || !shopInside(sk, o)) continue;
+        const d0 = anchorPt(sk, 'door_out'); o.x = d0.x + (Math.random() - 0.5) * 60; o.y = d0.y + 40 + Math.random() * 30; o.tx = o.x; o.ty = o.y;
+        if(!o.errand || o.errand.kind !== 'led') o.errand = o.tide ? errandNew(o) : {kind: 'home', path: [], leg: 0, waitT: 0};
+      }
       shopLock(sk, true);
       popOver(cv, 'CLOSED', '#8a93b8');
       chronicle('event', cv.name + ' put ' + (p.tidied || 0) + ' pieces back in the locker and locked up at ' + clockHHMM() + (inside.length ? ', with ' + inside[0].name + ' still inside.' : '.'));
@@ -15151,8 +15205,11 @@ function routineTick(cv, dt){
     if(!p.courier && clockNow() >= 20 * 60 + 50){ p.courier = dealCourierSpawn(cv); chronicle('event', 'A courier came through the arch for the Beacon with a crate under one arm.'); }
     if(p.carryTo){
       if(Math.hypot(p.carryTo.x - cv.x, p.carryTo.y - cv.y) > 24){ civTravel(cv, p.carryTo.x, p.carryTo.y, civSpd({gait: 0.95}), dt); return true; }
-      cv.carry = null; p.carryTo = null; p.done = true;
-      cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};   // and home, by the arch
+      cv.carry = null; p.carryTo = null; p.relock = true;
+      return true;
+    }
+    if(p.relock){
+      if(routineGo(cv, anchorPt(rt.shop, 'door_out'), dt) && !shopInside(rt.shop, cv)){ shopLock(rt.shop, true); p.relock = false; p.done = true; cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; }
       return true;
     }
     if(routineGo(cv, seat, dt)){
@@ -15238,7 +15295,46 @@ function deliveryDrop(cv){
   addPopup(door.x, door.y - 20, 'DELIVERY \u00B7 LEFT AT THE DOOR', '#9fe08e');
   chronicle('event', 'The porter set a crate down at Tarn\u2019s door and left. Three pieces in it, if nobody gets there first.');
 }
-// customers at every counter: the tide near a keeper's shelves buys now and then; shelves without a locker refill overnight
+// the shelf a browsing customer is standing at, if it has anything on it
+function customerShelf(o, sh){
+  const base = sh.base || 0;
+  if(o.errand && o.errand.shelf != null && o.errand.shelf >= base && o.errand.shelf < base + sh.stock.length && shelfItem(o.errand.shelf)) return o.errand.shelf;
+  let best = -1, bd = 60;
+  for(let i = base; i < base + sh.stock.length; i++){ const pt = state.shelves[i]; if(!pt || !shelfItem(i)) continue; const d = Math.hypot(pt.x - o.x, pt.y - o.y); if(d < bd){ bd = d; best = i; } }
+  return best;
+}
+// one customer, one shelf: a sale most of the time; now and then a hand that does not pay, which the keeper may or may not see
+function customerAct(o, sh, keeper){
+  const si = customerShelf(o, sh); if(si < 0) return false;
+  const it = sh.stock[si - (sh.base || 0)];
+  const seesMe = keeper && keeper.alive && !keeper.ko && Math.hypot(keeper.x - o.x, keeper.y - o.y) < 320 && segClearHigh(keeper.x, keeper.y, o.x, o.y);
+  if(!o.name && !seesMe && Math.random() < 0.06){   // a hand that does not pay, when nobody behind the counter is looking
+    // a theft from the shelf
+    it.gone = true; it.by = 'stolen';
+    crookPromote(o);
+    o.crook = {stage: 'bolt', pouch: Object.assign({}, it, {kind: 'weapon', label: WPN_NAMES[it.key] || it.key, value: it.price}), lifts: 1, marks: []};
+    o.errand = {kind: 'bolt', path: [], leg: 0, waitT: 0};
+    popOver(o, 'PALMED IT', '#e0a33e');
+    if(seesMe){
+      popOver(keeper, 'HOY, THIEF!', '#e0483e');
+      civSay(keeper, 'Stop! Thief! Somebody stop them!', 8);
+      witnessRun(keeper, {npc: true, perp: o});
+      moodPush(sh.keeper, {f: -1, a: -0.5}, 'saw a customer palm a ' + (WPN_NAMES[it.key] || it.key), 'stock');
+      chronicle('event', sh.keeper + ' saw a customer palm a ' + (WPN_NAMES[it.key] || it.key) + ' off the shelf and bolt. ' + o.name + ', the law was told.');
+    }else{
+      chronicle('event', 'Somebody walked out of ' + sh.keeper + '\u2019s with a ' + (WPN_NAMES[it.key] || it.key) + ' under their coat. Nobody saw.');
+      if(!sh.locker) sh.stocktakeT = performance.now() + 60000 + Math.random() * 60000;
+    }
+    return 'stolen';
+  }
+  it.gone = true; it.by = 'sold';
+  sh.till = (sh.till || 0) + it.price;
+  moodPush(sh.keeper, {j: 0.15, a: 0.1}, 'sold a ' + (WPN_NAMES[it.key] || it.key) + ' to a customer', 'trade');
+  if(DRIVES[sh.keeper]) lifeSale(sh.keeper);
+  popOver(o, 'SOLD \u00B7 ' + (WPN_NAMES[it.key] || it.key).toUpperCase(), '#9fe08e');
+  return 'sold';
+}
+// customers at every counter: the tide at a keeper's shelves buys now and then; shelves without a locker refill overnight
 function shopCustomersTick(dt){
   if(!state.portDock || state.deckCombat) return;
   state._custT = (state._custT || 0) + dt;
@@ -15251,19 +15347,12 @@ function shopCustomersTick(dt){
     const base = sh.base || 0;
     const pts = (state.shelves || []).slice(base, base + sh.stock.length);
     if(!pts.length) continue;
+    const keeper = (state.civs || []).find(c => c.name === sh.keeper && c.alive);
     for(const o of (state.civs || [])){
-      if(!o.tide || !o.alive || o.ko || o.panic > 0) continue;
-      if(!pts.some(pt => Math.hypot(pt.x - o.x, pt.y - o.y) < 140)) continue;
-      if(Math.random() > 0.05) continue;
-      const j = sh.stock.findIndex(it => it && !it.gone);
-      if(j < 0) break;
-      const it = sh.stock[j];
-      it.gone = true; it.by = 'sold';
-      sh.till = (sh.till || 0) + it.price;
-      moodPush(sh.keeper, {j: 0.15, a: 0.1}, 'sold a ' + (WPN_NAMES[it.key] || it.key) + ' to a customer', 'trade');
-      if(DRIVES[sh.keeper]) lifeSale(sh.keeper);
-      popOver(o, 'SOLD \u00B7 ' + (WPN_NAMES[it.key] || it.key).toUpperCase(), '#9fe08e');
-      break;
+      if(!o.tide || !o.alive || o.ko || o.panic > 0 || o.crook) continue;
+      if(customerShelf(o, sh) < 0) continue;
+      if(Math.random() > 0.08) continue;
+      if(customerAct(o, sh, keeper)) break;
     }
   }
 }
@@ -15299,10 +15388,10 @@ function tarnPeople(cv, p, sk, dt){
       chronicle('event', 'Tarn carried the crate through to the lockers himself. A good morning.');
       cv.carry = 'CRATE'; p.carryTo = anchorPt(sk, 'lockers');
     }else{
-      moodPush('Tarn', {j: -1, f: -1, t: -1, a: -1}, 'found his delivery crate emptied at his own door', 'stock');
+      moodPush('Tarn', {j: -1, f: -1, a: -1}, 'found his delivery crate emptied at his own door', 'stock');
       popOver(cv, 'EMPTY. SOMEBODY HAD IT.', '#e0483e');
       chronicle('event', 'Tarn found the delivery crate at his door, open and empty. He did not say anything for a long time.');
-      witnessRun(cv, {grade: 'minor', what: 'a crate lifted from Tarn\u2019s door', npcOnly: true});
+      complaintRun(cv, 'tarn', 'a crate lifted from Tarn\u2019s door', {missing: 3});
     }
     if(sh.delivery) sh.delivery.done = true;
     p.fetching = false;
@@ -15321,17 +15410,10 @@ function tarnPeople(cv, p, sk, dt){
   if(p.custT > 20){
     p.custT = 0;
     for(const o of (state.civs || [])){
-      if(!o.tide || !o.alive || o.ko || o.panic > 0 || !inFront(o)) continue;
-      if(Math.random() > 0.06) continue;
-      const j = sh.stock.findIndex(it => it && !it.gone);
-      if(j < 0) break;
-      const it = sh.stock[j];
-      it.gone = true; it.by = 'sold';
-      sh.till = (sh.till || 0) + it.price;
-      lifeSale('Tarn');
-      moodPush('Tarn', {j: 0.15, a: 0.1}, 'sold a ' + (WPN_NAMES[it.key] || it.key) + ' to a customer', 'trade');
-      popOver(o, 'SOLD \u00B7 ' + (WPN_NAMES[it.key] || it.key).toUpperCase(), '#9fe08e');
-      break;
+      if(!o.tide || !o.alive || o.ko || o.panic > 0 || o.crook || !inFront(o)) continue;
+      if(customerShelf(o, sh) < 0) continue;
+      if(Math.random() > 0.08) continue;
+      if(customerAct(o, sh, cv)) break;
     }
   }
   // loiterers: the crew in the front room with no money changing hands
@@ -15421,11 +15503,143 @@ function tarnLockerCount(cv){
   sh.lockerSeen = have;
   if(have >= expect) return false;
   const short = expect - have;
-  moodPush('Tarn', {t: -1, f: -1, a: -1, j: -0.5}, 'found the locker ' + short + ' short', 'stock');
+  moodPush('Tarn', {f: -0.3, a: -0.5, j: -0.5}, 'found the locker ' + short + ' short', 'stock');
   popOver(cv, 'THE LOCKER IS ' + short + ' SHORT', '#e0483e');
-  chronicle('event', 'Tarn counted the locker and came up ' + short + ' short. No name to give the law; a colder eye on everyone who browses.');
-  witnessRun(cv, {grade: 'minor', what: 'a theft from Tarn\u2019s Arms, overnight', npcOnly: true});
+  chronicle('event', 'Tarn counted the locker and came up ' + short + ' short. No name to give the law yet.');
+  if(cv.plan && cv.plan.invDone === (ship.day || 0)) return true;   // the officer has been today already
+  complaintRun(cv, 'tarn', short + ' pieces gone from Tarn\u2019s locker', {missing: short});
   shipSave();
+  return true;
+}
+// ---- the investigation (Ben, 3 Nov): a keeper who finds his shop robbed fetches a badge, and the badge works the scene ----
+// the door, the locker, the neighbours, the loot on the floor, the crew's pockets. Every step is said out loud over the people doing it.
+function complaintRun(cv, shopKey, what, inv){
+  witnessRun(cv, {grade: 'minor', what, inv: Object.assign({shop: shopKey, what}, inv || {})});
+  if(cv.plan) cv.plan.invDone = ship.day || 0;
+  return true;
+}
+function invSay(who, txt, secs){ if(who) civSay(who, txt, secs || 8); }
+function invKeeper(inv){ return (state.civs || []).find(c => c.name === inv.keeper && c.alive && !c.gone) || null; }
+function invTaggedIn(list, keeper){ return (list || []).filter(it => it && it.own && it.own.indexOf(keeper + ' \u00B7 shop stock') === 0); }
+function invTick(cop, dt){
+  const inv = cop.inv; if(!inv) return;
+  const sk = inv.shop; const sh = shopByKeeper(inv.keeper); const kp = invKeeper(inv);
+  if(!SHOPS[sk] || !sh){ cop.inv = null; cop.pursue = false; return; }
+  const door = anchorPt(sk, 'door_out'), lockers = anchorPt(sk, 'lockers');
+  inv.t += dt;
+  const go = (pt, r) => { if(Math.hypot(pt.x - cop.x, pt.y - cop.y) <= (r || 40)) return true; civTravel(cop, pt.x, pt.y, civSpd({gait: 1.0}), dt); return false; };
+  const next = (step) => { inv.step = step; inv.t = 0; };
+  if(inv.step === 'toDoor'){
+    if(!go(door, 46)) return;
+    invSay(cop, inv.forced ? 'Forced from outside. A shoulder, by the look of the frame.' : 'No mark on the door. Somebody had a key, or came in while it stood open.');
+    if(kp) invSay(kp, inv.forced ? 'It was hanging open when I got here.' : 'I lock it every night. Every night.', 7);
+    next('door'); return;
+  }
+  if(inv.step === 'door'){ if(inv.t > 5) next('toLocker'); return; }
+  if(inv.step === 'toLocker'){
+    if(shopLocked(sk)) shopLock(sk, false);
+    if(!go(lockers, 46)) return;
+    const n = inv.missing || 0;
+    if(kp) invSay(kp, n ? n + ' piece' + (n === 1 ? '' : 's') + ', tagged. Mine. I know every one by its weight.' : 'Nothing gone from the box, as far as I can count. They were after something else, or they were disturbed.', 8);
+    invSay(cop, n ? 'Tagged goods turn up. Somebody tries to sell them, or somebody is carrying them. Give me an hour.' : 'Then it is the damage and the nerve. I will ask about.', 8);
+    next('locker'); return;
+  }
+  if(inv.step === 'locker'){ if(inv.t > 6) next('ask'); return; }
+  if(inv.step === 'ask'){
+    // three neighbours, nearest first; one of them may have seen who forced the door
+    if(!inv.witnesses){
+      inv.witnesses = (state.civs || []).filter(c => c !== cop && c !== kp && c.alive && !c.ko && !c.gone && !c.crook && c.kind !== 'cleaner' && !c.debt && Math.hypot(c.x - door.x, c.y - door.y) < 520)
+        .sort((a2, b2) => Math.hypot(a2.x - door.x, a2.y - door.y) - Math.hypot(b2.x - door.x, b2.y - door.y)).slice(0, 3);
+      inv.wi = 0;
+    }
+    const w = inv.witnesses[inv.wi];
+    if(!w){ next('piles'); return; }
+    if(!w.alive || w.gone){ inv.wi++; return; }
+    if(!go({x: w.x, y: w.y}, 48)) return;
+    w.hail = {by: cop.name, until: performance.now() + 6000};
+    const forced = ship.shopForced && ship.shopForced[sk + '_last'];
+    const saw = forced && forced.seen && !inv.named && Math.random() < 0.6;
+    invSay(cop, 'Anyone at this door after dark? Think before you answer.', 6);
+    if(saw){ inv.named = forced.by; invSay(w, 'Big, in a hurry, went through that door like it owed them money. One of the crew off the Orrix. ' + forced.by + ', I heard somebody call them.', 9); chronicle('event', 'A neighbour gave ' + cop.name + ' a name for the door at ' + inv.keeper + '\u2019s: ' + forced.by + '.'); }
+    else invSay(w, ['Saw nothing, officer.', 'I was asleep, like a person.', 'Heard a bang. Did not look. You do not look, round here.'][Math.floor(Math.random() * 3)], 6);
+    inv.wi++; inv.t = 0;
+    inv.step = 'askWait'; return;
+  }
+  if(inv.step === 'askWait'){ if(inv.t > 4) next('ask'); return; }
+  if(inv.step === 'piles'){
+    // loot left on the floor with the keeper's tag on it goes back in the box
+    const pile = (state.enemies || []).find(e => e.cache && !e.alive && !e.locker && !e.delivery && invTaggedIn(e.loot, inv.keeper).length);
+    if(!pile){ next('search'); return; }
+    if(!go({x: pile.x, y: pile.y}, 40)) return;
+    const got = invTaggedIn(pile.loot, inv.keeper);
+    pile.loot = pile.loot.filter(it => got.indexOf(it) < 0);
+    if(sh.locker){ for(const it of got){ it.gone = false; sh.locker.push(it); } sh.lockerSeen = (sh.lockerSeen || 0) + got.length; }
+    inv.found = inv.found.concat(got.map(it => lootLabelOf(it)));
+    invSay(cop, 'Tagged. Dumped, or dropped. Back where it belongs.', 7);
+    popOver(cop, 'RECOVERED \u00B7 ' + got.length, '#9fe08e');
+    chronicle('event', cop.name + ' found ' + got.length + ' of ' + inv.keeper + '\u2019s tagged pieces in a pile on the floor and carried them back.');
+    return;
+  }
+  if(inv.step === 'search'){
+    if(!inv.targets){
+      const named = inv.named ? (state.squad || []).filter(c => c.alive && c.name === inv.named) : [];
+      const near = (state.squad || []).filter(c => c.alive && !c.marched && named.indexOf(c) < 0 && Math.hypot(c.x - door.x, c.y - door.y) < 700);
+      inv.targets = named.concat(near); inv.ti = 0;
+      if(!inv.targets.length && inv.named) chronicle('event', cop.name + ' has a name, ' + inv.named + ', and no sight of them. The file stays open.');
+    }
+    const c = inv.targets[inv.ti];
+    if(!c){ next('close'); return; }
+    if(!c.alive || c.marched){ inv.ti++; return; }
+    if(!go({x: c.x, y: c.y}, 52)) return;
+    c.friskT = performance.now() + 4000;
+    invSay(cop, (c.name === inv.named ? 'You. A neighbour put you at that door. ' : '') + 'Hands out, ' + c.name + '. This will not take long.', 7);
+    invSearch(cop, c, inv);
+    inv.ti++; inv.t = 0; inv.step = 'searchWait'; return;
+  }
+  if(inv.step === 'searchWait'){ if(inv.t > 4) next('search'); return; }
+  if(inv.step === 'close'){
+    const found = inv.found.length;
+    invSay(cop, found ? 'Goods recovered. The file stays open; so does my eye.' : inv.named ? 'A name and nothing to pin on it. Yet.' : 'No witnesses, no goods. I will keep an eye on the door.', 9);
+    if(kp) invSay(kp, found ? 'Good.' : 'That is it? That is the law?', 7);
+    if(kp && !found) moodPush(inv.keeper, {j: -0.3, a: -0.3}, 'watched the law shrug at his robbery', 'law');
+    chronicle('event', cop.name + ' closed the walk-round at ' + inv.keeper + '\u2019s: ' + (found ? found + ' pieces recovered.' : inv.named ? 'a name, no goods.' : 'nothing.'));
+    lifeNote(inv.keeper, found ? 'the law brought back what was taken' : 'the law came, looked, and left');
+    cop.inv = null; cop.pursue = false; cop.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
+    return;
+  }
+}
+// the officer's hands in an operator's pockets, looking for one keeper's tags
+function invSearch(cop, c, inv){
+  const d = c.def; if(!d) return false;
+  const sh = shopByKeeper(inv.keeper);
+  const inPack = invTaggedIn(d.pack, inv.keeper);
+  const inHand = [];
+  for(const sl of ['primary', 'sidearm']){ const pv = provOf(d, sl); if(pv && pv.own && pv.own.indexOf(inv.keeper + ' \u00B7 shop stock') === 0) inHand.push(sl); }
+  if(!inPack.length && !inHand.length){
+    popOver(c, 'CLEAN', '#9fe08e');
+    invSay(cop, 'Clean. ' + (c.name === inv.named ? 'Lucky, or quick. I will remember the face.' : 'Move along.'), 6);
+    if(c.name === inv.named) rapAdd(c.name, 'minor', 'named at the door of ' + inv.keeper + '\u2019s Arms', true);
+    return false;
+  }
+  const n = inPack.length + inHand.length;
+  const give = () => {
+    for(const it of inPack){ const i = d.pack.indexOf(it); if(i >= 0) d.pack.splice(i, 1); if(sh && sh.locker){ it.gone = false; sh.locker.push(it); } }
+    for(const sl of inHand){ const key = d.loadout[sl]; d.loadout[sl] = null; provSet(d, sl, null); if(c.slot === sl) c.weapon = 'unarmed'; if(sh && sh.locker) sh.locker.push({kind: 'weapon', key, price: Math.round((WPN_PRICE[key] || 60) * 0.9), gone: false, own: inv.keeper + ' \u00B7 shop stock'}); }
+    if(sh) sh.lockerSeen = (sh.lockerSeen || 0) + n;
+    const fee = 60;
+    ship.credits = Math.max(0, ship.credits - fee);
+    rapAdd(c.name, 'minor', 'possession of ' + inv.keeper + '\u2019s stolen stock', true);
+    moodPush(inv.keeper, {t: -2, f: -1}, 'the law found his goods on ' + c.name, 'stock');
+    inv.found = inv.found.concat(inPack.map(it => lootLabelOf(it)).concat(inHand.map(sl => d.loadout[sl] || 'a piece')));
+    chronicle('event', cop.name + ' pulled ' + n + ' of ' + inv.keeper + '\u2019s tagged pieces out of ' + c.name + '\u2019s kit, took ' + fee + ' CR, and handed the goods back across the counter. ' + inv.keeper + ' watched.');
+    shipCreditsRefresh && shipCreditsRefresh(); shipSave();
+  };
+  const shown = showEventModal('THE SEARCH \u00B7 ' + inv.keeper.toUpperCase() + '\u2019S GOODS',
+    cop.name + ' turns a piece over and reads the tag aloud. \u201C' + inv.keeper + '. Shop stock.\u201D ' + (inv.keeper === 'Tarn' ? 'Tarn says nothing at all, which is worse. ' : '') +
+    '\u201CThe goods go back, sixty credits remediation, and a line on ' + c.name + '\u2019s sheet. Or it goes the other way.\u201D',
+    [{label: 'HAND THEM OVER \u00B7 60 CR', cb: give}, {label: 'THE OTHER WAY', cb: () => { rapAdd(c.name, 'minor', 'resisting confiscation'); startConstableFight(); }}],
+    {sub: n + ' TAGGED PIECE' + (n === 1 ? '' : 'S') + ' ON ' + c.name.toUpperCase()});
+  if(shown === false) give();   // headless: the goods go back
   return true;
 }
 // ---- the door when he is not there (Ben, 29 Oct): a locked door can be forced; the port hears it, and so does Tarn in the morning ----
@@ -15464,10 +15678,13 @@ function shopForce(key, c){
   }
   shopLock(key, false);
   ship.shopForced = ship.shopForced || {};
-  ship.shopForced[key] = {by: c.name, day: ship.day || 0, at: clockHHMM()};
+  const r0 = rapsOf(c.name).minor;
   addPopup(at.x, at.y + 22, 'THE DOOR GIVES', '#e0483e');
   chronicle('event', c.name + ' forced ' + SHOPS[key].keeper + '\u2019s door at ' + clockHHMM() + '. Anyone on the street with eyes has a story.');
   bzCrimeWitness(at.x, at.y, {grade: 'minor', who: c.name, what: 'breaking into ' + SHOPS[key].keeper + '\u2019s Arms'}, c);
+  const seen = rapsOf(c.name).minor > r0 || (state.civs || []).some(w => w.errand && w.errand.kind === 'law' && w.errand.crime && w.errand.crime.who === c.name);
+  ship.shopForced[key] = {by: c.name, day: ship.day || 0, at: clockHHMM(), seen};
+  ship.shopForced[key + '_last'] = ship.shopForced[key];   // the investigation reads this after the door has been found
   return true;
 }
 // night on the floor: a blue wash that deepens with the hour, warm light spilling from the venues and the arches
