@@ -497,6 +497,10 @@
     background:#1a1024;border:1px solid #b0526d;color:#e8b0c0;
     font:800 12px 'Cinzel',serif;letter-spacing:.14em;padding:10px 16px;cursor:pointer;}
   #ironsbtn:hover{box-shadow:0 0 24px rgba(176,82,109,.8);}
+  #foodbtn{position:fixed;left:440px;bottom:26px;z-index:72;
+    background:#1a1708;border:1px solid #d4a843;color:#f0d070;
+    font:800 12px 'Cinzel',serif;letter-spacing:.14em;padding:10px 16px;cursor:pointer;}
+  #foodbtn:hover{box-shadow:0 0 24px rgba(212,168,67,.8);}
   #sqbtn{position:fixed;left:236px;bottom:72px;z-index:72;
     background:#10141f;border:1px solid rgba(111,214,255,.5);color:#9fd3e8;
     font:800 10px 'Space Grotesk',sans-serif;letter-spacing:.14em;padding:8px 14px;cursor:pointer;}
@@ -1398,6 +1402,7 @@
     <div id="brieftoast"></div>
     <button id="winbtn" style="display:none">✓ COMPLETE CONTRACT</button>
     <button id="ironsbtn" style="display:none">⚔ DRAW IRONS</button>
+    <button id="foodbtn" style="display:none" title="Throw a handful of Erina's feed to land short of the Qilin. One action. It comes to it when nothing is moving near it.">FEED</button>
     <button id="sqbtn" style="display:none">SQUAD · TOGETHER</button>
     <div id="respClock" style="display:none"></div>
     <div id="overlay">
@@ -1642,6 +1647,21 @@ const ARCHETYPES = {
     moveRange: 150, dmg: 0, spread: 0, pellets: 0, shotSpeed: 0, shotLife: 0,
     idealRange: 0, melee: 9,
     weights: {los: 0.7, cover: 0, range: 0, close: 1.6, flank: 0.4},
+  },
+  qilin: {
+    label: 'Qilin', color: '#f0d070', quarry: true,
+    hp: 40, bravery: 99, fearless: 1,
+    burst: 0, burstGap: 0.1, pen: 0, vision: 360, awareness: 1.4, bodyR: 13,
+    moveRange: 190, dmg: 0, spread: 0, pellets: 0, shotSpeed: 0, shotLife: 0,
+    idealRange: 0, melee: 0,
+    weights: {los: 0, cover: 0, range: 0, close: 0, flank: 0},
+  },
+  poacher: {
+    label: 'Poacher', color: '#c98b3e',
+    hp: 14, bravery: 9, fearless: 0, burst: 3, burstGap: 0.1, pen: 0.7, vision: 330, awareness: 1.0, bodyR: 10,
+    moveRange: 125, dmg: 1.6, spread: 7, pellets: 1, shotSpeed: 680, shotLife: 1.4,
+    idealRange: 320, melee: 0,
+    weights: {los: 2.6, cover: 1.6, range: 1.3, close: 0.9, flank: 0.6},
   },
   breaker: {
     label:'Breaker', hp:60, bravery:20, fearless:1, burst:2, burstGap:0.09, pen:1.5, vision:317, awareness:0.5, color:'#b06ae0', bodyR:16,
@@ -2443,7 +2463,7 @@ const GANNET_LEVEL = {
 function gannetHullIn(PW, PH, cx, cy){
   const sx = GANNET_LEVEL.world.w / PW, sy = GANNET_LEVEL.world.h / PH;
   const ox = cx - 0.5 * sx, oy = cy - 0.5 * sy;
-  const hull = GANNET_HULL.map(w => ({...w, x: w.x * sx + ox, y: w.y * sy + oy, w: w.w * sx, h: w.h * sy}));
+  const hull = GANNET_HULL.map(w => ({...w, x: w.x * sx + ox, y: w.y * sy + oy, w: w.w * sx, h: w.h * sy, hull: true}));
   const hatch = {x: 0.256 * sx + ox, y: 0.50 * sy + oy};
   carveDoorF(hull, hatch, PW, PH, 56);
   const zone = {x0: 0.25 * sx + ox, y0: 0.30 * sy + oy, x1: 0.75 * sx + ox, y1: 0.70 * sy + oy};
@@ -2874,7 +2894,7 @@ function enterPort(distId, opts){
   state.enemies.length = 0;
   ship.where = 'port';
   state.faceT = 0;   // a new landing starts the familiar-face clock afresh
-  if(ship.district === 'hangar' && charterSt() === 'cleared' && ship.missions && ship.missions.spindle) ship.missions.spindle.t0h = performance.now();   // the console waypoint lands as you walk in
+  if(ship.district === 'hangar' && charterSt() === 'cleared' && ship.missions && ship.missions[charterJobDef().mission]) ship.missions[charterJobDef().mission].t0h = performance.now();   // the console waypoint lands as you walk in
   situationPick();
   situationsTick();
   {
@@ -4654,6 +4674,7 @@ function layout(){
     den: w.den || undefined,   // a door that is a wall until it is opened
     cell: w.cell || undefined, // a cell door: a wall until the console opens it
     lock: w.lock || undefined, // a shop door: a wall until the keeper unlocks it
+    hull: w.hull || undefined, // the Gannet's plating, drawn as plating wherever it lands
   }));
   for(const w of s.walls) buildChunks(w);
   // strongboxes the level puts down: floor loot with a lid
@@ -4841,6 +4862,7 @@ function squadMoveToggle(){
   return state.squadMove !== false;
 }
 document.getElementById('ironsbtn').addEventListener('click', () => { ironsToggle(); });
+{ const fb = document.getElementById('foodbtn'); if(fb && fb.addEventListener) fb.addEventListener('click', () => { foodThrow(); }); }
 document.getElementById('sqbtn').addEventListener('click', () => { squadMoveToggle(); });
 document.getElementById('endturnbtn').addEventListener('click', () => {
   if(state.range) return;
@@ -4953,6 +4975,7 @@ function updateHud(){
   updateWcardMag();
   refreshSpecialBtn();
   refreshDropBtn();
+  if(typeof foodBtnSync === 'function') foodBtnSync();
   document.getElementById('turnNum').textContent = state.turn;
   document.getElementById('foes').textContent = state.enemies.filter(e=>e.alive).length;
   const sb = document.getElementById('scanbtn');
@@ -5442,7 +5465,15 @@ function renderObjectives(){
   const L = currentLevel();
   const s = state;
   let primary;
-  if(s.pkg){
+  if(L.qilin){
+    const q = qilinFoe();
+    primary = s.quarryDead ? '<span style="color:#e0483e">✗ The Qilin is dead. Erina pays for stock, not pelts.</span>'
+      : s.qilinTaken ? '<span style="color:#e0483e">✗ The hunters have the Qilin</span>'
+      : q && q.tamed ? (qilinAboard() ? '<span class="ok">✓ The Qilin is aboard; press the console</span>' : '◈ The Qilin follows your lead; walk it through the Gannet\u2019s hatch')
+      : s.pkg && s.pkg.carried ? '◈ Carry the darted Qilin aboard the Gannet (Erina will know)'
+      : s.pkg && !s.pkg.live ? '◈ Pick up the darted Qilin before it wakes'
+      : '◈ Tame the Qilin: feed thrown near it, three times (' + (s.qilinFood || 0) + ' left) \u00B7 trust ' + (q ? q.trust || 0 : 0) + '/3 \u00B7 walk, do not run at it';
+  }else if(s.pkg){
     const qLabel = s.pkg.quarry ? (ARCHETYPES[s.pkg.quarry] || {}).label || 'the quarry' : null;
     primary = s.pkg.delivered ? '<span class="ok">✓ ' + (qLabel ? qLabel + ' delivered, breathing' : 'Package delivered') + '</span>'
             : s.pkg.live      ? '◈ Bring the ' + qLabel + ' down alive (darts, goad, screamer, fists)'
@@ -9320,6 +9351,10 @@ const BEASTS = {
   miraj: {label: 'Al-mi\u2019raj', race: 'AL-MI\u2019RAJ', r: 6, spook: 120, curious: 260, still: 7, near: 56, pace: 1.6, tint: 'rgba(222,190,120,.9)', edge: 'rgba(255,240,200,.9)',
     bio: 'A hare the colour of the sand with one black horn a hand long. Curious as a cat and twice as quick to leave. Erina named every one of them.'},
 };
+BEASTS.qilin = {label: 'Qilin', race: 'QILIN', r: 12, spook: 0, curious: 0, still: 99, near: 60, pace: 1.3, tint: 'rgba(240,208,112,.9)', edge: 'rgba(255,240,190,.95)',
+  bio: 'Deer-shaped, antlered, scaled where a deer is furred, and quiet. It takes nothing it is not given and goes nowhere it is not led. It followed the crew home from Tallis.'};
+BEASTS.friend = {label: 'A small thing', race: 'THE WOOD', r: 4, spook: 0, curious: 0, still: 99, near: 30, pace: 1.0, tint: 'rgba(200,190,150,.8)', edge: 'rgba(240,235,210,.9)',
+  bio: 'One of the small things that live in the glades and see everything that moves in them. When it calls, the Qilin listens.'};
 const MIRAJ_NAMES = ['Burr', 'Tansy', 'Nettle', 'Sorrel', 'Dock', 'Clover', 'Thistle', 'Scrap'];
 function beastMake(kind, x, y, name){
   const B = BEASTS[kind];
@@ -9335,6 +9370,7 @@ function cageBeastsSeed(kind){
   const spot = (tries) => { for(let t = 0; t < (tries || 40); t++){ const x = (0.3 + rng() * 0.6) * W, y = (0.15 + rng() * 0.7) * H; if(openGround(x, y, 14)) return {x, y}; } return {x: W * 0.6, y: H * 0.5}; };
   let n = 0;
   if(kind === 'grass' && houndHome()){ const p = spot(); state.civs.push(beastMake('hound', p.x, p.y)); n++; }
+  if(kind === 'forest' && ship.qilinHome){ const p = spot(); state.civs.push(beastMake('qilin', p.x, p.y, 'The Qilin')); n++; }
   if(kind === 'desert'){
     const c = spot();
     for(let i = 0; i < 8; i++){ const a = rng() * Math.PI * 2, r = 30 + rng() * 90; let x = c.x + Math.cos(a) * r, y = c.y + Math.sin(a) * r; if(!openGround(x, y, 10)){ const p = spot(); x = p.x; y = p.y; } state.civs.push(beastMake('miraj', x, y, MIRAJ_NAMES[i])); n++; }
@@ -9345,6 +9381,22 @@ function beastsOf(kind){ return (state.civs || []).filter(cv => cv.beast && cv.b
 // one animal, one tick: graze, roam, bolt, or come and look
 function beastTick(cv, dt){
   const b = cv.beast; const B = BEASTS[b.kind];
+  // the tamed Qilin: a step behind whoever is leading, through arches and all
+  if(b.state === 'follow'){
+    const who = (state.squad || []).find(c => c.name === b.follow && c.alive) || pc();
+    if(!who) return true;
+    const d = Math.hypot(who.x - cv.x, who.y - cv.y);
+    if(d > 700){ cv.x = who.x - 30; cv.y = who.y + 20; cv.tx = cv.x; cv.ty = cv.y; return true; }   // lost it through a door: it catches up off screen
+    if(d > 56) civStep(cv, who.x, who.y, civSpd({gait: 1.0}) * B.pace, dt);
+    else { cv.tx = cv.x; cv.ty = cv.y; cv.facing = Math.atan2(who.y - cv.y, who.x - cv.x); }
+    return true;
+  }
+  if(b.kind === 'friend'){
+    b.t -= dt;
+    if(b.state === 'roam' && b.to){ civStep(cv, b.to.x, b.to.y, civSpd({gait: 0.5}), dt); if(b.t <= 0 || Math.hypot(b.to.x - cv.x, b.to.y - cv.y) < 6){ b.state = 'graze'; b.t = 2 + Math.random() * 4; } }
+    else if(b.t <= 0){ const a = Math.random() * Math.PI * 2, r = Math.random() * (cv.homeR || 90); const x = cv.home.x + Math.cos(a) * r, y = cv.home.y + Math.sin(a) * r; if(openGround(x, y, 6)){ b.to = {x, y}; b.state = 'roam'; b.t = 4; } else b.t = 1; }
+    return true;
+  }
   const crew = (state.squad || []).filter(c => c.alive && !c.downed);
   let nearC = null, nd = 1e9;
   for(const c of crew){ const d = Math.hypot(c.x - cv.x, c.y - cv.y); if(d < nd){ nd = d; nearC = c; } }
@@ -10939,7 +10991,7 @@ function districtPark(){
   const carry = (state.props || []).filter(p => p.holder && state.squad.some(c => c.name === p.holder));
   // who follows the crew through an arch: a fan at their shoulder, an officer who wants a word, a hunter on their scent
   const followers = (state.civs || []).filter(cv => cv.alive && !cv.ko && !cv.gone &&
-    ((cv.kind === 'fan' && !cv.spooked) || (cv.kind === 'constable' && (cv.attend || cv.hunt))));
+    ((cv.kind === 'fan' && !cv.spooked) || (cv.kind === 'constable' && (cv.attend || cv.hunt)) || (cv.beast && cv.beast.state === 'follow')));
   const stay = (state.civs || []).filter(cv => !followers.includes(cv));
   state.districts[id] = {t: performance.now(), civs: stay, props: (state.props || []).filter(p => !carry.includes(p)),
     enemies: (state.enemies || []).filter(e => !e.alive), walls: state.walls, day: ship.day || 0,
@@ -10986,9 +11038,10 @@ function districtGo(to){
   if(!ddef || state.deckCombat) return false;
   const from = ship.district;
   const parked = districtPark() || {carry: [], followers: []};
-  if(ddef.cage && parked.followers.length){   // nobody follows the crew into a cage: they wait on the Cross
-    const snap = state.districts && state.districts[from]; if(snap) snap.civs = snap.civs.concat(parked.followers);
-    parked.followers = [];
+  if(ddef.cage && parked.followers.length){   // nobody follows the crew into a cage: they wait on the Cross (the Qilin on a lead is the exception)
+    const stay = parked.followers.filter(cv => !(cv.beast && cv.beast.state === 'follow'));
+    const snap = state.districts && state.districts[from]; if(snap && stay.length) snap.civs = snap.civs.concat(stay);
+    parked.followers = parked.followers.filter(cv => !stay.includes(cv));
   }
   const names = state.squad.filter(c => c.alive).map(c => c.name).join(', ');
   chronicle('event', names + (ddef.cage ? ' stepped through the distortion into ' : ' went through the arch to ') + ddef.name + '.');
@@ -11029,7 +11082,7 @@ function cageDoorStatus(dr){
 function cageContents(kind){
   if(kind === 'grass') return houndHome() ? 'The Glass Hound is in there.' : 'Nothing lives in it yet. The Glass Hound would, if it came home.';
   if(kind === 'desert') return 'Eight al-mi\u2019raj live in it.';
-  if(kind === 'forest') return 'Nothing lives in it yet.';
+  if(kind === 'forest') return ship.qilinHome ? 'The Qilin lives in it.' : 'Nothing lives in it yet. Erina is waiting for something to put in it.';
   return '';
 }
 function houndHome(){ const j = ship.erinaJob; return !!(j && j.state === 'paid' && j.alive); }
@@ -11474,16 +11527,109 @@ function buildSpindleLevel(){
   };
 }
 const SPINDLE_LEVEL = buildSpindleLevel();
-// ship.charter = {state: ticket|cleared|out|spindle|back|done|grief|lost, day, due, rescued}
+// ---- the Qilin (Ben, 3 Nov): Erina's second contract. A passage on the Gannet to Tallis, a forest with glades, a Qilin in it that
+// will not be caught and must not be killed, woodland friends that call out when anything comes near, a hunting party of five
+// with more behind them, and a satchel of Erina's feed. Three mouthfuls and it follows you home. ----
+const QILIN_NAMES = {leader: 'Dace Morrow', party: ['Hollis', 'Pell', 'Garrow', 'Vint', 'Sabb', 'Orrin Tace', 'Mell', 'Kettering']};
+let QILIN_LEVEL = null;
+function buildQilinLevel(){
+  const PW = 3200, PH = 2000;
+  const g = gannetHullIn(PW, PH, 0.12, 0.50);
+  const rng = rngFor('qilin|wood');
+  const walls = [
+    {x: 0.000, y: 0.000, w: 1.000, h: 0.030, high: true}, {x: 0.000, y: 0.970, w: 1.000, h: 0.030, high: true},
+    {x: 0.000, y: 0.000, w: 0.020, h: 1.000, high: true}, {x: 0.980, y: 0.000, w: 0.020, h: 1.000, high: true},
+  ];
+  const clear = (x, y, w, h) => Math.hypot(x + w / 2 - 0.12, y + h / 2 - 0.5) > 0.16 &&
+    !walls.some(o => x < o.x + o.w + 0.012 && x + w + 0.012 > o.x && y < o.y + o.h + 0.012 && y + h + 0.012 > o.y);
+  const glades = [{x: 0.40, y: 0.25}, {x: 0.42, y: 0.74}, {x: 0.62, y: 0.48}, {x: 0.80, y: 0.22}, {x: 0.82, y: 0.78}, {x: 0.93, y: 0.50}];
+  for(const gl of glades){
+    for(let i = 0; i < 16; i++){
+      const a = rng() * Math.PI * 2, r = 0.075 + rng() * 0.07;
+      const x = gl.x + Math.cos(a) * r * 0.8, y = gl.y + Math.sin(a) * r * 1.1;
+      const w = 0.011 + rng() * 0.008, h = 0.016 + rng() * 0.012;
+      if(x > 0.03 && y > 0.04 && x + w < 0.97 && y + h < 0.96 && glades.every(g2 => Math.hypot(g2.x - x, g2.y - y) > 0.055) && clear(x, y, w, h)) walls.push({x, y, w, h, high: true});
+    }
+  }
+  for(let i = 0; i < 70; i++){
+    const w = 0.011 + rng() * 0.008, h = 0.016 + rng() * 0.012;
+    const x = 0.28 + rng() * (0.68 - w), y = 0.05 + rng() * (0.9 - h);
+    if(glades.every(g2 => Math.hypot(g2.x - x, g2.y - y) > 0.06) && clear(x, y, w, h)) walls.push({x, y, w, h, high: true});
+  }
+  for(let i = 0; i < 12; i++){ const w = 0.025 + rng() * 0.02, h = 0.012; const x = 0.28 + rng() * 0.66, y = 0.06 + rng() * 0.88; if(glades.every(g2 => Math.hypot(g2.x - x, g2.y - y) > 0.05) && clear(x, y, w, h)) walls.push({x, y, w, h}); }
+  const route = (pts) => pts.map(p => ({x: p.x, y: p.y}));
+  return {
+    name: 'The Qilin', fee: 900, par: 0, at: 'tallis', crew: 4, hidden: true, charter: true, qilin: true, payAt: 'erina', issuer: 'erina',
+    world: {w: PW, h: PH}, biome: CAGES.forest.biome, glades,
+    client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
+    location: 'Tallis, the green moon \u00B7 the old wood', time: 'Late light',
+    brief: 'The Gannet is down at the wood\u2019s edge, hatch to the east. Somewhere in the glades is a Qilin, and somewhere in the trees is a hunting party that wants it in a net.<br><br>' +
+      'It will not be caught and it must not be killed. Walk; do not run at it. Its friends in the wood call out at anything that comes close, and when they call it moves and trusts you less. ' +
+      'Throw Erina\u2019s feed near it with the FEED button. Three mouthfuls and it is yours; it will follow whoever is leading, up the ramp and home. Darting it works and she will know. Killing it ends everything with her.',
+    objective: 'Tame the Qilin with three throws of feed \u00B7 walk it aboard the Gannet \u00B7 the console takes you home',
+    pkgName: 'THE QILIN',
+    player: {x: g.start.x, y: g.start.y},
+    walls: walls.concat(g.hull),
+    quarry: 'qilin',
+    enemies: [
+      {x: 0.93, y: 0.50, type: 'qilin', always: true},
+      {x: 0.86, y: 0.08, type: 'poacher', leader: true},
+      {x: 0.90, y: 0.10, type: 'poacher'},
+      {x: 0.83, y: 0.12, type: 'poacher'},
+      {x: 0.92, y: 0.14, type: 'poacher'},
+      {x: 0.88, y: 0.16, type: 'poacher'},
+    ],
+    patrols: [route([glades[3], glades[2], glades[4], glades[5]]), route([glades[0], glades[2], glades[1]])],
+    extract: null,
+    stations: [g.console],
+    charterZone: g.zone,
+    civilians: 0,
+  };
+}
+function qilinIdx(){ if(!QILIN_LEVEL) QILIN_LEVEL = buildQilinLevel(); let i = LEVELS.indexOf(QILIN_LEVEL); if(i < 0){ LEVELS.push(QILIN_LEVEL); i = LEVELS.length - 1; } return i; }
+// which job the charter is flying: Oskar's brother, or Erina's Qilin
+const CHARTER_JOBS = {
+  spindle: {mission: 'spindle', dest: 'SPINDLE', ticketLine: 'Venn\u2019s passage. Paid up front, which tells you what he thinks your odds are.',
+    launch: 'The Gannet lifts the moment this is pressed: thirty seconds of hard burn to Spindle, whatever the dark holds on the way, and the white rock at the end of it. Everyone aboard is going. The Orrix stays docked.',
+    launchSub: 'A BROTHER ON SPINDLE \u00B7 OSKAR VENN'},
+  qilin: {mission: 'qilin', dest: 'TALLIS', ticketLine: 'Erina\u2019s passage. She pays up front too, and she is not paying for your odds; she is paying for the animal\u2019s.',
+    launch: 'The Gannet lifts the moment this is pressed: thirty seconds of hard burn to Tallis, whatever the dark holds on the way, and the green moon at the end of it. Everyone aboard is going. The Orrix stays docked.',
+    launchSub: 'THE QILIN \u00B7 ERINA\u2019S EXOTICS'},
+};
+function charterJob(){ return (ship.charter && ship.charter.job) || 'spindle'; }
+function charterJobDef(){ return CHARTER_JOBS[charterJob()]; }
+function charterOf(job){ if(ship.charter && (ship.charter.job || 'spindle') === job) return ship.charter; return (ship.charterPast || {})[job] || null; }
+// a finished charter steps aside for the next one
+function charterFresh(){
+  const ch = ship.charter; if(!ch) return true;
+  if(['done', 'grief', 'lost', 'blood', 'taken'].includes(ch.state)){ ship.charterPast = ship.charterPast || {}; ship.charterPast[ch.job || 'spindle'] = ch; ship.charter = null; return true; }
+  return false;
+}
+// ship.charter = {job, state: ticket|cleared|out|spindle(on the ground)|back|home|done|grief|lost|blood|taken, day, due, rescued}
 function charterSt(){ return (ship.charter && ship.charter.state) || null; }
+// Erina hands over the passage and the feed: a cube in a pocket, a contract in the journal
+function qilinGive(cv){
+  if(!charterFresh()) return false;
+  const cube = cubeItem('passage', 'Erina Jones', null);
+  let holder = (state.squad || []).find(c => c.alive && c.def && (c.def.pack || []).length < 4) || null;
+  if(holder){ if(!Array.isArray(holder.def.pack)) holder.def.pack = []; holder.def.pack.push(cube); addPopup(holder.x, holder.y - holder.r - 14, 'PASSAGE CUBE \u00B7 PACKED', '#6fd6ff'); }
+  else if(cv){ const cc = cacheAt(cv.x, cv.y + 20); (cc.loot = cc.loot || []).push(cube); addPopup(cv.x, cv.y - 20, 'PASSAGE CUBE \u00B7 AT YOUR FEET', '#6fd6ff'); }
+  ship.charter = {job: 'qilin', state: 'ticket', day: ship.day || 0, due: 900, rescued: false, food: 6};
+  missionStart('qilin');
+  moodPush('Erina Jones', {a: 1.5, t: 0.3}, 'sent the crew for the Qilin', 'trade');
+  quietFor(SIT_GAP_MS);
+  chronicle('event', 'Erina Jones paid the Shippers for a hull to Tallis and back, and gave the crew the passage and a satchel of her feed. There is a Qilin in the old wood, and a hunting party after it.');
+  shipSave();
+  return true;
+}
 // Oskar hands over the passage: a cube in a pocket, a contract in the journal
 function charterGive(tg, oskar){
-  if(ship.charter) return false;
+  if(!charterFresh()) return false;
   const cube = cubeItem('passage', oskar ? oskar.name : 'Oskar Venn', null);
   let holder = (state.squad || []).find(c => c.alive && c.def && (c.def.pack || []).length < 4) || null;
   if(holder){ if(!Array.isArray(holder.def.pack)) holder.def.pack = []; holder.def.pack.push(cube); addPopup(holder.x, holder.y - holder.r - 14, 'PASSAGE CUBE \u00B7 PACKED', '#6fd6ff'); }
   else{ const cc = cacheAt(tg.x, tg.y + 20); (cc.loot = cc.loot || []).push(cube); addPopup(tg.x, tg.y - 20, 'PASSAGE CUBE \u00B7 AT YOUR FEET', '#6fd6ff'); }
-  ship.charter = {state: 'ticket', day: ship.day || 0, due: 0, rescued: false};
+  ship.charter = {job: 'spindle', state: 'ticket', day: ship.day || 0, due: 0, rescued: false};
   missionStart('spindle', {target: tg.name});
   quietFor(SIT_GAP_MS);
   chronicle('event', 'Oskar Venn paid the Shippers for a hull to Spindle and back, and handed the crew the passage. His brother Anselm is nine days overdue in the silk caves.');
@@ -11496,9 +11642,9 @@ function passageHeld(){
 // Hesper reads the cube and unbolts the hangar door
 function charterClear(){
   if(charterSt() !== 'ticket') return false;
-  moodPush('Hesper Dunmore', {a: 1}, 'booked the crew a hull to Spindle', 'trade');
+  moodPush('Hesper Dunmore', {a: 1}, 'booked the crew a hull to ' + charterJobDef().dest.toLowerCase().replace(/^./, s9 => s9.toUpperCase()), 'trade');
   ship.charter.state = 'cleared';
-  const ms = ship.missions && ship.missions.spindle;
+  const ms = ship.missions && ship.missions[charterJobDef().mission];
   if(ms && ms.state === 'open') ms.waypoint = {port: 'gateway', district: 'cross', x: 0.925, y: 0.335, label: 'THE HANGAR DOOR', t0: performance.now()};
   chronicle('event', 'Hesper Dunmore read the passage, grunted, and unbolted the hangar door. Bay 3: ' + GANNET_REG + ', which she calls the Gannet.');
   const dr = (state.doors || []).find(d => d.to === 'hangar');
@@ -11511,10 +11657,27 @@ function charterClear(){
 function charterConsole(){
   const st = charterSt();
   if(st === 'cleared' && state.portDock && ship.district === 'hangar'){
-    const shown = showEventModal('BEGIN CONTRACT?',
-      'The Gannet lifts the moment this is pressed: thirty seconds of hard burn to Spindle, whatever the dark holds on the way, and the white rock at the end of it. Everyone aboard is going. The Orrix stays docked.',
-      [{label: 'START CONTRACT', cb: charterLaunch}, {label: 'NOT YET'}], {sub: 'A BROTHER ON SPINDLE \u00B7 OSKAR VENN'});
+    const jd = charterJobDef();
+    const shown = showEventModal('BEGIN CONTRACT?', jd.launch, [{label: 'START CONTRACT', cb: charterLaunch}, {label: 'NOT YET'}], {sub: jd.launchSub});
     if(shown === false) charterLaunch();
+    return true;
+  }
+  if(st === 'spindle' && state.charterGround && charterJob() === 'qilin'){
+    const q = qilinFoe();
+    if(qilinAboard()){
+      const shown = showEventModal('THE GANNET \u00B7 BRIDGE', (q && q.tamed ? 'The Qilin is in the hold, standing, watching the hatch. ' : 'The Qilin is in the hold, under, breathing. ') + 'The burn home is thirty seconds and the dark may have something to say about it. Lift?',
+        [{label: 'LIFT OFF', cb: () => charterDepart(true)}, {label: 'NOT YET'}]);
+      if(shown === false) charterDepart(true);
+    }else{
+      const body = state.quarryDead ? 'The Qilin is dead in the wood. There is nothing to carry home but the news, and Erina will not want it.'
+        : state.qilinTaken ? 'The hunters have it. Lift without it and tell Erina who took it, if you can bear to.'
+        : q && q.tamed ? 'The Qilin is following, but it is not aboard. Walk it through the hatch first.'
+        : (state.pkg && state.pkg.carried) ? 'Whoever is carrying it is still outside the hull. Get it through the hatch first.'
+        : 'The Qilin is still out there. Lift now and you go home with an empty hold.';
+      const shown = showEventModal('THE GANNET \u00B7 BRIDGE', body,
+        (q && q.tamed) || (state.pkg && state.pkg.carried) ? [{label: 'UNDERSTOOD'}] : [{label: 'LIFT WITHOUT IT', cb: () => charterDepart(false)}, {label: 'NOT YET'}]);
+      void shown;
+    }
     return true;
   }
   if(st === 'spindle' && state.charterGround){
@@ -11532,7 +11695,7 @@ function charterConsole(){
     }
     return true;
   }
-  if(st === 'done' || st === 'grief'){ addPopup(W * 0.5, H * 0.5, 'THE GANNET IS DONE FOR THE DAY', '#e0a33e'); return false; }
+  if(['done', 'grief', 'blood', 'taken', 'home'].includes(st)){ addPopup(W * 0.5, H * 0.5, 'THE GANNET IS DONE FOR THE DAY', '#e0a33e'); return false; }
   addPopup(W * 0.5, H * 0.5, 'HESPER HAS THE KEY', '#e0a33e');
   return false;
 }
@@ -11582,16 +11745,16 @@ function charterFlight(dir){
   const fi = document.getElementById('flightIntro');
   if(fi){
     fi.style.display = 'block';
-    fi.innerHTML = '<div id="fiDest">THE GANNET \u00B7 LEAVING FOR ' + (dir === 'out' ? 'SPINDLE' : 'THE CROSS') + ' IN</div><div id="fiCount">3</div>';
+    fi.innerHTML = '<div id="fiDest">THE GANNET \u00B7 LEAVING FOR ' + (dir === 'out' ? charterJobDef().dest : 'THE CROSS') + ' IN</div><div id="fiCount">3</div>';
   }
   return true;
 }
 function charterLaunch(){
   if(charterSt() !== 'cleared') return false;
   ship.charter.state = 'out';
-  const ms = ship.missions && ship.missions.spindle;
+  const ms = ship.missions && ship.missions[charterJobDef().mission];
   if(ms && ms.state === 'open') ms.waypoint = null;
-  chronicle('contract', 'The Gannet lifted out of Bay 3 with the whole crew aboard, bound for Spindle. The Orrix stayed on the pad.');
+  chronicle('contract', 'The Gannet lifted out of Bay 3 with the whole crew aboard, bound for ' + charterJobDef().dest.toLowerCase().replace(/^./, s9 => s9.toUpperCase()) + '. The Orrix stayed on the pad.');
   leaveShipDeck();
   enterGannetDeck();
   charterFlight('out');
@@ -11599,8 +11762,305 @@ function charterLaunch(){
   return true;
 }
 function charterArrive(dir){
-  if(dir === 'out') return charterLandSpindle();
-  return charterHome();
+  if(dir === 'out') return charterJob() === 'qilin' ? charterLandQilin() : charterLandSpindle();
+  return charterJob() === 'qilin' ? charterHomeQilin() : charterHome();
+}
+// the Gannet puts down at the wood's edge: the party is named, the friends are in the glades, the feed is counted
+function charterLandQilin(){
+  ship.charter.state = 'spindle';
+  const alive = SQUAD_DEFS.map((d, k) => d.dead ? -1 : k).filter(k => k >= 0);
+  leaveShipDeck();
+  rosterSelection = alive.slice(0, 4);
+  levelIdx = qilinIdx(); usingCustom = false;
+  rosterDeployed = true;
+  const r = document.getElementById('roster'); if(r && r.classList) r.classList.add('hidden');
+  restart();
+  state.charterGround = true;
+  state.charterZone = QILIN_LEVEL.charterZone;
+  state.stations = QILIN_LEVEL.stations.map(st => ({label: STATION_LABELS[st.id] || st.id, ...st, x: st.x * W, y: st.y * H}));
+  qilinSetup();
+  chronicle('event', 'The Gannet put down on Tallis at the edge of the old wood, in the last of the light. Something called out in the trees, once, and everything went quiet.');
+  shipSave();
+  return true;
+}
+function qilinSetup(){
+  let k = 0;
+  for(const e of state.enemies){
+    if(e.type !== 'poacher') continue;
+    const def = QILIN_LEVEL.enemies.find(d => d.type === 'poacher' && Math.abs(d.x * W - e.home.x) < 1 && Math.abs(d.y * H - e.home.y) < 1);
+    e.name = (def && def.leader) ? QILIN_NAMES.leader : QILIN_NAMES.party[k++ % QILIN_NAMES.party.length];
+    e.leader = !!(def && def.leader); e.hunter = true;
+    if(e.leader) e.wpnKey = 'rifle';
+  }
+  for(const e of state.enemies) if(e.type === 'qilin'){ e.trust = 0; e.nets = 0; e.tamed = false; e.glade = 5; }
+  state.qilinFood = (ship.charter && ship.charter.food) || 6;
+  state.foods = [];
+  state.qilinTaken = false; state.poacherSpawned = 5; state.poacherCall = null;
+  // the friends: small things in the glades that see everything
+  state.civs = state.civs || [];
+  const names = ['A Jay', 'A Doe', 'A Wren', 'A Vole', 'A Fawn', 'A Thrush'];
+  QILIN_LEVEL.glades.forEach((gl, i) => {
+    const x = gl.x * W + (Math.random() - 0.5) * 60, y = gl.y * H + (Math.random() - 0.5) * 60;
+    const f = beastMake('friend', x, y, names[i % names.length]); f.home = {x: gl.x * W, y: gl.y * H}; f.homeR = 90; f.glade = i;
+    state.civs.push(f);
+  });
+  foodBtnSync();
+}
+function qilinFoe(){ return (state.enemies || []).find(e => e.type === 'qilin') || null; }
+function qilinAboard(){
+  const z = state.charterZone; if(!z) return false;
+  const inZ = (x, y) => x >= z.x0 * W && x <= z.x1 * W && y >= z.y0 * H && y <= z.y1 * H;
+  const q = qilinFoe();
+  if(q && q.alive && !q.ko && q.tamed) return inZ(q.x, q.y);
+  return charterPkgAboard();
+}
+function gladePts(){ return (currentLevel().glades || []).map(g => ({x: g.x * W, y: g.y * H})); }
+// a friend sees something: the nearest glade's small things call out and the Qilin hears it
+function friendsAlarm(){
+  const now = state.turn || 0;
+  for(const f of (state.civs || [])){
+    if(!f.beast || f.beast.kind !== 'friend' || !f.alive) continue;
+    if(now - (f.lastAlarm == null ? -9 : f.lastAlarm) < 3) continue;
+    let by = null;
+    for(const c of state.squad) if(c.alive && !c.downed && Math.hypot(c.x - f.x, c.y - f.y) < 120 && segClearHigh(c.x, c.y, f.x, f.y)){ by = c; break; }
+    if(!by) for(const e of state.enemies) if(e.alive && !e.ko && e.hunter && Math.hypot(e.x - f.x, e.y - f.y) < 120 && segClearHigh(e.x, e.y, f.x, f.y)){ by = e; break; }
+    if(!by) continue;
+    f.lastAlarm = now;
+    addPopup(f.x, f.y - 14, f.name.toUpperCase() + ' \u00B7 ALARM CALL', '#e0a33e');
+    return {x: f.x, y: f.y, by: by.name || (by.stats ? by.name : 'the hunters'), crew: !!by.stats};
+  }
+  return null;
+}
+// the Qilin's turn: it follows if tamed; it moves when the wood calls or something comes at it; it goes to the feed; otherwise it grazes
+function qilinDecide(e){
+  const arch = ARCHETYPES.qilin;
+  const g = buildMoveGraph(e);
+  const goTo = (pt, budget) => { const t = clampTargetPoint(pt.x, pt.y, g.rects, e.r); const path = findPath({x: e.x, y: e.y}, t, g); return path && path.length ? truncatePath(path, budget) : null; };
+  const trustPop = (txt, col) => { addPopup(e.x, e.y - e.r - 14, txt, col || '#f0d070'); };
+  if(e.tamed){
+    const c = pc() && pc().alive ? pc() : state.squad.find(c2 => c2.alive);
+    if(!c) return {path: null, shots: 0, idle: true};
+    const d = Math.hypot(c.x - e.x, c.y - e.y);
+    if(d < 64){ e.facing = Math.atan2(c.y - e.y, c.x - e.x); return {path: null, shots: 0, idle: true}; }
+    const ang = Math.atan2(e.y - c.y, e.x - c.x);
+    const path = goTo({x: c.x + Math.cos(ang) * 40, y: c.y + Math.sin(ang) * 40}, arch.moveRange * 1.3);
+    return {path, shots: 0, idle: !path};
+  }
+  const glades = gladePts();
+  // something near, or the wood calling: away to the glade furthest from the trouble
+  const alarm = friendsAlarm();
+  let threat = alarm ? {x: alarm.x, y: alarm.y} : null;
+  if(!threat) for(const c of state.squad) if(c.alive && !c.downed && Math.hypot(c.x - e.x, c.y - e.y) < 110 && segClearHigh(c.x, c.y, e.x, e.y)) threat = {x: c.x, y: c.y, close: true};
+  if(!threat && e.netted){ threat = e.netted; e.netted = null; }
+  if(threat){
+    let best = null, bd = -1;
+    glades.forEach((gl, i) => { const d = Math.hypot(gl.x - threat.x, gl.y - threat.y) + (i === e.glade ? -400 : 0); if(d > bd){ bd = d; best = i; } });
+    e.glade = best; e.fleeTo = glades[best]; e.foodT = null;
+    if(alarm && e.trust > 0){ e.trust--; trustPop('SPOOKED \u00B7 TRUST ' + e.trust + '/3', '#e0a33e'); chronicle('combat', 'The wood called out (' + alarm.by + ' was too close) and the Qilin was gone from the glade before anyone saw it move. It trusts the crew a little less.'); }
+    else if(alarm){ trustPop('SPOOKED', '#e0a33e'); }
+    else if(threat.close) trustPop('TOO CLOSE', '#e0a33e');
+    return {path: goTo(e.fleeTo, arch.moveRange * 1.6), shots: 0, flee: true};
+  }
+  if(e.fleeTo){
+    if(Math.hypot(e.fleeTo.x - e.x, e.fleeTo.y - e.y) < 60){ e.fleeTo = null; }
+    else return {path: goTo(e.fleeTo, arch.moveRange * 1.4), shots: 0, flee: true};
+  }
+  // the feed: the nearest throw it can see, approached slowly, eaten when reached
+  const foods = (state.foods || []).filter(f => Math.hypot(f.x - e.x, f.y - e.y) < 340 && segClearHigh(f.x, f.y, e.x, e.y)).sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y));
+  if(foods.length){
+    const f = foods[0];
+    const d = Math.hypot(f.x - e.x, f.y - e.y);
+    if(d < 46){
+      state.foods = state.foods.filter(f2 => f2 !== f);
+      e.trust = Math.min(3, (e.trust || 0) + 1);
+      if(e.trust >= 3){
+        e.tamed = true; e.alert = 'unaware';
+        foodBtnSync();
+        trustPop('TAMED \u00B7 IT WILL FOLLOW', '#9fe08e');
+        showBanner('THE QILIN IS TAMED \u00B7 WALK IT TO THE GANNET', '#9fe08e');
+        chronicle('combat', 'The Qilin took the third mouthful from the ground at ' + (pc() ? pc().name : 'the crew') + '\u2019s feet and did not go away afterwards. It will follow whoever is leading now.');
+      }else{
+        trustPop('EATS \u00B7 TRUST ' + e.trust + '/3');
+        chronicle('combat', 'The Qilin came to the feed and ate. Trust ' + e.trust + ' of 3.');
+      }
+      return {path: null, shots: 0, idle: true};
+    }
+    const pf = goTo(f, Math.min(arch.moveRange * 0.7, Math.max(10, d - 12)));
+    if(!pf){ state.foods = state.foods.filter(f2 => f2 !== f); addPopup(f.x, f.y - 10, 'LOST IN THE GRASS', '#8a93b8'); }   // thrown somewhere it cannot get to
+    return {path: pf, shots: 0, idle: !pf, patrol: !!pf};
+  }
+  // grazing: a small move round the glade it is in
+  e.patrolT = (e.patrolT || 0) + 1;
+  if(e.patrolT % 2 === 0){
+    const gl = glades[e.glade] || {x: e.x, y: e.y};
+    const a = Math.random() * Math.PI * 2, rr = 20 + Math.random() * 60;
+    return {path: goTo({x: gl.x + Math.cos(a) * rr, y: gl.y + Math.sin(a) * rr}, arch.moveRange * 0.5), shots: 0, patrol: true};
+  }
+  return {path: null, shots: 0, idle: true};
+}
+// a poacher who can see the Qilin wants the Qilin, not the crew: closes, and throws the net
+function hunterDecide(e){
+  const q = qilinFoe();
+  if(!q || !q.alive || q.ko || q.tamed || state.qilinTaken) return null;
+  const d = Math.hypot(q.x - e.x, q.y - e.y);
+  if(d > ARCHETYPES.poacher.vision || !segClearHigh(e.x, e.y, q.x, q.y)) return null;
+  const g = buildMoveGraph(e);
+  if(d > 190){
+    const t = clampTargetPoint(q.x, q.y, g.rects, e.r);
+    const path = findPath({x: e.x, y: e.y}, t, g);
+    if(e.visible) addPopup(e.x, e.y - e.r - 12, 'AFTER IT', '#c98b3e');
+    return {path: path && path.length ? truncatePath(path, ARCHETYPES.poacher.moveRange) : null, shots: 0, idle: !path};
+  }
+  e.facing = Math.atan2(q.y - e.y, q.x - e.x);
+  if(Math.random() < 0.55){
+    q.nets = (q.nets || 0) + 1;
+    addPopup(e.x, e.y - e.r - 12, 'NET', '#c98b3e');
+    if(q.visible || e.visible) addPopup(q.x, q.y - q.r - 14, 'NETTED \u00B7 ' + q.nets + '/3', '#e0483e');
+    chronicle('combat', (e.name || 'A poacher') + ' got a net over the Qilin' + (q.nets >= 3 ? ', and it did not come off.' : '. It tore free, this time.'));
+    if(q.nets >= 3){ qilinTaken(e); return {path: null, shots: 0, idle: true}; }
+    q.netted = {x: e.x, y: e.y};
+  }else{
+    addPopup(e.x, e.y - e.r - 12, 'NET \u00B7 MISSED', '#c98b3e');
+    q.netted = {x: e.x, y: e.y};
+  }
+  return {path: null, shots: 0, idle: true};
+}
+function qilinTaken(e){
+  const q = qilinFoe(); if(!q) return;
+  state.qilinTaken = true;
+  state.enemies = state.enemies.filter(e2 => e2 !== q);
+  if(state.pkg && state.pkg.live) state.pkg = null;
+  showBanner('THE HUNTERS HAVE THE QILIN', '#e0483e');
+  chronicle('combat', (e.name || 'The hunters') + ' and the party dragged the netted Qilin into the trees. It is theirs now, unless the crew takes it back off them, which would be a different contract.');
+}
+// the turn starts: the party sends for more when it loses people
+function qilinTurnStart(){
+  if(!currentLevel().qilin) return;
+  const dead = state.enemies.filter(e => e.type === 'poacher' && !e.alive && !e.counted);
+  if(dead.length){ for(const e of dead) e.counted = true; if(state.poacherCall == null && (state.poacherSpawned || 0) < 9){ state.poacherCall = (state.turn || 0) + 2; showBanner('THE PARTY IS CALLING FOR MORE', '#c98b3e'); } }
+  if(state.poacherCall != null && (state.turn || 0) >= state.poacherCall){
+    state.poacherCall = null;
+    const n = Math.min(2, 9 - (state.poacherSpawned || 0));
+    for(let i = 0; i < n; i++){
+      const e = foeAt('poacher', W * (0.94 - i * 0.02), H * (0.06 + i * 0.03));
+      e.alert = 'alerted'; e.hunter = true; e.name = QILIN_NAMES.party[(state.poacherSpawned || 0) % QILIN_NAMES.party.length];
+      const c = state.squad.find(c2 => c2.alive); if(c) e.lastKnown = {x: c.x, y: c.y};
+      state.enemies.push(e); state.poacherSpawned = (state.poacherSpawned || 0) + 1;
+    }
+    showBanner('REINFORCEMENTS \u00B7 ' + n + ' MORE IN THE TREES', '#e0483e');
+    chronicle('combat', n + ' more poachers came in from the north-east edge of the wood, called in by the party.');
+  }
+}
+// a foe put down by hand, the way the level does it
+function foeAt(type, ex, ey){
+  const arch = ARCHETYPES[type];
+  return {x: ex, y: ey, r: arch.bodyR, type, hp: arch.hp, maxHp: arch.hp, hitFlash: 0, alive: true, facing: Math.random() * Math.PI * 2,
+    stress: 0, morale: 'steady', alert: 'unaware', det: 0, lastKnown: null, lastSeen: null, visible: false,
+    home: {x: ex, y: ey}, patrolT: 0, bob: Math.random() * 6, run: null, moving: false};
+}
+// the feed: one action, thrown to land short of the Qilin
+function foodThrow(){
+  const c = pc(); const q = qilinFoe();
+  if(!c || !c.alive || !q || !q.alive || state.phase !== 'player' || state.over) return false;
+  if(!(state.qilinFood > 0) || c.ap < 1) return false;
+  const d = Math.hypot(q.x - c.x, q.y - c.y);
+  if(d > 340 || !q.visible) return false;
+  spendAction(1);
+  state.qilinFood--;
+  const ang = Math.atan2(q.y - c.y, q.x - c.x) + (Math.random() - 0.5) * 0.25;
+  let range = Math.min(d - 40, 240);
+  for(let s9 = 10; s9 <= range; s9 += 10){
+    const px = c.x + Math.cos(ang) * s9, py = c.y + Math.sin(ang) * s9;
+    if(state.walls.some(w2 => w2.high && px > w2.x && px < w2.x + w2.w && py > w2.y && py < w2.y + w2.h)){ range = Math.max(14, s9 - 14); break; }
+  }
+  // it lands in the open, not against a trunk: back along the throw until nothing tall is within arm's reach
+  const nearTall = (px, py) => state.walls.some(w2 => w2.high && px > w2.x - 30 && px < w2.x + w2.w + 30 && py > w2.y - 30 && py < w2.y + w2.h + 30);
+  while(range > 30 && nearTall(c.x + Math.cos(ang) * range, c.y + Math.sin(ang) * range)) range -= 10;
+  const f = {x: c.x + Math.cos(ang) * range, y: c.y + Math.sin(ang) * range};
+  state.foods = state.foods || []; state.foods.push(f);
+  addPopup(f.x, f.y - 10, 'FEED', '#f0d070');
+  if(!state._fedOnce){ state._fedOnce = true; chronicle('combat', c.name + ' threw a handful of Erina\u2019s feed toward the Qilin and stood very still.'); }
+  foodBtnSync(); updateHud && updateHud();
+  return true;
+}
+function foodBtnSync(){
+  const b = (typeof document.getElementById === 'function') && document.getElementById('foodbtn'); if(!b || !b.style) return;
+  const c = pc(); const q = qilinFoe();
+  const show = !!(currentLevel().qilin && !state.over && state.phase === 'player' && c && c.alive && q && q.alive && !q.tamed && state.qilinFood > 0 && q.visible && Math.hypot(q.x - c.x, q.y - c.y) <= 340 && c.ap >= 1);
+  b.style.display = show ? 'block' : 'none';
+  if(show) b.textContent = 'FEED \u00B7 ' + state.qilinFood + ' LEFT \u00B7 1 AP';
+}
+// home: the hangar, and whatever came back down the ramp
+function charterHomeQilin(){
+  const ch = ship.charter;
+  const tamed = !!(ch.tamed && ch.rescued);
+  const darted = !!(ch.rescued && !tamed);
+  ch.darted = darted;
+  leaveShipDeck();
+  enterPort('hangar');
+  const g = HANGAR_PORT.gannet;
+  const hx = g.hatch.x * W, hy = g.hatch.y * H;
+  state.squad.forEach((c, i) => { c.x = hx - 70 - i * 28; c.y = hy + (i % 2 ? 26 : -26); unstickFromWalls(c); c.facing = Math.PI; });
+  camFocusCrew(2.4);
+  moodPush('Hesper Dunmore', ch.rescued ? {t: 0.5, j: 0.5, a: -1} : {a: -1}, ch.rescued ? 'flew the crew back from Tallis with a live Qilin in the hold' : 'flew the crew back from Tallis with nothing', 'trade');
+  const ms = ship.missions && ship.missions.qilin;
+  if(ch.rescued){
+    ch.state = 'home';
+    const lead = pc() || state.squad[0];
+    const qc = beastMake('qilin', hx - 30, hy + 50, 'The Qilin');
+    qc.beast.state = 'follow'; qc.beast.follow = lead.name; qc.homeR = 30; qc.darted = darted;
+    state.civs.push(qc);
+    const pt = erinaCounterPoint();
+    if(ms && ms.state === 'open') ms.waypoint = {port: 'gateway', district: 'cross', x: pt.x, y: pt.y, label: 'ERINA\u2019S COUNTER', t0: performance.now()};
+    chronicle('contract', tamed ? 'The Qilin came down the Gannet\u2019s ramp a step behind ' + lead.name + ', as if it had always done so. The hangar went quiet to look.'
+      : 'The Qilin came round in the hold with a dart mark on its flank and Erina\u2019s feed in front of it. It follows ' + lead.name + ', warily.');
+    const shown = showEventModal('THE GANNET \u00B7 BAY 3', (tamed ? 'The ramp comes down and the Qilin comes down it behind ' + lead.name + ', unhurried, golden in the bay lights. ' : 'The Qilin comes down the ramp on its own feet, slowly, a dart mark bare on its flank. It keeps ' + lead.name + ' between itself and everyone else. ') +
+      'Erina is waiting at her counter. Walk it there; it will follow whoever is leading.', [{label: 'WALK IT TO ERINA', cb: () => {}}], {sub: 'THE QILIN \u00B7 FOLLOWING ' + lead.name.toUpperCase()});
+    void shown;
+  }else{
+    ch.state = ch.blood ? 'blood' : ch.taken ? 'taken' : 'grief';
+    missionEnd('qilin', ch.state);
+    if(ch.blood){
+      moodPush('Erina Jones', {t: -3, f: -3, j: -2}, 'the crew killed the Qilin', 'stock');
+      ship.erinaBlood = true;
+      chronicle('contract', 'The Gannet came back from Tallis with the Qilin dead in the wood behind it. Word reached Erina before the crew did. Word on the Cross is that she has asked what a crew costs.');
+    }else if(ch.taken){
+      moodPush('Erina Jones', {j: -1.5, f: -1, t: -0.5}, 'the hunters got the Qilin', 'stock');
+      chronicle('contract', 'The Gannet came back from Tallis with an empty hold. The hunting party has the Qilin. Erina will want the name of the man who led them.');
+    }else{
+      moodPush('Erina Jones', {j: -1, a: -1, t: -0.5}, 'the crew came back from Tallis without the Qilin', 'trade');
+      chronicle('contract', 'The Gannet came back from Tallis with nothing in the hold. The Qilin is still in the wood, and so are the hunters.');
+    }
+    const shown = showEventModal('THE GANNET \u00B7 BAY 3', ch.blood ? 'The ramp comes down on an empty hold. Nobody in the hangar asks. Hesper Dunmore looks at the crew the way she looks at a bet that lost, and then away.'
+      : ch.taken ? 'The ramp comes down on an empty hold. Somewhere on Tallis a hunting party is loading a net onto a hull of their own.'
+      : 'The ramp comes down on an empty hold. The wood keeps what it had.', [{label: 'GO AND TELL HER', cb: () => {}}]);
+    void shown;
+  }
+  const ov = document.getElementById('overlay');
+  if(ov && ov.style && state.charterShow) ov.style.display = 'flex';
+  quietFor(SIT_GAP_MS);
+  shipSave();
+  return true;
+}
+function qilinFollower(){ return (state.civs || []).find(cv => cv.beast && cv.beast.kind === 'qilin' && cv.beast.follow && cv.alive) || null; }
+// the counter: the Qilin handed over, paid for, and rehomed in the forest cage
+function qilinSettle(){
+  const ch = ship.charter; if(!ch || ch.job !== 'qilin' || ch.state !== 'home') return false;
+  const qc = qilinFollower(); if(!qc) return false;
+  const due = ch.darted ? 500 : (ch.due || 900);
+  ship.credits += due;
+  state.civs = state.civs.filter(cv => cv !== qc);
+  ship.qilinHome = true;
+  ch.state = 'done';
+  missionEnd('qilin', 'done');
+  if(ch.darted) moodPush('Erina Jones', {j: 1, t: -0.5, f: 0.5, a: -1}, 'the Qilin came home with a dart mark on it', 'stock');
+  else moodPush('Erina Jones', {j: 2, t: 2, a: -1}, 'the Qilin came home on its own feet, tamed', 'trade');
+  lifeNote && lifeNote('Erina Jones', 'rehomed a Qilin in the forest cage');
+  chronicle('trade', ch.darted ? 'Erina paid ' + due + ' CR for the Qilin and ran a thumb over the dart mark without a word. It went into the forest cage.'
+    : 'Erina paid ' + due + ' CR for a Qilin that walked into her forest cage on its own. She did not haggle, and for a moment she did not say anything at all.');
+  shipCreditsRefresh && shipCreditsRefresh();
+  shipSave();
+  return true;
 }
 function charterLandSpindle(){
   ship.charter.state = 'spindle';
@@ -11622,14 +12082,16 @@ function charterLandSpindle(){
 function charterDepart(withHim){
   if(charterSt() !== 'spindle') return false;
   ship.charter.rescued = !!withHim;
-  if(withHim && state.pkg){ state.pkg.delivered = true; }
+  if(withHim && state.pkg && !(charterJob() === 'qilin' && qilinFoe() && qilinFoe().tamed)){ state.pkg.delivered = true; }
+  if(charterJob() === 'qilin'){ const q9 = qilinFoe(); ship.charter.tamed = !!(q9 && q9.tamed && withHim); ship.charter.blood = !!state.quarryDead; ship.charter.taken = !!state.qilinTaken; }   // the wood is left behind in a moment; remember what happened in it
   if(!state.winReady && !state.over){ state.winReady = true; state.winTurn = state.turn; state.missionFree = true; state.invoiceSnap = JSON.parse(JSON.stringify(state.invoice || {})); }
   win();   // the count: careers, injuries, the itemised readout; nothing is paid here
   const ov = document.getElementById('overlay'); if(ov && ov.style) ov.style.display = 'none';
   state.charterShow = true;
   ship.charter.state = 'back';
   state.charterGround = false; state.charterZone = null;
-  chronicle('contract', withHim ? 'Anselm Venn came up the Gannet\u2019s ramp in somebody\u2019s arms, and the ramp came up behind him.' : 'The Gannet lifted off Spindle with an empty berth. Anselm Venn stayed in the caves.');
+  if(charterJob() === 'qilin') chronicle('contract', withHim ? 'The Qilin went up the Gannet\u2019s ramp and the ramp came up behind it.' : 'The Gannet lifted off Tallis with an empty hold.');
+  else chronicle('contract', withHim ? 'Anselm Venn came up the Gannet\u2019s ramp in somebody\u2019s arms, and the ramp came up behind him.' : 'The Gannet lifted off Spindle with an empty berth. Anselm Venn stayed in the caves.');
   enterGannetDeck();
   charterFlight('back');
   shipSave();
@@ -13228,6 +13690,8 @@ const MISSIONS = {
     waypoint: {port: 'gateway', district: 'cross', x: 0.19, y: 0.17, label: 'TARN\u2019S ARMS'}},
   spindle: {name: 'A Brother on Spindle', kind: 'CONTRACT', issuer: 'Oskar Venn \u00B7 a brother',
     waypoint: {port: 'gateway', district: 'cross', x: 0.865, y: 0.335, label: 'THE SHIPPERS'}},
+  qilin: {name: 'The Qilin', kind: 'CONTRACT', issuer: 'Erina Jones \u00B7 Erina\u2019s Exotics',
+    waypoint: {port: 'gateway', district: 'cross', x: 0.865, y: 0.335, label: 'THE SHIPPERS'}},
   cleanup: {name: 'Cleanup on Tallow Street', waypoint: null},   // retired 26 Oct; kept so old saves read
 };
 function missionStart(id, extra){
@@ -13290,8 +13754,25 @@ function missionNext(id){
     if(!(od.askedVamp && od.askedTarn)) return 'You have one side of it. Ask the other before you choose. Or do not, and choose anyway.';
     return 'You know what lies between them. Run ' + od.name + ' off, broker it, or take their side. Talk to ' + od.name + '.';
   }
+  if(id === 'qilin'){
+    const ch = charterOf('qilin') || {};
+    if(ms.state !== 'open') return ch.state === 'done' ? 'Done. The Qilin is in Erina\u2019s forest cage; she paid ' + (ch.darted ? 500 : (ch.due || 900)) + ' CR at her counter.'
+      : ch.state === 'blood' ? 'Over. The Qilin died in the wood. Erina will not forget it.' : ch.state === 'taken' ? 'Over. The hunting party took the Qilin.' : ch.state === 'lost' ? 'Lost on Tallis.' : 'Over. The crew came back without it.';
+    if(ch.state === 'ticket') return 'Take the passage cube to the Shippers, east side of the Cross by the shipyard arch. Hesper Dunmore has the hangar key.';
+    if(ch.state === 'cleared') return ship.district === 'hangar' ? 'Everyone aboard the Gannet (Bay 3), then press the bridge console in her nose.' : 'Through the hangar door behind the Shippers\u2019 counter. The Gannet is in Bay 3, fuelled.';
+    if(ch.state === 'out') return 'Underway to Tallis. Thirty seconds of burn; hold on to something.';
+    if(ch.state === 'spindle'){
+      const q = qilinFoe();
+      if(q && q.tamed) return qilinAboard() ? 'The Qilin is aboard. Press the Gannet\u2019s console to go home.' : 'The Qilin is following you. Walk it through the Gannet\u2019s hatch, then press the console.';
+      if(state.pkg && state.pkg.carried) return 'The Qilin is darted and in your arms. Get it through the hatch, then the console. Erina will know.';
+      return 'Find the Qilin in the glades. Walk, do not run; mind the small things that call out. Throw feed near it (FEED, ' + (state.qilinFood || 0) + ' left) three times. ' + (state.qilinTaken ? 'The hunters have it.' : 'The hunting party wants it in a net.');
+    }
+    if(ch.state === 'back') return 'Underway to the Cross.';
+    if(ch.state === 'home') return 'The Qilin is following your lead operator. Walk it to Erina\u2019s counter on the Cross.';
+    return 'Open.';
+  }
   if(id === 'spindle'){
-    const ch = ship.charter || {};
+    const ch = charterOf('spindle') || {};
     if(ms.state !== 'open') return ch.state === 'done' ? 'Done. Anselm Venn came home; Oskar paid ' + (ch.due || 0) + ' CR in the hangar.'
       : ch.state === 'grief' ? 'Over. The Gannet came back without Anselm. Oskar went home alone.' : 'Lost on Spindle.';
     if(ch.state === 'ticket') return 'Take the passage cube to the Shippers, east side of the Cross by the shipyard arch. Hesper Dunmore has the hangar key.';
@@ -13397,9 +13878,9 @@ function waypointHere(){
   const out = [];
   // the charter waypoint moves with its state inside the hangar: the console once you are through the door
   if(charterSt() === 'cleared' && ship.district === 'hangar' && state.portDock && HANGAR_PORT.gannet)
-    out.push({id: 'spindle', x: HANGAR_PORT.gannet.console.x * W, y: HANGAR_PORT.gannet.console.y * H, label: 'THE GANNET \u00B7 BRIDGE CONSOLE', here: true, t0: (ship.missions.spindle || {}).t0h});
+    out.push({id: charterJobDef().mission, x: HANGAR_PORT.gannet.console.x * W, y: HANGAR_PORT.gannet.console.y * H, label: 'THE GANNET \u00B7 BRIDGE CONSOLE', here: true, t0: (ship.missions[charterJobDef().mission] || {}).t0h});
   for(const id of missionsOpen()){
-    if(id === 'spindle' && charterSt() === 'cleared' && ship.district === 'hangar') continue;
+    if(id === charterJobDef().mission && charterSt() === 'cleared' && ship.district === 'hangar') continue;
     const wp = ship.missions[id].waypoint; if(!wp || wp.port !== ship.at || !state.portDock) continue;
     if(!wp.district || wp.district === ship.district) out.push({id, x: wp.x * W, y: wp.y * H, label: wp.label, here: true, t0: wp.t0});
     else{
@@ -14136,7 +14617,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '3 Nov \u00B7 THE CAGES';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '3 Nov \u00B7 THE QILIN';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -17138,6 +17619,22 @@ function portTalk(cv){
         ? '\u201CNot you. Not for money, not for anything.\u201D She does not come round the counter. \u201CI saw what you are. Get off my floor.\u201D'
         : '\u201CNo.\u201D The word sits there. \u201CI do not deal with your kind of trouble, and I have stopped pretending I might.\u201D', close);
     }
+    // the Qilin, home: the handover at the counter
+    if(ship.charter && ship.charter.job === 'qilin' && ship.charter.state === 'home'){
+      const qc = qilinFollower();
+      const near = qc && Math.hypot(qc.x - cv.x, qc.y - cv.y) < 220;
+      if(near) return showEventModal('ERINA JONES', (ship.charter.darted
+        ? 'She is round the counter and has the dart mark under her palm before anyone has spoken. \u201CYou darted it.\u201D Not a question. \u201CIt walked in. I will give you that, and five hundred, and not the rest.\u201D'
+        : 'She does not come round the counter. She stands very still, the way the crew learned to stand in the wood, and the Qilin walks to her on its own. \u201CNine hundred.\u201D Her voice is not quite steady. \u201CThe forest cage has been waiting for it since I built the room.\u201D'),
+        [{label: 'HAND IT OVER \u00B7 ' + (ship.charter.darted ? 500 : (ship.charter.due || 900)) + ' CR', cb: qilinSettle}].concat(close));
+      return showEventModal('ERINA JONES', '\u201CHesper says it came down the ramp. So where is it?\u201D It follows whoever is leading; bring it to the counter.', close);
+    }
+    // the second contract: offered once the hound is home, or once she trusts the crew enough anyway
+    if(j && j.state === 'paid' && !(ship.missions && ship.missions.qilin) && (houndHome() || moodFor('Erina Jones', pc()).t >= 0)){
+      return showEventModal('ERINA JONES', '\u201CThere is a Qilin on Tallis. In the old wood, in the glades. A hunting party went in after it four days ago with nets, which means they want it alive, which means somebody is paying them more than I can.\u201D ' +
+        'She puts a satchel on the counter. \u201CMy feed. Three mouthfuls and it will follow you. It will not take them from anyone who runs at it, and the wood will tell it if you do. I have paid Hesper for the hull. Do not dart it unless you have to, and do not kill it at all.\u201D',
+        [{label: 'TAKE THE PASSAGE', cb: () => qilinGive(cv)}, {label: 'NOT TODAY'}], {sub: 'THE QILIN \u00B7 900 CR \u00B7 TALLIS'});
+    }
     if(j && j.state === 'paid'){
       return showEventModal('ERINA JONES', '\u201CNothing on my ledger for you today. There will be. Things keep getting loose.\u201D', close);
     }
@@ -17182,14 +17679,22 @@ function portTalk(cv){
   }
   if(cv.name === 'Hesper Dunmore'){
     const st = charterSt();
+    if(st === 'ticket' && passageHeld() && charterJob() === 'qilin'){
+      return showEventModal('HESPER DUNMORE',
+        'She reads this cube, which she did not do for the last one. \u201CErina\u2019s passage. She pays up front too, and she is not paying for your odds; she is paying for the animal\u2019s. Tallis. Thirty seconds out, thirty back, and whatever you bring home goes in the hold, not on the bridge. Bay 3.\u201D',
+        [{label: 'USE THE PASSAGE', cb: charterClear}].concat(close));
+    }
     if(st === 'ticket' && passageHeld()){
       return showEventModal('HESPER DUNMORE',
         'She takes the cube without looking at it and looks at the crew instead, the way she looks at everyone who books a hull to Spindle. \u201CVenn\u2019s passage. Paid up front, which tells you what he thinks your odds are. Bay 3, through the back. She is called ' + GANNET_REG + ' on the papers and the Gannet by anyone who has flown her. One console. Press it when you are all aboard, and do not touch anything else.\u201D',
         [{label: 'USE THE PASSAGE', cb: charterClear}].concat(close));
     }
-    if(st === 'ticket') return showEventModal('HESPER DUNMORE', '\u201CVenn said he gave you a passage cube. Show it to me and the door opens. No cube, no door; that is the whole of my business model.\u201D', close);
+    if(st === 'ticket') return showEventModal('HESPER DUNMORE', '\u201C' + (charterJob() === 'qilin' ? 'Erina' : 'Venn') + ' said ' + (charterJob() === 'qilin' ? 'she' : 'he') + ' gave you a passage cube. Show it to me and the door opens. No cube, no door; that is the whole of my business model.\u201D', close);
     if(st === 'cleared') return showEventModal('HESPER DUNMORE', '\u201CBay 3. The door is open. Thirty seconds of burn each way; the dark does what it does.\u201D', close);
-    if(st === 'done') return showEventModal('HESPER DUNMORE', '\u201CYou came back. Most don\u2019t. I had money on it both ways.\u201D', close);
+    if(st === 'home') return showEventModal('HESPER DUNMORE', '\u201CIt is still in my hangar. Walk it to her before it eats something of mine.\u201D', close);
+    if(st === 'done') return showEventModal('HESPER DUNMORE', charterJob() === 'qilin' ? '\u201CA Qilin, down my ramp, on its own feet. I have flown a lot of cargo. That was not cargo.\u201D' : '\u201CYou came back. Most don\u2019t. I had money on it both ways.\u201D', close);
+    if(st === 'blood') return showEventModal('HESPER DUNMORE', '\u201CI flew you there and I flew you back and I would rather not have done either. Erina is a friend of mine. Mind how you go on the Cross.\u201D', close);
+    if(st === 'taken') return showEventModal('HESPER DUNMORE', '\u201CMorrow\u2019s lot. They have a hull of their own and no licence for it. If you want it back you will need a different passage.\u201D', close);
     if(st === 'grief') return showEventModal('HESPER DUNMORE', '\u201CYou came back without him. I have seen the other version. This one is better than it feels.\u201D', close);
     const hesperLine = moodSay('Hesper Dunmore', {
       love: '\u201CMy favourite bad bet.\u201D She means it kindly. \u201CWhat do you need flown?\u201D',
@@ -18056,8 +18561,8 @@ function fail(){
   if(ship.charter && ship.charter.state === 'spindle'){
     ship.charter.state = 'lost';
     state.charterGround = false; state.charterZone = null;
-    missionEnd('spindle', 'lost');
-    chronicle('contract', 'The Gannet sits on Spindle with nobody left to fly her. The Shippers will send a bill; Oskar Venn will get no answer.');
+    missionEnd(charterJobDef().mission, 'lost');
+    chronicle('contract', charterJob() === 'qilin' ? 'The Gannet sits on Tallis with nobody left to fly her. The wood keeps the Qilin and the crew both.' : 'The Gannet sits on Spindle with nobody left to fly her. The Shippers will send a bill; Oskar Venn will get no answer.');
   }
   {
     const chL = (typeof currentLevel === 'function' && currentLevel()) || {};
@@ -18343,6 +18848,8 @@ function scorePosition(e, arch, cx, cy, target, wts){
 // Decide an enemy's turn: returns a plan {path, shots, melee}
 function enemyDecide(e){
   const arch = ARCHETYPES[e.type];
+  if(e.type === 'qilin') return qilinDecide(e);
+  if(e.hunter && e.morale !== 'broken'){ const hd = hunterDecide(e); if(hd) return hd; }   // the Qilin before the crew, always
   // broken: hits the floor, wishing for it all to be over
   if(e.morale === 'broken') return {path:null, shots:0, cower:true};
   // an alerted Valkyrie fights her way to the gate: bounding moves, cover-hungry, guns out
@@ -18558,6 +19065,7 @@ function copCuffPass(){
 }
 function startEnemyTurn(){
   if(state.shipDeck && !state.deckCombat) return;
+  qilinTurnStart();
   if(state.deckCombat && !state.enemies.some(e2 => e2.alive && !e2.ko) &&
      !(state.boarding && !state.boarding.spawned)){
     // irons out, nobody opposite: the port still takes its turn, thieves run,
@@ -19183,7 +19691,7 @@ function checkOverwatch(){
     if(!c.alive || !c.watch || c.watch.charges <= 0) continue;
     if(c.morale === 'broken' || c.morale === 'panicked') continue;
     for(const e of s.enemies){
-      if(!e.alive || !e.moving) continue;
+      if(!e.alive || !e.moving || e.type === 'qilin') continue;   // nobody snaps a shot at the Qilin by reflex
       if(!inWatchWedge(c, e)) continue;
       // the moment: spend the charge, freeze, hand the player the shot
       c.watch.charges--;
@@ -19739,6 +20247,8 @@ function frame(now){
         addPopup(q.x, q.y - 20, 'DOWN AND BREATHING', '#9fe0d8');
         showBanner('DOWN AND BREATHING \u00B7 BAG IT', '#9fe0d8');
         chronicle('combat', 'The ' + (ARCHETYPES[q.type].label || 'quarry') + ' went down alive. Now it has to be carried.');
+      }else if(!q && s.qilinTaken){
+        s.pkg = null;   // netted and dragged off: not dead, not yours
       }else if(!q || !q.alive){
         s.pkg = null; s.quarryDead = true;
         showBanner('THE QUARRY IS DEAD \u00B7 SHE WANTED IT ALIVE', '#e0483e');
@@ -19867,7 +20377,7 @@ function drawMoraleGlyph(u, x, y){
 function drawWall(r, high, selColor){
   const crystalTheme = currentLevel().theme === 'arachne';
   const bio = currentLevel().biome;
-  if(bio && !r.lock && !r.den && !r.cell){
+  if(bio && !r.lock && !r.den && !r.cell && !r.hull){
     // trees, rocks, dunes and scrub: round things, with the collision box they really have underneath
     const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
     const longWall = Math.max(r.w, r.h) > 2.2 * Math.min(r.w, r.h);
@@ -20019,7 +20529,7 @@ function draw(){
 
   // a cage: ground, not plating. Two tones of earth and a seeded scatter of tufts, ripples or leaf litter
   const bio = currentLevel().biome;
-  if(s.shipDeck && deckMask && bio){
+  if(bio){
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, W, H);
@@ -20578,6 +21088,17 @@ function draw(){
     if(hot){ ctx.strokeStyle = 'rgba(255,224,140,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cv.x, cv.y, cv.r + 3, 0, Math.PI * 2); ctx.stroke(); }
   }
   drawSpotlight();
+  // Erina's feed on the ground, and what the Qilin thinks of you
+  if(s.foods && s.foods.length) for(const f of s.foods){
+    ctx.fillStyle = 'rgba(240,208,112,.85)'; ctx.beginPath(); ctx.arc(f.x, f.y, 4, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(240,208,112,.6)'; ctx.font = "700 8px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center'; ctx.fillText('FEED', f.x, f.y - 8);
+  }
+  if(!s.shipDeck && s.enemies) for(const e of s.enemies){
+    if(e.type !== 'qilin' || !e.alive || !e.visible) continue;
+    ctx.fillStyle = e.tamed ? 'rgba(159,224,142,.9)' : 'rgba(240,208,112,.9)';
+    ctx.font = "800 9px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+    ctx.fillText(e.tamed ? 'QILIN \u00B7 TAMED \u00B7 FOLLOWING' : 'QILIN \u00B7 TRUST ' + (e.trust || 0) + '/3' + (e.nets ? ' \u00B7 NETS ' + e.nets + '/3' : ''), e.x, e.y - e.r - 10);
+  }
   // the crowd: soft grey figures, bobbing, oblivious until they aren't
   if(s.civs) for(const cv of s.civs){
     if(!cv.alive){
