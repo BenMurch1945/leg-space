@@ -14617,7 +14617,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '3 Nov \u00B7 THE QILIN';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '4 Nov \u00B7 THE BEACON, LATE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15215,7 +15215,7 @@ function shiftTick(skip){
       // the hours skipped past the next step of the day: stand them where the clock says, the display in or out accordingly
       const rt = ROUTINES[cv.routine]; let i = -1; for(let k = 0; k < rt.day.length; k++) if(rt.day[k].at <= clockNow()) i = k;
       if(i > cv.plan.idx){ cv.errand = null; cv.carry = null; routinePlaceNow(cv); }
-    }else if(!duty && cv && cv.alive && !cv.ko && !castBusy(cv)){
+    }else if(!duty && cv && cv.alive && !cv.ko && !castBusy(cv) && !eveningOut(cv)){
       if(skip){ cv.gone = true; if(cv.routine){ const rt0 = ROUTINES[cv.routine]; if(rt0 && !rt0.helper) shopDisplayIn(rt0.shop); shopDoorsAtArrival(); } }   // skipped past closing: the display went back in the box
       else if(!(cv.errand && cv.errand.kind === 'slink')){
         cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
@@ -15980,19 +15980,32 @@ function routineTick(cv, dt){
     return true;
   }
   if(st.do === 'evening'){
+    if(rt.helper) return helperEvening(cv, p, rt, dt);
     if(!p.choice){
-      // after work: the Beacon more often than not, home when the day went badly
+      // after work: the Beacon more often than not, home when the day went badly. (Ben, 4 Nov) Erina goes to the Beacon with Juni
+      // nearly every night and stays late: eleven at the earliest, one at the latest
       const m = moodOf(cv.name);
-      p.choice = (m.j < -1 || m.f >= 1.5) ? 'home' : (Math.random() < 0.65 ? 'beacon' : 'home');
-      p.until = 22 * 60 + 30 + Math.floor(Math.random() * 60);
-      if(p.choice === 'beacon'){ chronicle('event', cv.name + ' went to the Beacon after closing.'); lifeOf(cv.name).beacon = (lifeOf(cv.name).beacon || 0) + 1; }
+      if(SHOPS[sk] && SHOPS[sk].helper){
+        p.choice = (m.j < -1.5) ? 'home' : 'beacon';
+        p.until = 23 * 60 + Math.floor(Math.random() * 121); p.day0 = ship.day || 0;
+      }else{
+        p.choice = (m.j < -1 || m.f >= 1.5) ? 'home' : (Math.random() < 0.65 ? 'beacon' : 'home');
+        p.until = 22 * 60 + 30 + Math.floor(Math.random() * 60);
+      }
+      if(p.choice === 'beacon'){ chronicle('event', cv.name + ' went to the Beacon after closing' + (SHOPS[sk] && SHOPS[sk].helper ? ', ' + SHOPS[sk].helper + ' a step behind.' : '.')); lifeOf(cv.name).beacon = (lifeOf(cv.name).beacon || 0) + 1; }
     }
-    if(p.choice === 'home'){ cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; return true; }
+    if(p.choice === 'home'){ p.done = true; cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; return true; }
     const bar = (state.spots || []).find(s2 => s2.kind === 'bar');
-    if(!bar || clockNow() >= p.until || clockNow() < 6 * 60){ cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; return true; }
-    const seat = {x: bar.x + 50, y: bar.y + 44};
+    const late = p.day0 != null ? eveningNow(p) >= p.until : (clockNow() >= p.until || clockNow() < 6 * 60);
+    if(!bar || late){
+      p.done = true; cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0};
+      if(p.day0 != null) chronicle('event', cv.name + ' left the Beacon at ' + clockHHMM() + (SHOPS[sk] && SHOPS[sk].helper ? ' with ' + SHOPS[sk].helper + '.' : '.'));
+      return true;
+    }
+    const seat = eveningSeat(cv.name, bar);
     if(routineGo(cv, seat, dt)){
       cv.facing = Math.atan2(bar.y - cv.y, bar.x - cv.x);
+      if(SHOPS[sk] && SHOPS[sk].helper) beaconTalk(cv, p, bar, dt);
       // a crew standing over his drink gets noticed
       const near = (state.squad || []).find(c => c.alive && Math.hypot(c.x - cv.x, c.y - cv.y) < 160 && segClearHigh(cv.x, cv.y, c.x, c.y));
       p.watchT = near ? (p.watchT || 0) + dt : 0;
@@ -16105,6 +16118,111 @@ function erinaCatches(c, it, i, seenBy){
     'She will not ask; I am asking.\u201D' + (erina ? ' Erina is watching from the back. She is not asking.' : ''),
     [{label: 'PUT IT BACK', cb: back}, {label: 'KEEP WALKING', cb: keep}], {sub: 'ERINA\u2019S EXOTICS \u00B7 THE ALARM'});
   if(shown === false) keep();
+  return true;
+}
+// ---- the evening (Ben, 4 Nov): Erina and Juni at the Beacon, Tarn if he is there, home between eleven and one ----
+// minutes since the evening began, across midnight
+function eveningNow(p){ return clockNow() + ((ship.day || 0) - (p.day0 || 0)) * 1440; }
+// out for the evening, by their own clock: the shift does not send them home
+function eveningOut(cv){ return !!(cv.plan && cv.plan.step === 'evening' && !cv.plan.done && cv.plan.day0 != null); }
+// who sits where at the Beacon: Tarn at the end of the bar, Erina beside him, Juni beside her
+function eveningSeat(name, bar){
+  if(name === 'Erina Jones') return {x: bar.x + 92, y: bar.y + 46};
+  if(name === 'Juni') return {x: bar.x + 122, y: bar.y + 56};
+  return {x: bar.x + 50, y: bar.y + 44};
+}
+function tarnAtBar(bar){
+  const t = (state.civs || []).find(c => c.name === 'Tarn' && c.alive && !c.ko && !c.gone);
+  if(!t || !t.plan || t.plan.step !== 'evening' || t.plan.choice !== 'beacon') return null;
+  const s = eveningSeat('Tarn', bar);
+  return Math.hypot(t.x - s.x, t.y - s.y) < 40 ? t : null;
+}
+// the talk: a few lines each, about the day and, if the crew has given them something to say, about the crew
+const BEACON_LINES = {
+  erina: [
+    'The hares would not settle today. Something in the air.',
+    'Juni did the floor on her own for an hour. I did not have to check it.',
+    'A man asked me if the Qilin would make a good coat. I did not throw him out. I wanted to.',
+    'How is the iron, Tarn.',
+    'Deliveries were late again. Tobb says the docks; the docks say Tobb.',
+  ],
+  tarn: [
+    'Iron is iron. It sells when the Cross is frightened and it sat on the shelf today.',
+    'Somebody counted my locker for me last week. I counted it back.',
+    'Your girl is quick. Keep her off my floor; she looks at the locks.',
+    'A good day is one where nobody draws. I had one.',
+    'Fenn waters the second glass. He thinks I do not notice.',
+  ],
+  juni: [
+    'The thrush in the forest cage sings at the wrong time. I think it likes the dark.',
+    'I am not drinking that. I saw where Fenn keeps the bottle.',
+    'Mr Tarn, do you ever close early? Just once?',
+  ],
+};
+function beaconCrewLine(name){
+  const m = moodOf(name);
+  const op = (state.squad || []).find(c => c.alive);
+  const who = op ? op.name + '\u2019s crew' : 'that crew';
+  if(m.t >= 1.5) return name === 'Tarn' ? who + ' pays and goes. I could stand more like them.' : who + ' brought something home breathing. You do not know what that is worth until you have paid for the other kind.';
+  if(m.t <= -1.5) return name === 'Tarn' ? 'If ' + who + ' comes in here tonight I am going home.' : who + '. I would not have them in the shop again if the law let me choose.';
+  if(m.f >= 1.5) return name === 'Tarn' ? 'I keep the revolver nearer the till since ' + who + ' started coming round.' : 'I do not like the way ' + who + ' looks at the cages.';
+  if(m.j >= 1.5) return name === 'Tarn' ? 'Good week. ' + who + ' had a hand in it, I will say that much.' : 'Good week, for once. Some of it was ' + who + '.';
+  return null;
+}
+function beaconTalk(cv, p, bar, dt){
+  const tarn = tarnAtBar(bar);
+  const juni = (state.civs || []).find(c => c.name === 'Juni' && c.alive && !c.gone);
+  p.chatT = (p.chatT || 0) + dt;
+  if(tarn){
+    if(!p.chatWith){
+      p.chatWith = 'Tarn'; p.chatN = 0; p.chatT = 6;
+      chronicle('event', 'Erina sat down next to Tarn at the Beacon. They do not always talk; tonight they did.');
+    }
+    if(p.chatT >= 9 && p.chatN < 6){
+      p.chatT = 0; p.chatN++;
+      const mine = p.chatN % 2 === 1;
+      const speaker = mine ? cv : tarn;
+      const pool = mine ? BEACON_LINES.erina : BEACON_LINES.tarn;
+      const crewLine = (p.chatN === 3 || p.chatN === 4) ? beaconCrewLine(speaker.name) : null;
+      civSay(speaker, crewLine || pool[Math.floor(Math.random() * pool.length)], 9);
+      if(crewLine) p.crewSaid = true;
+      if(p.chatN === 6){
+        moodPush('Erina Jones', {j: 0.4, a: -0.3}, 'a drink and a talk with Tarn at the Beacon', 'trade');
+        moodPush('Tarn', {j: 0.4, a: -0.3}, 'a drink and a talk with Erina at the Beacon', 'trade');
+        lifeNote('Erina Jones', 'talked with Tarn at the Beacon'); lifeNote('Tarn', 'talked with Erina at the Beacon');
+        rumourSpread(1);   // what one of them knows, the other now does
+        chronicle('event', 'Erina and Tarn talked at the Beacon for a while' + (p.crewSaid ? ', and the crew came up.' : '.'));
+      }
+    }
+  }else if(juni && p.chatT >= 40){
+    p.chatT = 0;
+    const mine = Math.random() < 0.5;
+    civSay(mine ? cv : juni, mine ? BEACON_LINES.erina[Math.floor(Math.random() * BEACON_LINES.erina.length)] : BEACON_LINES.juni[Math.floor(Math.random() * BEACON_LINES.juni.length)], 8);
+  }
+}
+// Juni's evening: wait while Erina locks up, walk to the Beacon with her, sit beside her, leave when she leaves
+function helperEvening(cv, p, rt, dt){
+  const sk = rt.shop; const S = SHOPS[sk];
+  const kp = (state.civs || []).find(c => c.name === S.keeper && c.alive && !c.gone);
+  if(p.day0 == null) p.day0 = ship.day || 0;
+  if(!kp){ p.done = true; cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; return true; }
+  const kplan = kp.plan || {};
+  if(kplan.step === 'close' || shopInside(sk, cv)){
+    const o = anchorPt(sk, 'door_out');
+    if(shopInside(sk, cv)){ if(routineGo(cv, {x: o.x, y: o.y - 4}, dt) || p.t > 400){ cv.x = o.x + 30; cv.y = o.y - 30; cv.tx = cv.x; cv.ty = cv.y; } return true; }
+    routineGo(cv, {x: o.x + 36, y: o.y - 20}, dt);
+    return true;
+  }
+  if(kplan.step !== 'evening'){ routineGo(cv, {x: kp.x + 30, y: kp.y + 20}, dt); return true; }   // at her shoulder until she decides
+  if(kplan.choice === 'home' || kplan.done || (kp.errand && kp.errand.kind === 'slink')){
+    p.done = true; cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; return true;
+  }
+  const bar = (state.spots || []).find(s2 => s2.kind === 'bar');
+  if(!bar){ p.done = true; cv.errand = {kind: 'slink', path: [], leg: 0, waitT: 0, loiterT: 0}; return true; }
+  if(routineGo(cv, eveningSeat('Juni', bar), dt)){
+    cv.facing = Math.atan2(bar.y - cv.y, bar.x - cv.x);
+    if(!p.sat){ p.sat = true; popOver(cv, 'AT THE BEACON', '#8a93b8'); }
+  }
   return true;
 }
 // ---- deliveries (Ben, 29 Oct): every other day a porter brings a crate to the door; waiting is anxious, receiving is glad ----
@@ -17570,6 +17688,9 @@ function portTalk(cv){
     return showEventModal(cv.name.toUpperCase(), B.bio + ' ' + st + (carried ? ' It came to ' + c.name + ' on its own, which Erina says it does for nobody.' : '') + ' Nothing in here is for sale, and Erina would know.',
       [{label: 'LEAVE IT BE', cb: () => {}}], {sub: 'ERINA\u2019S EXOTICS \u00B7 ' + String(currentLevel().name || 'A CAGE').toUpperCase()});
   }
+  if(cv.name === 'Juni' && cv.plan && cv.plan.step === 'evening'){
+    return showEventModal('JUNI', '\u201CShe lets me come. I do not drink; I listen. Mr Tarn tells the same story about the locker every time and she laughs every time, which I do not understand yet.\u201D', [{label: 'LEAVE', cb: () => {}}]);
+  }
   if(cv.name === 'Juni'){
     const away = keeperAway('erina');
     return showEventModal('JUNI', moodSay('Juni', {
@@ -17592,6 +17713,13 @@ function portTalk(cv){
       : kind === 'desert' ? 'She is sitting in the sand with two of the hares in her lap. \u201CDo not run at them. Do not reach for them. Sit, and they decide.\u201D She looks, for once, like someone who is not counting anything.'
       : '\u201CI come in here to think. It is empty, and it will not be, and I wanted to see it before.\u201D She does not say what is coming. \u201CShop is Juni\u2019s for the hour. She is better at it than she thinks.\u201D',
       [{label: 'LEAVE HER TO IT', cb: () => {}}], {sub: String(currentLevel().name || '').toUpperCase()});
+  }
+  if(cv.name === 'Erina Jones' && cv.plan && cv.plan.step === 'evening' && !cv.plan.done){
+    const tb = (state.spots || []).find(s2 => s2.kind === 'bar');
+    const withTarn = tb && tarnAtBar(tb);
+    return showEventModal('ERINA JONES', (withTarn
+      ? '\u201CThe shop is shut and so am I.\u201D She does not turn round. Tarn does. \u201CWhatever it is, it keeps until seven.\u201D'
+      : '\u201CThe shop is shut. I am not.\u201D She considers that. \u201CBut I am not open either. Seven, at the counter.\u201D'), [{label: 'LEAVE HER TO IT', cb: () => {}}], {sub: 'THE BEACON'});
   }
   if(cv.name === 'Erina Jones'){
     const wa = waFacts();
