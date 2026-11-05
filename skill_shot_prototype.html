@@ -2663,6 +2663,11 @@ function showEventModal(title, body, buttons, opts){
     document.body.appendChild(ov);
   }
   if(!ov.querySelector){ return false; }   // headless: callers drive the callbacks directly
+  // (Ben, 5 Nov) a face with a story carries its dossier into every conversation
+  if(typeof CAST_STORY !== 'undefined'){
+    const who = Object.keys(CAST_STORY).find(n => title === n.toUpperCase() || title.indexOf(n.toUpperCase() + ' \u00B7') === 0);
+    if(who && !(buttons || []).some(b => b.label === 'DOSSIER')) buttons = (buttons || []).concat([{label: 'DOSSIER', cb: () => openCastDossier(who)}]);
+  }
   ov.innerHTML = '<div id="eventBox"><div id="eventTitle"></div>' + (opts && opts.sub ? '<div id="eventSub"></div>' : '') + '<div id="eventBody"></div><div id="eventBtns"></div></div>';
   ov.querySelector('#eventTitle').textContent = title;
   if(opts && opts.sub) ov.querySelector('#eventSub').textContent = opts.sub;
@@ -4563,6 +4568,8 @@ function deckDown(p){
   if(state.portDock && !state.deckCombat && !unitAtPoint(state.squad, p.x, p.y, 22)){
     const drC = (state.doors || []).find(d => d.label && Math.hypot(d.x - p.x, d.y - p.y) < 36);
     if(drC){ doorInspect(drC); return; }
+    const sgC = signAt(p.x, p.y);
+    if(sgC){ openShopDossier(sgC); return; }
     const bn = (state.spots || []).find(s2 => s2.kind === 'bench' && Math.hypot(s2.x - p.x, s2.y - p.y) < 40);
     if(bn){ benchInspect(bn); return; }
     const lw = (state.walls || []).find(w => w.lock && Math.hypot(w.x + w.w / 2 - p.x, w.y + w.h / 2 - p.y) < 54);
@@ -7760,6 +7767,9 @@ function onMove(e){
       dr9 = (state.doors || []).find(d => d.label && Math.hypot(d.x - hp2.x, d.y - hp2.y) < 36) || null;
     if(dr9){ state.hoverDoor = dr9; showDoorTip(dr9, e.clientX, e.clientY); }
     else if(state.hoverDoor){ state.hoverDoor = null; if(!nc && si9 < 0) hideNpcTip(); }
+    const sg9 = (!u && !nc && si9 < 0 && !dr9 && state.shipDeck && !state.deckCombat && state.portDock) ? signAt(hp2.x, hp2.y) : null;
+    if(sg9){ state.hoverSign = sg9; showSignTip(sg9, e.clientX, e.clientY); }
+    else if(state.hoverSign){ state.hoverSign = null; if(!nc && si9 < 0 && !dr9) hideNpcTip(); }
     if(u && u !== state.hoverUnit){
       state.hoverUnit = u;
       openInspect(u);
@@ -14656,7 +14666,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 WHOSE HANDS';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 THE SIGN INSIDE THE DOOR';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15289,17 +15299,144 @@ const SHOPS = {
   tarn: {keeper: 'Tarn', lock: 'tarn', shelves: [4, 5, 6, 7], label: 'Tarn\u2019s Arms', his: 'his', benchLabel: 'AT THE BENCH',
     deliveryKeys: () => ['pistol', ['rifle', 'carbine', 'sawnoff', 'revolver'][Math.floor(Math.random() * 4)], 'stdautogun'],
     anchors: {door_out: {x: 0.19, y: 0.278}, door_in: {x: 0.19, y: 0.238}, counter: {x: 0.18, y: 0.14}, bench: {x: 0.105, y: 0.128},
-      lockers: {x: 0.108, y: 0.215}, workshop: {x: 0.112, y: 0.14}, store: {x: 0.115, y: 0.215}},
+      lockers: {x: 0.108, y: 0.215}, workshop: {x: 0.112, y: 0.14}, store: {x: 0.115, y: 0.215}, sign: {x: 0.218, y: 0.241}},
     front: {x0: 0.15, y0: 0.13, x1: 0.23, y1: 0.245}, rect: {x0: 0.08, y0: 0.09, x1: 0.24, y1: 0.26}},
   // (Ben, 3 Nov) Erina's: she opens at seven and sets the catching kit out from the locker; Juni helps; the bench is the zoo room
   erina: {keeper: 'Erina Jones', helper: 'Juni', lock: 'erina', shelves: [0, 1, 2, 3], label: 'Erina\u2019s Exotics', his: 'her', benchLabel: 'IN THE ZOO ROOM', alarm: true,
     deliveryKeys: () => ['dart', ['goad', 'screamer'][Math.floor(Math.random() * 2)], 'dart'],
     anchors: {door_out: {x: 0.61, y: 0.635}, door_in: {x: 0.61, y: 0.69}, counter: {x: 0.603, y: 0.742}, bench: {x: 0.645, y: 0.9},
-      lockers: {x: 0.574, y: 0.895}, store: {x: 0.585, y: 0.9}, zoo: {x: 0.645, y: 0.9}},
+      lockers: {x: 0.574, y: 0.895}, store: {x: 0.585, y: 0.9}, zoo: {x: 0.645, y: 0.9}, sign: {x: 0.645, y: 0.678}},
     front: {x0: 0.552, y0: 0.73, x1: 0.668, y1: 0.80}, rect: {x0: 0.54, y0: 0.66, x1: 0.68, y1: 0.95}},
 };
 // the shop record for a SHOPS key, created if the floor has not been looked at yet
 function shopRec(sk){ const S = SHOPS[sk]; if(!S) return null; return ship.district === 'cross' ? shopOf(S.shelves[0]) : shopByKeeper(S.keeper); }
+// ---- the signs (Ben, 5 Nov): a plaque inside each door. The first time the crew walks in it opens as a card, the way an
+// operator's service dossier does; after that the plaque's hover gives the short of it and a click reopens the card. ----
+const SHOP_DOSSIER = {
+  erina: {
+    sign: 'ERINA\u2019S EXOTICS', tag: 'Live stock, and the kit to catch it without killing it',
+    owner: 'Erina Jones', staff: ['Juni'],
+    story: 'A narrow shop on the south side of the Cross with more behind it than in front of it. The front room sells catching kit: dart rifles, goads, screamers, the odd sawn-off for people who will not be told. ' +
+      'The back is a store room with a strongbox and a zoo room with five space-distortion cages, each a whole country folded into a cupboard, where the animals she buys and the animals she is brought are kept until somebody with a licence and a reason comes for them. ' +
+      'She does not sell animals across the counter. She pays crews to fetch them, alive.',
+    sells: 'Dart rifles, goads, screamers, sawn-offs. Prices on the tags; her mood moves them.',
+    buys: 'Catching kit only (darts, goads, screamers), clean. Nothing with a cannon\u2019s bore and nothing with somebody else\u2019s name on it.',
+    how: 'Trade at the counter, in hours (07:00 to 19:50). Erina serves; when she is through the back, Juni does. The cages are open to crews she trusts. There is a button under the counter and Juni knows where it is.',
+  },
+  tarn: {
+    sign: 'TARN\u2019S ARMS', tag: 'Gunsmith. Everything on the shelf works.',
+    owner: 'Tarn', staff: [],
+    story: 'The gun shop by the Warrens arch: a front room with four shelves and a counter, a workshop where he does his own repairs, and a store room with the lockers that hold the real stock. ' +
+      'He opens at eight himself, dresses the shelves from the lockers, and puts the display back in the box at ten to eight at night. A crate comes every other day. ' +
+      'He draws on thieves; he does not shout for a badge first, and the law has always agreed with him afterwards.',
+    sells: 'Pistols, revolvers, rifles, carbines, sawn-offs, the standard autogun. Honest iron at his price.',
+    buys: 'Iron, if it works. Marked goods only if you know him better than you do.',
+    how: 'Trade at the counter, in hours (08:00 to 19:50). Browsing is tolerated for a while; loitering is not. Do not touch the lockers.',
+  },
+};
+// the long form of the people: where the backstory lives
+const CAST_STORY = {
+  'Erina Jones': 'Erina Jones came to the Cross with one leg, one arm, a settlement from a shipping line that had put her in the path of a Colossus, and a loathing of cages that she has turned into a trade. ' +
+    'The animals in her back room are not pets and not stock in the way Tarn means it: they are things that were going to be killed, or sold to people who would, and are now in a country of their own until she finds them a better one. ' +
+    'She pays well, she pays in person, and she does not forget who brought what home breathing and who brought it home otherwise. The Beacon knows her as the woman who sits with the gunsmith and says little. Juni knows her as the first person who did not shout.',
+  'Juni': 'Juni is amarok, young, and new to the Cross. She carried for a freight gang in the Warrens until Erina caught her reading the tags on the shelf instead of lifting what was on it, and offered her a wage instead of a badge. ' +
+    'She feeds the back room, sets out the kit square to the edge, serves when Erina is through the door, and asks thieves once, properly, before she presses the button. She has not yet decided what she thinks of the crew. She is deciding.',
+  'Tarn': 'Tarn is a minotaur, a gunsmith, and the owner of the shop by the Warrens arch, which he opens at eight every day of his life. He was mistreated by vampires once, and he was not the kind to forget it. ' +
+    'He likes a customer who buys and a chat after, counts his locker every morning, and draws first on anyone with his property in their hands. Under all of it he wants to be somebody on the Cross: a man the law asks, a man the Beacon turns to look at. ' +
+    'That wanting is the door into him, for better or worse.',
+};
+function signPt(sk){ const a = SHOPS[sk] && SHOPS[sk].anchors && SHOPS[sk].anchors.sign; return a ? {x: a.x * W, y: a.y * H} : null; }
+function signAt(x, y){
+  if(ship.district !== 'cross') return null;
+  for(const sk of Object.keys(SHOP_DOSSIER)){ const p = signPt(sk); if(p && Math.hypot(p.x - x, p.y - y) < 26) return sk; }
+  return null;
+}
+function signSeen(sk){ return !!(ship.signsSeen && ship.signsSeen[sk]); }
+// what is going on in the shop right now, in one line
+function shopNowLine(sk){
+  const S = SHOPS[sk]; const D = SHOP_DOSSIER[sk];
+  if(shopLocked(sk)){ const rt = ROUTINES[S.keeper]; const open = rt ? clockHHMM(rt.day[0].at) : '08:00'; return 'Shut. Opens at ' + open + '.'; }
+  const kp = (state.civs || []).find(c => c.name === S.keeper && c.alive && !c.gone);
+  const hp = S.helper ? helperCiv(sk) : null;
+  if(kp && kp.hidden) return D.owner + ' is through the back' + (hp && shopInside(sk, hp) ? '; ' + S.helper + ' is serving.' : '; nobody is at the counter.');
+  if(kp && kp.plan && kp.plan.bench > 0) return D.owner + ' is at the bench; he will see you.';
+  if(kp && shopInside(sk, kp) && !keeperAway(sk)) return D.owner + ' is at the counter.';
+  if(hp && shopInside(sk, hp)) return D.owner + ' is out; ' + S.helper + ' is serving.';
+  if(kp && kp.ko) return D.owner + ' is on the floor, out cold.';
+  return 'Nobody is behind the counter.';
+}
+function showSignTip(sk, cx, cy){
+  if(typeof document.getElementById !== 'function') return;
+  let tip = document.getElementById('npcTip');
+  if(!tip){ if(!document.body || !document.body.appendChild) return; tip = document.createElement('div'); tip.id = 'npcTip'; document.body.appendChild(tip); }
+  const D = SHOP_DOSSIER[sk];
+  tip.innerHTML = '<u class="tipVerb">CLICK TO READ THE SIGN</u><b style="color:var(--brass)">' + D.sign + '</b><span>' + D.tag + '</span><p>' + D.owner + (D.staff.length ? ', with ' + D.staff.join(' and ') : '') + '. ' + shopNowLine(sk) + '</p>';
+  tip.style.left = (cx + 18) + 'px'; tip.style.top = (cy - 10) + 'px'; tip.style.display = 'block';
+}
+function personRow(name){
+  const p = bzCastOf(name) || {};
+  const ml = moodLine(name);
+  return '<div class="dperson" data-name="' + name + '" style="cursor:pointer;margin-bottom:10px;padding:8px 10px;border:1px solid rgba(212,168,67,.25);border-radius:2px">' +
+    '<div style="font-family:Cinzel,serif;font-weight:800;letter-spacing:.14em;color:var(--brass)">' + name.toUpperCase() + ' <span style="font:700 9px Space Grotesk,sans-serif;letter-spacing:.18em;color:rgba(232,224,204,.55)">' + (p.race || '') + (p.sex ? ' \u00B7 ' + p.sex : '') + ' \u00B7 ' + hoursLabel(name) + '</span></div>' +
+    '<div class="dlore" style="margin:4px 0 2px">' + (p.bio || '') + '</div>' +
+    '<div class="dgame">Feels <b style="color:' + ml.tint + '">' + ml.word + '</b> toward the crew' + (ml.last ? ' (' + ml.last + ')' : '') + '. Click for the dossier.</div></div>';
+}
+function dossierShow(html){
+  const el = document.getElementById('dossier'); if(!el || !el.classList) return false;
+  el.innerHTML = '<div id="dossierCard">' + html + '<div class="dclose">Click anywhere to close</div></div>';
+  el.classList.add('show');
+  if(!el.querySelectorAll) return true;   // headless: the card is written, nobody is reading, the world keeps moving
+  simPauseStart();
+  for(const row of el.querySelectorAll('.dperson')) row.addEventListener('click', (ev) => { ev.stopPropagation(); openCastDossier(row.getAttribute('data-name')); });
+  return true;
+}
+// the shop card: the sign, the story, what it sells and buys, how it works, the people, and what is going on now
+function openShopDossier(sk, first){
+  const D = SHOP_DOSSIER[sk]; if(!D) return false;
+  ship.signsSeen = ship.signsSeen || {};
+  if(!ship.signsSeen[sk]){ ship.signsSeen[sk] = true; chronicle('event', 'The crew read the sign inside the door of ' + D.sign.charAt(0) + D.sign.slice(1).toLowerCase().replace(/\u2019s /, '\u2019s ') + '.'); shipSave(); }
+  const people = [D.owner].concat(D.staff).map(personRow).join('');
+  return dossierShow(
+    '<div class="dhead" style="color:var(--brass)">' + D.sign + '</div>' +
+    '<div class="dsub">' + D.tag + (first ? ' \u00B7 the sign inside the door' : '') + '</div>' +
+    '<div class="dcols"><div class="dcol">' +
+      '<div class="dsec" style="color:var(--brass)">The shop</div><div class="dlore">' + D.story + '</div>' +
+      '<div class="dsec" style="color:var(--plasma)">Sells</div><div class="dgame" style="margin-bottom:10px">' + D.sells + '</div>' +
+      '<div class="dsec" style="color:var(--plasma)">Buys</div><div class="dgame" style="margin-bottom:10px">' + D.buys + '</div>' +
+      '<div class="dsec" style="color:var(--plasma)">How it works</div><div class="dgame">' + D.how + '</div>' +
+    '</div><div class="dcol">' +
+      '<div class="dsec" style="color:var(--brass)">The people</div>' + people +
+      '<div class="dsec" style="margin-top:14px;color:var(--brass)">Now \u00B7 ' + clockHHMM() + '</div><div class="dgame">' + shopNowLine(sk) + '</div>' +
+    '</div></div>');
+}
+// a person's card: who they are, what they have done in this game, how they feel
+function openCastDossier(name){
+  const p = bzCastOf(name); if(!p) return false;
+  const l = lifeOf(name); const ml = moodLine(name); const m = moodOf(name);
+  const rec = (l.record || []).slice().reverse().map(r => '<div class="drecrow"><span>Day ' + r.day + ' \u00B7 ' + r.at + '</span><b>' + r.text + '</b></div>').join('') || '<div class="dgame">Nothing yet. The ledger starts when they do something worth writing down.</div>';
+  const feels = 'Trust ' + m.t.toFixed(1) + ' \u00B7 Joy ' + m.j.toFixed(1) + ' \u00B7 Fear ' + m.f.toFixed(1) + ' \u00B7 Anticipation ' + m.a.toFixed(1);
+  return dossierShow(
+    '<div class="dhead" style="color:var(--brass)">' + name.toUpperCase() + '</div>' +
+    '<div class="dsub">' + (p.race || '') + (p.sex ? ' \u00B7 ' + p.sex : '') + (p.faction ? ' \u00B7 ' + p.faction : '') + ' \u00B7 ' + hoursLabel(name) + '</div>' +
+    '<div class="dbio">' + (p.bio || '') + '</div>' +
+    '<div class="dcols"><div class="dcol">' +
+      '<div class="dsec" style="color:var(--brass)">The story</div><div class="dlore">' + (CAST_STORY[name] || 'Nobody on the Cross knows much, and they have asked.') + '</div>' +
+    '</div><div class="dcol">' +
+      '<div class="dsec" style="color:var(--plasma)">Toward the crew</div><div class="dgame" style="margin-bottom:10px"><b style="color:' + ml.tint + '">' + ml.word + '</b>' + (ml.last ? ' \u00B7 ' + ml.last : '') + '<br>' + feels + '</div>' +
+      '<div class="dsec" style="color:var(--brass)">What they have done</div><div class="drec">' + rec + '</div>' +
+    '</div></div>');
+}
+// the first time the crew walks into a shop, the sign reads itself
+function signTick(){
+  if(!state.portDock || state.deckCombat || ship.district !== 'cross') return;
+  if(state.simPause) return;
+  for(const sk of Object.keys(SHOP_DOSSIER)){
+    if(signSeen(sk)) continue;
+    if(!(state.squad || []).some(c => c.alive && shopInside(sk, c))) continue;
+    openShopDossier(sk, true);
+    return;
+  }
+}
 function shopKeyOf(name){ return Object.keys(SHOPS).find(k => SHOPS[k].keeper === name || SHOPS[k].helper === name) || null; }
 // where a cage door stands on the Cross
 function cageDoorPt(kind){ const d = (state.doors || []).find(dr => dr.cage === kind); return d ? {x: d.x, y: d.y} : anchorPt('erina', 'zoo'); }
@@ -20006,7 +20143,7 @@ function frame(now){
   if(state && state.shipDeck && state.squad) deckSeparate();
   camGlideTick(); spotlightTick();
   if(state && state.squad && !editorOn && ((state._stripT || 0) + 400 < performance.now())){ state._stripT = performance.now(); nextStripTick(); }
-  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ clockTick(realDt); waTick(realDt); houndTick(realDt); lawTick(realDt); talkGoalTick(realDt); shopCustomersTick(realDt); }
+  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ clockTick(realDt); waTick(realDt); houndTick(realDt); lawTick(realDt); talkGoalTick(realDt); shopCustomersTick(realDt); signTick(); }
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();
   if(state && state.squad && !editorOn){
@@ -21214,6 +21351,19 @@ function draw(){
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(224,163,62,.8)';
     ctx.fillText('LOCKED \u00B7 CLICK TO TRY THE DOOR', w.x + w.w / 2, w.y + w.h + 16);
+  }
+  // the signs: a brass plaque inside each shop door, pulsing until it has been read once
+  if(s.portDock && ship.district === 'cross' && typeof SHOP_DOSSIER !== 'undefined') for(const sk of Object.keys(SHOP_DOSSIER)){
+    const sp = signPt(sk); if(!sp) continue;
+    const seen = signSeen(sk);
+    const ph = (performance.now() / 1500) % 1;
+    if(!seen){ ctx.strokeStyle = 'rgba(212,168,67,' + (0.6 * (1 - ph)).toFixed(3) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(sp.x, sp.y, 12 + ph * 16, 0, 7); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(40,30,14,.95)'; ctx.fillRect(sp.x - 16, sp.y - 8, 32, 16);
+    ctx.strokeStyle = s.hoverSign === sk ? 'rgba(255,224,140,.95)' : 'rgba(212,168,67,.85)'; ctx.lineWidth = s.hoverSign === sk ? 2 : 1.2; ctx.strokeRect(sp.x - 16, sp.y - 8, 32, 16);
+    ctx.fillStyle = 'rgba(212,168,67,.95)'; ctx.font = "800 7px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+    ctx.fillText('SIGN', sp.x, sp.y + 2.5);
+    ctx.fillStyle = 'rgba(212,168,67,.6)'; ctx.font = "700 8px 'Space Grotesk',sans-serif";
+    ctx.fillText(SHOP_DOSSIER[sk].sign, sp.x, sp.y + 20);
   }
   if(s.doors && s.doors.length){
     for(const dr of s.doors){
@@ -24133,6 +24283,7 @@ document.getElementById('rosterGo').addEventListener('click', () => {
 
 document.getElementById('dossier').addEventListener('click', () => {
   document.getElementById('dossier').classList.remove('show');
+  if(typeof simResume === 'function') simResume();
 });
 
 
