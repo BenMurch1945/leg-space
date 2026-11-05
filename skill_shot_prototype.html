@@ -2434,29 +2434,58 @@ function exitRange(){
 // the hired ship: GCAT registry CSV-7731 Provident Carriage, which nobody has ever called her. Hesper calls her the Gannet.
 const GANNET_NAME = 'the Gannet';
 const GANNET_REG = 'CSV-7731 PROVIDENT CARRIAGE';
-const GANNET_HULL = [   // fractions of her own 2100x1320 world: hold astern (left), bridge in the nose (right)
-  {x: 0.25, y: 0.30, w: 0.50, h: 0.012, high: true},
-  {x: 0.25, y: 0.688, w: 0.50, h: 0.012, high: true},
-  {x: 0.25, y: 0.30, w: 0.012, h: 0.40, high: true},
-  {x: 0.738, y: 0.30, w: 0.012, h: 0.40, high: true},
-  {x: 0.55, y: 0.30, w: 0.010, h: 0.15, high: true},   // the bulkhead, with a door in the middle
-  {x: 0.55, y: 0.55, w: 0.010, h: 0.15, high: true},
-  {x: 0.31, y: 0.44, w: 0.04, h: 0.025},                // hold: strapped cargo, low cover
-  {x: 0.42, y: 0.56, w: 0.04, h: 0.025},
-  {x: 0.62, y: 0.40, w: 0.03, h: 0.02},                 // bridge: the nav plinth
+// (Ben, 5 Nov) the Gannet, redrawn to his sketch: an engine block astern with four pods at its corners, a narrow neck,
+// a wider cabin amidships where the crew sits, and a small bridge in the nose. Fractions of her own 2100x1320 world.
+const GANNET_HULL = [
+  // the hold and engine block, astern (left)
+  {x: 0.250, y: 0.320, w: 0.170, h: 0.012, high: true},
+  {x: 0.250, y: 0.668, w: 0.170, h: 0.012, high: true},
+  {x: 0.250, y: 0.320, w: 0.012, h: 0.360, high: true},
+  {x: 0.408, y: 0.320, w: 0.012, h: 0.125, high: true},   // the hold's bow wall, with the neck through the middle
+  {x: 0.408, y: 0.555, w: 0.012, h: 0.125, high: true},
+  {x: 0.262, y: 0.332, w: 0.040, h: 0.060, high: true},   // the four engine pods
+  {x: 0.368, y: 0.332, w: 0.040, h: 0.060, high: true},
+  {x: 0.262, y: 0.608, w: 0.040, h: 0.060, high: true},
+  {x: 0.368, y: 0.608, w: 0.040, h: 0.060, high: true},
+  {x: 0.318, y: 0.480, w: 0.034, h: 0.040},                // strapped cargo, low cover
+  // the neck
+  {x: 0.420, y: 0.445, w: 0.080, h: 0.010, high: true},
+  {x: 0.420, y: 0.545, w: 0.080, h: 0.010, high: true},
+  // the cabin, amidships: wider, where the crew sits
+  {x: 0.500, y: 0.350, w: 0.140, h: 0.012, high: true},
+  {x: 0.500, y: 0.638, w: 0.140, h: 0.012, high: true},
+  {x: 0.500, y: 0.350, w: 0.012, h: 0.095, high: true},   // the cabin's stern wall, open at the neck
+  {x: 0.500, y: 0.555, w: 0.012, h: 0.095, high: true},
+  {x: 0.628, y: 0.350, w: 0.012, h: 0.105, high: true},   // the bulkhead to the bridge, with a door in the middle
+  {x: 0.628, y: 0.545, w: 0.012, h: 0.105, high: true},
+  {x: 0.522, y: 0.372, w: 0.050, h: 0.022},                // bunks and the mess table: low cover
+  {x: 0.522, y: 0.606, w: 0.050, h: 0.022},
+  {x: 0.585, y: 0.488, w: 0.030, h: 0.024},
+  // the bridge, in the nose: small
+  {x: 0.640, y: 0.410, w: 0.110, h: 0.012, high: true},
+  {x: 0.640, y: 0.578, w: 0.110, h: 0.012, high: true},
+  {x: 0.738, y: 0.410, w: 0.012, h: 0.180, high: true},
+  {x: 0.700, y: 0.470, w: 0.024, h: 0.016},                // the nav plinth
+];
+// where you get off her: a ramp on the hold's port side and two airlocks on the cabin, so no landing leaves the crew boxed in
+const GANNET_HATCHES = [
+  {x: 0.335, y: 0.320, side: 'S', main: true},   // the ramp, hold, topside
+  {x: 0.570, y: 0.350, side: 'S'},               // cabin airlock, topside
+  {x: 0.570, y: 0.638, side: 'N'},               // cabin airlock, keel
 ];
 const GANNET_LEVEL = {
   name: 'The Gannet', par: 0, brief: '',
-  player: {x: 0.45, y: 0.50},
+  player: {x: 0.565, y: 0.50},
   world: {w: 2100, h: 1320},
   ship: true, noFog: true, gannet: true,
   breach: [
-    {b: {x: 0.45, y: 0.30}, inb: {x: 0.45, y: 0.36}},   // topside, through the hold ceiling
-    {b: {x: 0.65, y: 0.688}, inb: {x: 0.65, y: 0.63}},  // keel, under the bridge
+    {b: {x: 0.335, y: 0.32}, inb: {x: 0.335, y: 0.40}},   // topside, through the hold ceiling
+    {b: {x: 0.60, y: 0.638}, inb: {x: 0.60, y: 0.58}},    // keel, under the cabin
   ],
   walls: GANNET_HULL,
-  stations: [{x: 0.69, y: 0.50, id: 'gannet'}],
-  posts: [{x: 0.45, y: 0.50}, {x: 0.40, y: 0.44}, {x: 0.40, y: 0.57}, {x: 0.48, y: 0.42}],
+  airlocks: GANNET_HATCHES.map(h => ({x: h.x, y: h.y, side: h.side})),
+  stations: [{x: 0.70, y: 0.50, id: 'gannet'}],
+  posts: [{x: 0.565, y: 0.50}, {x: 0.540, y: 0.43}, {x: 0.540, y: 0.57}, {x: 0.600, y: 0.43}, {x: 0.600, y: 0.57}, {x: 0.470, y: 0.50}],
   enemies: [],
 };
 // her hull drawn into another world: scale from her own fractions, centred on (cx, cy), hatch carved on the port side
@@ -2464,12 +2493,15 @@ function gannetHullIn(PW, PH, cx, cy){
   const sx = GANNET_LEVEL.world.w / PW, sy = GANNET_LEVEL.world.h / PH;
   const ox = cx - 0.5 * sx, oy = cy - 0.5 * sy;
   const hull = GANNET_HULL.map(w => ({...w, x: w.x * sx + ox, y: w.y * sy + oy, w: w.w * sx, h: w.h * sy, hull: true}));
-  const hatch = {x: 0.256 * sx + ox, y: 0.50 * sy + oy};
-  carveDoorF(hull, hatch, PW, PH, 56);
-  const zone = {x0: 0.25 * sx + ox, y0: 0.30 * sy + oy, x1: 0.75 * sx + ox, y1: 0.70 * sy + oy};
-  const console = {x: 0.69 * sx + ox, y: 0.50 * sy + oy, id: 'gannet'};
-  const start = {x: 0.42 * sx + ox, y: 0.50 * sy + oy};
-  return {hull, hatch, zone, console, start};
+  // the ramp and both airlocks are carved: three ways off her
+  const hatches = GANNET_HATCHES.map(h => ({x: h.x * sx + ox, y: h.y * sy + oy, side: h.side, main: !!h.main}));
+  for(const h of hatches) carveDoorF(hull, h, PW, PH, 56);
+  const hatch = hatches[0];
+  const out = {x: hatch.x, y: hatch.y - 70 / PH};   // where the crew stands when they have come down the ramp
+  const zone = {x0: 0.25 * sx + ox, y0: 0.32 * sy + oy, x1: 0.75 * sx + ox, y1: 0.68 * sy + oy};
+  const console = {x: 0.70 * sx + ox, y: 0.50 * sy + oy, id: 'gannet'};
+  const start = {x: 0.565 * sx + ox, y: 0.50 * sy + oy};
+  return {hull, hatch, hatches, out, zone, console, start};
 }
 const SHIP_LEVEL = {
   name: 'The Orrix', par: 0, brief: '',
@@ -6936,7 +6968,7 @@ function flightTick(dt){
       if(fi) fi.style.display = 'none';
       const ft0 = document.getElementById('flightTimer');
       if(ft0) ft0.style.display = 'block';
-      showBanner('UNDERWAY: ' + (f.charter === 'back' ? 'THE CROSS' : galaxyNode(f.to).name.toUpperCase()) + ' · ' + Math.round(f.total) + 'S OUT', '#d4a843', false, true);
+      showBanner('UNDERWAY: ' + (f.charter === 'back' ? 'THE CROSS' : f.charter === 'out' && ship.charter ? charterJobDef().dest : (galaxyNode(f.to) || {name: f.to}).name.toUpperCase()) + ' · ' + Math.round(f.total) + 'S OUT', '#d4a843', false, true);
     }
     return;
   }
@@ -11558,13 +11590,13 @@ const QILIN_NAMES = {leader: 'Dace Morrow', party: ['Hollis', 'Pell', 'Garrow', 
 let QILIN_LEVEL = null;
 function buildQilinLevel(){
   const PW = 3200, PH = 2000;
-  const g = gannetHullIn(PW, PH, 0.12, 0.50);
+  const g = gannetHullIn(PW, PH, 0.24, 0.50);
   const rng = rngFor('qilin|wood');
   const walls = [
     {x: 0.000, y: 0.000, w: 1.000, h: 0.030, high: true}, {x: 0.000, y: 0.970, w: 1.000, h: 0.030, high: true},
     {x: 0.000, y: 0.000, w: 0.020, h: 1.000, high: true}, {x: 0.980, y: 0.000, w: 0.020, h: 1.000, high: true},
   ];
-  const clear = (x, y, w, h) => Math.hypot(x + w / 2 - 0.12, y + h / 2 - 0.5) > 0.16 &&
+  const clear = (x, y, w, h) => Math.hypot(x + w / 2 - 0.24, y + h / 2 - 0.5) > 0.24 &&
     !walls.some(o => x < o.x + o.w + 0.012 && x + w + 0.012 > o.x && y < o.y + o.h + 0.012 && y + h + 0.012 > o.y);
   const glades = [{x: 0.40, y: 0.25}, {x: 0.42, y: 0.74}, {x: 0.62, y: 0.48}, {x: 0.80, y: 0.22}, {x: 0.82, y: 0.78}, {x: 0.93, y: 0.50}];
   for(const gl of glades){
@@ -11587,7 +11619,7 @@ function buildQilinLevel(){
     world: {w: PW, h: PH}, biome: CAGES.forest.biome, glades,
     client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
     location: 'Tallis, the green moon \u00B7 the old wood', time: 'Late light',
-    brief: 'The Gannet is down at the wood\u2019s edge, hatch to the east. Somewhere in the glades is a Qilin, and somewhere in the trees is a hunting party that wants it in a net.<br><br>' +
+    brief: 'The Gannet is down at the wood\u2019s edge; the ramp is on the hold, topside, and the cabin has an airlock each side. Somewhere in the glades is a Qilin, and somewhere in the trees is a hunting party that wants it in a net.<br><br>' +
       'It will not be caught and it must not be killed. Walk; do not run at it. Its friends in the wood call out at anything that comes close, and when they call it moves and trusts you less. ' +
       'Throw Erina\u2019s feed near it with the FEED button. Three mouthfuls and it is yours; it will follow whoever is leading, up the ramp and home. Darting it works and she will know. Killing it ends everything with her.',
     objective: 'Tame the Qilin with three throws of feed \u00B7 walk it aboard the Gannet \u00B7 the console takes you home',
@@ -12025,14 +12057,14 @@ function charterHomeQilin(){
   enterPort('hangar');
   const g = HANGAR_PORT.gannet;
   const hx = g.hatch.x * W, hy = g.hatch.y * H;
-  state.squad.forEach((c, i) => { c.x = hx - 70 - i * 28; c.y = hy + (i % 2 ? 26 : -26); unstickFromWalls(c); c.facing = Math.PI; });
+  state.squad.forEach((c, i) => { c.x = hx - 40 + i * 28; c.y = hy - 70 - (i % 2 ? 26 : 0); unstickFromWalls(c); c.facing = Math.PI / 2; });
   camFocusCrew(2.4);
   moodPush('Hesper Dunmore', ch.rescued ? {t: 0.5, j: 0.5, a: -1} : {a: -1}, ch.rescued ? 'flew the crew back from Tallis with a live Qilin in the hold' : 'flew the crew back from Tallis with nothing', 'trade');
   const ms = ship.missions && ship.missions.qilin;
   if(ch.rescued){
     ch.state = 'home';
     const lead = pc() || state.squad[0];
-    const qc = beastMake('qilin', hx - 30, hy + 50, 'The Qilin');
+    const qc = beastMake('qilin', hx + 40, hy - 110, 'The Qilin');
     qc.beast.state = 'follow'; qc.beast.follow = lead.name; qc.homeR = 30; qc.darted = darted;
     state.civs.push(qc);
     const pt = erinaCounterPoint();
@@ -12131,12 +12163,12 @@ function charterHome(){
   // the crew comes down the ramp; Oskar is waiting by the bay, and his brother is on the ramp if he came home
   const g = HANGAR_PORT.gannet;
   const hx = g.hatch.x * W, hy = g.hatch.y * H;
-  state.squad.forEach((c, i) => { c.x = hx - 70 - i * 28; c.y = hy + (i % 2 ? 26 : -26); unstickFromWalls(c); c.facing = Math.PI; });
+  state.squad.forEach((c, i) => { c.x = hx - 40 + i * 28; c.y = hy - 70 - (i % 2 ? 26 : 0); unstickFromWalls(c); c.facing = Math.PI / 2; });
   camFocusCrew(2.4);
   const mk = (name, dx, dy, bio) => { const cv = {x: hx + dx, y: hy + dy, r: 8, alive: true, ko: false, panic: 0, tx: hx + dx, ty: hy + dy, pace: 22, bob: Math.random() * 6, hood: false,
     kind: 'face', name, race: 'HUMAN', sex: 'MALE', faction: 'A FAMILY', bio, brave: 10, tide: false, gait: 1, errand: null, charter: true}; state.civs.push(cv); return cv; };
-  mk('Oskar Venn', -140, -40, 'Freight-line guard turned freelancer. Owes money in two ports and friendship in a third. Waited in the hangar the whole time.');
-  if(ch.rescued) mk('Anselm Venn', -60, 10, 'Silk crew foreman. Nine days in the caves and carried out of them. Will not go back.');
+  mk('Oskar Venn', -120, -120, 'Freight-line guard turned freelancer. Owes money in two ports and friendship in a third. Waited in the hangar the whole time.');
+  if(ch.rescued) mk('Anselm Venn', 40, -90, 'Silk crew foreman. Nine days in the caves and carried out of them. Will not go back.');
   const due = ch.due || 0;
   const body = ch.rescued
     ? 'Oskar Venn is at the ramp before it is fully down. He does not speak until he has his hands on his brother, and then he does not stop. \u201CEight-fifty, as said. It is not enough and I know it is not enough. Thank you. Thank you.\u201D'
@@ -14686,7 +14718,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 THE BOOK, PROPERLY';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 THE GANNET, REDRAWN';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
