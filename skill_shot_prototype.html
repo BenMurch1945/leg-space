@@ -9485,6 +9485,7 @@ function errandTick(cv, dt){
     return true;
   }
   if(cv.hail && performance.now() >= cv.hail.until){ cv.hail = null; cv.hailSaid = false; }
+  if(cv.hidden && !(cv.plan && cv.plan.step === 'floor' && cv.plan.bench > 0 && !cv.errand && !castBusy(cv))){ cv.hidden = false; if(cv.plan){ cv.plan.bench = 0; cv.plan.cage = null; cv.plan.benchSaid = false; } }   // nobody stays folded away by accident
   if(cv.routine && !cv.errand && !castBusy(cv) && state.portDock && !state.deckCombat) return routineTick(cv, dt);
   const er = cv.errand;
   if(!er) return false;
@@ -9825,6 +9826,13 @@ function errandTick(cv, dt){
       if(cr && cr.at && tgt.kind === 'constable' && !tgt.respond && !tgt.hunt && !tgt.chase && cv.kind !== 'keeper'){
         tgt.scene = {x: cr.at.x, y: cr.at.y, what: cr.what};   // straight to where it happened
         addPopup(tgt.x, tgt.y - (tgt.r || 9) - 14, 'SHOW ME WHERE', '#b06ae0');
+      }
+      if(cv.routine && cr && cr.who){
+        // (Ben, 5 Nov) a shopkeeper who went for a badge over someone in the shop walks back to finish closing, the officer behind
+        cv.errand = {kind: 'home', path: [], leg: 0, waitT: 0};
+        if(tgt.kind === 'constable' && !tgt.respond && !tgt.hunt && !tgt.chase && !tgt.arrest && !tgt.inv){ tgt.escort = cv; addPopup(tgt.x, tgt.y - (tgt.r || 9) - 14, 'SHOW ME', '#b06ae0'); }
+        bzSet({lawAware: true, varricKnows: true, copT: 0, copHunt: bzCrewHoldsHere()});
+        return true;
       }
       if(cv.kind === 'keeper' && cv.home){
         // a keeper doesn't file and forget: she leads the law back to her floor
@@ -12149,14 +12157,8 @@ function erinaAccept(c){
   ship.erinaJobs = true;
   ship.erinaJob = {state: 'open', day: ship.day || 0};
   erinaIdx();
-  // the rifle: into a pocket if there is one, else to the ship's rack
-  const op = c || pc();
-  const gift = {kind: 'weapon', key: 'dart', mods: wpnRoll('dart', 1)};
-  if(op && op.def){
-    if(!Array.isArray(op.def.pack)) op.def.pack = [];
-    if(op.def.pack.length < 4){ op.def.pack.push(gift); addPopup(op.x, op.y - op.r - 14, 'DART RIFLE \u00B7 FROM ERINA', '#9fe0d8'); }
-    else{ ship.armoury.push(armEntry('dart', gift)); addPopup(op.x, op.y - op.r - 14, 'DART RIFLE \u00B7 SENT TO THE SHIP', '#9fe0d8'); }
-  }
+  // (Ben, 5 Nov) the rifle is a moment, not a line in a pack: she asks who takes it, and nobody with a hand free leaves it on the counter
+  rifleOffer(c || pc());
   missionStart('liveone');
   quietFor(15000);
   chronicle('event', 'Erina Jones put a dart rifle on the counter and the crew\u2019s name against a Glass Hound. The service hatch is on the freight side of the Cross.');
@@ -12164,6 +12166,42 @@ function erinaAccept(c){
   // the camera: over to the hatch, the banner lands, back to the crew, then the hands are theirs again
   const dr = (state.doors || []).find(d => d.den === 'warren');
   if(dr) camTour(dr.x, dr.y, 2600);
+  return true;
+}
+// the counter: a dart rifle across it, and the question of whose hands
+function rifleOffer(c){
+  const gift = {kind: 'weapon', key: 'dart', mods: wpnRoll('dart', 1)};
+  const erina = (state.civs || []).find(cv => cv.name === 'Erina Jones' && cv.alive);
+  const crew = (state.squad || []).filter(o => o.alive && o.def);
+  const give = (op) => {
+    if(!Array.isArray(op.def.pack)) op.def.pack = [];
+    op.def.pack.push(gift);
+    addPopup(op.x, op.y - op.r - 14, 'DART RIFLE \u00B7 ' + op.name.toUpperCase() + ' HAS IT', '#9fe0d8');
+    if(erina) civSay(erina, 'Darts, not lead. It is on loan until the hound is on my floor.', 9);
+    ship.erinaJob.rifle = op.name;
+    chronicle('event', 'Erina slid a dart rifle across the counter and ' + op.name + ' took it. Darts, not lead, she said; it is on loan until the hound is on her floor.');
+    if(typeof syncWeaponButtons === 'function') syncWeaponButtons();
+    shipSave();
+  };
+  const counter = () => {
+    const pt = erinaCounterPoint();
+    const cc = cacheAt(pt.x * W + 30, pt.y * H + 10);
+    cc.name = 'Erina\u2019s counter \u00B7 the dart rifle'; cc.loot.push(gift);
+    ship.erinaJob.rifle = 'counter';
+    addPopup(cc.x, cc.y - 20, 'DART RIFLE \u00B7 ON THE COUNTER', '#9fe0d8');
+    if(erina) civSay(erina, 'Nobody with a hand free. It stays on the counter. Make room and take it before you go down.', 10);
+    chronicle('event', 'Erina put a dart rifle on the counter. Nobody in the crew had a hand free, so there it stays: make room and pick it up before the hatch.');
+    shipSave();
+  };
+  const free = crew.filter(o => (o.def.pack || []).length < 4);
+  if(!free.length){ counter(); return true; }
+  const btns = crew.map(o => ({label: o.name.toUpperCase() + ' \u00B7 ' + (o.def.pack || []).length + '/4' + ((o.def.pack || []).length >= 4 ? ' \u00B7 FULL' : ''), cb: () => { if((o.def.pack || []).length < 4) give(o); else { addPopup(o.x, o.y - o.r - 14, 'NO ROOM', '#e0a33e'); counter(); } }}));
+  btns.push({label: 'LEAVE IT ON THE COUNTER', cb: counter});
+  if(erina) civSay(erina, 'Whose hands?', 6);
+  const shown = showEventModal('ERINA JONES \u00B7 THE RIFLE',
+    'She lifts a dart rifle onto the counter, barrel toward herself, and looks along the crew. \u201CWhose hands? It is on loan. Darts, not lead; the hound comes back breathing or I do not pay.\u201D',
+    btns, {sub: 'A DART RIFLE \u00B7 ' + free.length + ' OF ' + crew.length + ' HAVE ROOM'});
+  if(shown === false){ const op = (c && (c.def.pack || []).length < 4) ? c : free[0]; give(op); }
   return true;
 }
 function hatchEnter(){
@@ -13729,7 +13767,8 @@ function missionNext(id){
     }
     if(j.state === 'dead') return 'The hound is dead. Tell Erina Jones at her counter; she pays the rug rate.';
     if(state._hatchRun) return 'In the warren: bring the Glass Hound down alive (darts, goad, screamer, fists) and carry it to the hatch.';
-    return 'Take the whole crew down the service hatch, freight side of the Cross, by the east arch.';
+    if(j.rifle === 'counter') return 'The dart rifle is on Erina\u2019s counter: make room in a pack and pick it up. Then the whole crew down the service hatch, freight side, by the east arch.';
+    return 'Take the whole crew down the service hatch, freight side of the Cross, by the east arch.' + (j.rifle ? ' ' + j.rifle + ' has the dart rifle.' : '');
   }
   if(id === 'whyme'){
     if(ms.state !== 'open') return 'The lead paid off: the unit on Tallow Street was the address.';
@@ -14617,7 +14656,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '4 Nov \u00B7 THE BEACON, LATE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 WHOSE HANDS';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15807,7 +15846,7 @@ function routineTick(cv, dt){
     if(cv.plan.step === 'open' && shopInside(sk, cv)){ cv.plan.done = true; shopLock(sk, false); }
   }
   let p = cv.plan;
-  if(p.done && p.idx + 1 < rt.day.length && rt.day[p.idx + 1].at <= now) p = cv.plan = planNew(rt, p.idx + 1);
+  if(p.done && p.idx + 1 < rt.day.length && rt.day[p.idx + 1].at <= now){ if(cv.hidden){ cv.hidden = false; popOver(cv, 'BACK FROM THE CAGES', '#8a93b8'); } p = cv.plan = planNew(rt, p.idx + 1); }
   const st = rt.day[p.idx];
   p.t += dt;
   if(st.do === 'help') return helperTick(cv, p, sk, dt);
@@ -16173,7 +16212,13 @@ function beaconTalk(cv, p, bar, dt){
   const tarn = tarnAtBar(bar);
   const juni = (state.civs || []).find(c => c.name === 'Juni' && c.alive && !c.gone);
   p.chatT = (p.chatT || 0) + dt;
-  if(tarn){
+  if(p.chatWith && !tarn && p.chatN < 6 && !p.chatEnded){
+    // he went early: the talk stops where it is
+    p.chatEnded = true; p.chatT = 0;
+    if(juni) civSay(cv, 'He goes early, these days.', 8);
+    chronicle('event', 'Tarn left the Beacon mid-conversation. Erina finished her drink with Juni.');
+  }
+  if(tarn && !p.chatEnded){
     if(!p.chatWith){
       p.chatWith = 'Tarn'; p.chatN = 0; p.chatT = 6;
       chronicle('event', 'Erina sat down next to Tarn at the Beacon. They do not always talk; tonight they did.');
@@ -16471,6 +16516,8 @@ function routineIdle(cv, p, sk, dt){
   if(p.step === 'floor' && (cv.name === 'Tarn' ? tarnPeople(cv, p, sk, dt) : shopPeople(cv, p, sk, dt))) return true;
   if(p.bench){
     p.bench -= dt;
+    // (Ben, 5 Nov) a customer on her floor brings her out: the stint ends when the crew is in the front room
+    if(sk === 'erina' && cv.hidden){ const fr = sh.front; if((state.squad || []).some(c => c.alive && c.x > fr.x0 * W && c.x < fr.x1 * W && c.y > (fr.y0 - 0.06) * H && c.y < fr.y1 * H)) p.bench = Math.min(p.bench, 4); }
     if(sk === 'erina' && !p.cage) p.cage = houndHome() && Math.random() < 0.5 ? 'grass' : ['grass', 'forest', 'desert'][Math.floor(Math.random() * 3)];
     const bpt = sk === 'erina' ? cageDoorPt(p.cage) : anchorPt(sk, 'bench');
     if(routineGo(cv, bpt, dt) && !p.benchSaid){
@@ -16478,12 +16525,16 @@ function routineIdle(cv, p, sk, dt){
       if(sk === 'erina'){ cv.hidden = true; popOver(cv, 'INTO ' + CAGES[p.cage].door, '#8a93b8'); chronicle('event', 'Erina went through the back and into ' + CAGES[p.cage].name.toLowerCase() + '. The door did not open; she just was not there.'); }
       else popOver(cv, sh.benchLabel || 'AT THE BENCH', '#8a93b8');
     }
-    if(p.bench <= 0){ p.bench = 0; p.benchSaid = false; p.to = null; if(cv.hidden){ cv.hidden = false; popOver(cv, 'BACK FROM ' + CAGES[p.cage].door, '#8a93b8'); } p.cage = null; }
+    if(p.bench <= 0){ p.bench = 0; p.benchSaid = false; p.to = null; p.lastBench = performance.now(); if(cv.hidden){ cv.hidden = false; popOver(cv, 'BACK FROM ' + CAGES[p.cage].door, '#8a93b8'); } p.cage = null; }
     return true;
   }
   p.wt = (p.wt || 0) - dt;
   if(!p.to || p.wt <= 0 || Math.hypot(p.to.x - cv.x, p.to.y - cv.y) < 16){
-    if(Math.random() < 0.08 && p.step === 'floor'){ p.bench = 60 + Math.random() * 60; return true; }   // a job on the bench
+    // a job on the bench: Tarn now and then; Erina rarely, briefly, and not twice in a quarter of an hour (Ben, 5 Nov: she lives at the counter)
+    if(p.step === 'floor'){
+      if(sk === 'erina'){ if(Math.random() < 0.015 && (!p.lastBench || performance.now() - p.lastBench > 240000)){ p.bench = 25 + Math.random() * 20; return true; } }
+      else if(Math.random() < 0.08){ p.bench = 60 + Math.random() * 60; return true; }
+    }
     p.to = {x: (sh.front.x0 + Math.random() * (sh.front.x1 - sh.front.x0)) * W, y: (sh.front.y0 + Math.random() * (sh.front.y1 - sh.front.y0)) * H};
     p.wt = 3 + Math.random() * 6;
   }
