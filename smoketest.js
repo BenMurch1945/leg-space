@@ -7862,6 +7862,42 @@ const qn2 = (() => {
 })();
 console.log('QN2 the news:', qn2.ok ? 'PASS' : 'FAIL', qn2.ok ? '' : JSON.stringify(qn2));
 
+// QN3 (Ben, 5 Nov) the empty wood still turns: Qilin darted and carried, the whole party dead, the crew ends its turn; the turn
+// must come back (it froze at zero AP), the party calls for more, and two turns on the reinforcements are in the trees
+const qn3 = (() => {
+  const {crew} = dnSetup(); const hero = crew[0]; G.state.sel = 0; hero.def.pack = [];
+  G.ship.erinaJob = {state: 'paid', alive: true, carrier: hero.name};
+  const erina = G.state.civs.find(cv => cv.name === 'Erina Jones');
+  G.qilinGive(erina); G.charterClear();
+  const door = G.state.doors.find(d => d.to === 'hangar');
+  for(const c of crew){ c.x = door.x + 300; c.y = door.y - 300; } pump(2, 16);
+  for(const c of crew){ c.x = door.x; c.y = door.y - 20; } pump(2, 16);
+  G.charterConsole(); spFly(); G.dismissBrief();
+  const crewL = G.state.squad, heroL = crewL[0]; G.state.sel = 0;
+  G.state.turn = 3; G.qilinTurnStart();
+  const party = G.state.enemies.filter(e => e.type === 'poacher');
+  // the Qilin, darted and in the hero's arms; the party, all dead on the ground
+  const q = G.qilinFoe(); q.ko = true; q.sed = 99; pump(3, 16);
+  const darted = !!G.state.pkg && G.state.pkg.live === false && !G.state.enemies.includes(q);
+  G.state.pkg.carried = heroL; G.state.pkgFound = true;
+  for(const e of party){ e.alive = false; e.hp = 0; }
+  const t0 = G.state.turn;
+  for(const c of crewL) c.ap = 0;
+  pump(90, 16);
+  const turned = G.state.phase === 'player' && G.state.turn === t0 + 1 && G.state.poacherCall === t0 + 2;
+  for(const c of crewL) c.ap = 0; pump(90, 16);
+  const turned2 = G.state.phase === 'player' && G.state.turn === t0 + 2;
+  for(const c of crewL) c.ap = 0; pump(90, 16);
+  const more = G.state.enemies.filter(e => e.type === 'poacher' && e.alive);
+  const came = more.length === 2 && G.state.poacherSpawned === 7 && G.state.turn >= t0 + 2 && G.state.poacherCall === null;
+  // and with live hunters the ordinary enemy turn runs and comes back
+  for(const c of crewL) c.ap = 0; pump(400, 16);
+  const back = G.state.phase === 'player' && G.state.pkg && G.state.pkg.carried === heroL;
+  G.undockToDeck(); G.doShipReset();
+  return {ok: darted && turned && turned2 && came && back, darted, turned, turned2, came, back, turn: G.state.turn, phase: G.state.phase};
+})();
+console.log('QN3 the empty wood:', qn3.ok ? 'PASS' : 'FAIL', qn3.ok ? '' : JSON.stringify(qn3));
+
 
 // BT1 a new game straight off the boot range builds the Cross in its own world, not the range's
 const bt1 = (() => {

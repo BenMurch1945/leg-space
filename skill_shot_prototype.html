@@ -14985,7 +14985,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 NERVE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 THE EMPTY WOOD';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -19841,6 +19841,13 @@ function startEnemyTurn(){
   }
   const s = state;
   const alive = s.enemies.filter(e => e.alive && !e.ko);
+  // (Ben, 5 Nov) the wood with nobody left standing in it still has turns: the party calls for more, the darted Qilin is carried,
+  // the clock has to move. Without this the player phase sat at zero AP with no enemy turn to hand over to.
+  if(!alive.length && !s.over && (currentLevel().qilin || currentLevel().charter)){
+    s.phase = 'enemy';
+    s.worldBeatT = performance.now() + 700;
+    return;
+  }
   if(!alive.length || s.over) return;
   // alarm fades slowly, going loud can't be quickly taken back
   for(const e of alive){
