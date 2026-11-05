@@ -5040,9 +5040,9 @@ const ov1 = (() => {
   const erinaBuys = e.length === 1 && e[0].it.key === 'dart' && e[0].price === 100;
   // Hask: anything, marked included, at thirty-five
   const h = G.sellableTo('Hask', hero);
-  const haskBuys = h.length === 4 && h.some(o => o.it.key === 'pistol' && o.price === Math.round(140 * 0.35)) && h.some(o => o.it.kind === 'trinket' && o.price === 20);
+  const haskBuys = h.length === 4 && h.some(o => o.it.key === 'pistol' && o.price === Math.round(140 * 0.35)) && h.some(o => o.it.kind === 'trinket' && o.price === 14);   // (5 Nov) Hask pays thirty-five on the hundred for oddments too
   // Fenn and Hesper buy nothing; Kestrel refuses the marked pistol
-  const none = G.sellableTo('Fenn', hero).length === 0 && G.sellableTo('Hesper Dunmore', hero).length === 0 && G.sellOffer('Kestrel', hero.def.pack[3]) == null && G.sellOffer('Kestrel', hero.def.pack[0]) === 150;
+  const none = G.sellableTo('Fenn', hero).length === 1 && G.sellableTo('Fenn', hero)[0].it.kind === 'trinket' && G.sellableTo('Hesper Dunmore', hero).length === 0 && G.sellOffer('Kestrel', hero.def.pack[3]) == null && G.sellOffer('Kestrel', hero.def.pack[0]) === 150;   // (5 Nov) Fenn takes the oddment for the shelf
   // the sale to Tarn: credits, the locker, the mood, the drive
   const sh = G.shopByKeeper('Tarn');
   const l0 = sh.locker.length, cr0 = G.ship.credits, s0 = (G.lifeOf('Tarn').sales || []).reduce((a, x) => a + x.n, 0);
@@ -5487,6 +5487,28 @@ const sgn1 = (() => {
   return {ok: placed && notYet && read && once && atCounter && back && shut && card && kept, placed, notYet, read, once, atCounter, back, shut, card, kept};
 })();
 console.log('SGN1 the sign inside the door:', sgn1.ok ? 'PASS' : 'FAIL', sgn1.ok ? '' : JSON.stringify(sgn1));
+
+// TK1 (Ben, 5 Nov) trinkets have somewhere to go: Fenn at forty on the hundred, marked or not, with a word and a shelf;
+// Hask at thirty-five; Kestrel at guild rate for clean ones and not at all for somebody else's; Erina and Tarn do not want them
+const tk1 = (() => {
+  const quiet = () => { G.state.quietUntil = performance.now() + 1e7; G.state.respT = performance.now() + 1e7; G.state.crimeT = performance.now() + 1e7; G.state.faceT = performance.now() + 1e7; };
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT;
+  G.doShipReset(); G.ship.clock = 17 * 60; G.enterPort('cross'); quiet();
+  const hero = G.state.squad[0]; G.state.sel = 0;
+  const marked = {kind: 'trinket', label: 'Brass Compass', value: 20, own: 'a dead porter'};
+  const clean = {kind: 'trinket', label: 'Glass Bead', value: 20};
+  const prices = G.sellOffer('Fenn', marked) === 8 && G.sellOffer('Fenn', clean) === 8 && G.sellOffer('Hask', marked) === 7 && G.sellOffer('Hask', clean) === 7 &&
+    G.sellOffer('Kestrel', marked) === null && G.sellOffer('Kestrel', clean) === 10 && G.sellOffer('Erina Jones', clean) === null && G.sellOffer('Tarn', clean) === null;
+  // the sale to Fenn: credits, the pack, the shelf, the word
+  const fenn = G.state.civs.find(cv => cv.name === 'Fenn');
+  hero.def.pack = [marked]; hero.x = fenn.x + 30; hero.y = fenn.y;
+  const cr0 = G.ship.credits;
+  const sold = G.sellTo('Fenn', hero, 0) && G.ship.credits === cr0 + 8 && hero.def.pack.length === 0 && G.ship.curios && G.ship.curios.Fenn.length === 1 && G.ship.curios.Fenn[0].from === 'a dead porter' &&
+    (G.state.barks || []).some(bk => bk.c === fenn && /story goes with it/.test(bk.txt)) && G.lifeOf('Fenn').record.some(r => /behind the bar/.test(r.text));
+  G.undockToDeck(); G.doShipReset();
+  return {ok: prices && sold, prices, sold};
+})();
+console.log('TK1 oddments:', tk1.ok ? 'PASS' : 'FAIL', tk1.ok ? '' : JSON.stringify(tk1));
 console.log('NC2 the scene is set, the ending is yours:', nc2.ok ? 'PASS' : 'FAIL',
   `(promoted ${nc2.promoted}, seen ${nc2.seen}, slink ${nc2.slinking}, told ${nc2.told}, away ${nc2.away}, rumbled ${nc2.rumbled}, fights ${nc2.fights}, murder ${nc2.murder})`);
 

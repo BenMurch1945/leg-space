@@ -14104,10 +14104,11 @@ function sellable(it){ return !it.kind || it.kind === 'trinket'; }
 // and the piece goes into their stock. Marked goods are refused by the honest and bought cheap by the rest. ----
 const KEEPER_BUYS = {
   'Tarn':        {kinds: ['weapon'], marked: 'fence', line: 'Iron. I buy iron, if it works. Show me.'},
-  'Kestrel':     {kinds: ['weapon', 'gear'], marked: 'refuse', line: 'Guild rates for guild goods. Nothing with a name on it that is not yours.'},
+  'Kestrel':     {kinds: ['weapon', 'gear', 'trinket'], marked: 'refuse', line: 'Guild rates for guild goods. Nothing with a name on it that is not yours.'},
   'Erina Jones': {kinds: ['weapon'], keys: ['dart', 'goad', 'screamer'], marked: 'refuse', line: 'Catching kit only. I have no use for a cannon.'},
-  'Hask':        {kinds: ['weapon', 'gear', 'trinket'], marked: 'any', rate: 0.35, line: 'Anything. Especially the kind of anything with somebody else\u2019s name on it.'},
-  'Fenn':        {kinds: [], line: 'I pour. I do not buy. Try Tarn, or Hask if it is warm.'},
+  'Hask':        {kinds: ['weapon', 'gear', 'trinket'], marked: 'any', rate: 0.35, clean: 0.35, line: 'Anything. Especially the kind of anything with somebody else\u2019s name on it.'},
+  // (Ben, 5 Nov) trinkets have somewhere to go: Fenn takes curios for the shelf behind the bar and does not ask whose they were
+  'Fenn':        {kinds: ['trinket'], marked: 'any', rate: 0.4, clean: 0.4, line: 'I pour, and I keep a shelf of oddments behind the bar for the regulars to argue about. Show me what you have. Iron goes to Tarn.'},
   'Hesper Dunmore': {kinds: [], line: 'Hulls and pilots. When you have a hull to sell, we talk.'},
 };
 function keeperBuys(name){ return KEEPER_BUYS[name] || null; }
@@ -14130,7 +14131,7 @@ function sellOffer(name, it){
   let k = 1;
   if(mF.f >= 2 || mF.j >= 1.5) k = 1.1;   // nervous or glad: a little over
   if(mF.t <= -1.5) k = 0.8;              // grudging: a little under
-  return Math.max(1, Math.round(list * SELL_RATE * k));
+  return Math.max(1, Math.round(list * (kb.clean || SELL_RATE) * k));
 }
 function sellableTo(name, c){
   const d = c && c.def; if(!d) return [];
@@ -14146,6 +14147,13 @@ function sellTo(name, c, idx){
   if(marked && keeperBuys(name).marked === 'fence') return tarnFenceSell(c, it);
   d.pack.splice(idx, 1);
   ship.credits += price;
+  if(it.kind === 'trinket'){
+    const cv = (state.civs || []).find(c2 => c2.name === name && c2.alive);
+    const shelf = ship.curios = ship.curios || {}; shelf[name] = (shelf[name] || []).concat([{label: lootLabelOf(it), from: it.own || null, day: ship.day || 0}]).slice(-12);
+    if(cv) civSay(cv, name === 'Fenn' ? (it.own ? 'A ' + lootLabelOf(it).toLowerCase() + '. Somebody\u2019s, once. It goes on the shelf and the story goes with it.' : 'A ' + lootLabelOf(it).toLowerCase() + '. The regulars will have a theory about it by closing.')
+      : name === 'Hask' ? 'Pretty. Forgotten already.' : 'Guild stock, then. Clean.', 8);
+    if(name === 'Fenn' && it.own) lifeNote('Fenn', 'put a ' + lootLabelOf(it).toLowerCase() + ' that was ' + it.own + '\u2019s behind the bar');
+  }
   const sh = shopByKeeper(name);
   if(sh && it.kind === 'weapon'){
     const stockIt = {kind: 'weapon', key: it.key, mods: it.mods, price: Math.round((WPN_PRICE[it.key] || 60) * 0.9), gone: false, own: name + ' \u00B7 shop stock', ownFac: null, hot: marked || undefined};
@@ -14666,7 +14674,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 THE SIGN INSIDE THE DOOR';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 ODDMENTS';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {

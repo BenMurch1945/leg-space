@@ -188,6 +188,11 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Caveats: the beat makes him a constable for four hours, so he will collar thieves and could be shot as the law; the `deal` on a night the crew is elsewhere still happens (the abstract off-screen day is only the clock, not simulated events); Sable has one line.
 - Test `LV1` (pressures, the badge offer with Marek walking up, the deputy's day and beat, the courier's offer, the deal night watched by the crew and a badge, the report, the arrest, the shift respecting the cells, save/load/reset). 415 tests.
 
+### Oddments (5 Nov)
+- Trinkets sell across the counters: `KEEPER_BUYS` Fenn `{kinds: ['trinket'], marked: 'any', rate 0.4, clean 0.4}`, Hask `clean: 0.35` (he always took them; now at his own rate clean or marked), Kestrel adds `trinket` (guild rate, clean only, so most loot trinkets, which carry the dead's name, go to Fenn or Hask). `sellOffer` uses `kb.clean || SELL_RATE` for clean goods.
+- `sellTo` for a trinket: a line from the buyer (Fenn's shelf of oddments "and the story goes with it", Hask "Pretty. Forgotten already.", Kestrel "Guild stock, then."), `ship.curios[name]` keeps the last twelve with whose they were, and Fenn gets a `lifeNote` for a named one.
+- Test `TK1`; `OV1` updated for the new rates. 428 tests.
+
 ### The sign inside the door (5 Nov)
 - **Data**: `SHOP_DOSSIER = {erina, tarn}` (sign, tag, owner, staff, story, sells, buys, how) and `CAST_STORY = {'Erina Jones', 'Juni', 'Tarn'}` (the long-form backstories; this is where character writing now lives). `SHOPS[sk].anchors.sign` places the plaque just inside each door (Erina 0.645/0.678, Tarn 0.218/0.241).
 - **The plaque**: drawn on the Cross (brass rect, SIGN, the shop's name under it, a pulse until read); `signAt(x,y)` (26 px) feeds the hover (`showSignTip`: sign, tag, owner and staff, the live line) and a click (`openShopDossier`). `ship.signsSeen[sk]` is set the first time; `signTick()` (free-roam tick) opens the card the first time any crew member is `shopInside`, with a chronicle line.
