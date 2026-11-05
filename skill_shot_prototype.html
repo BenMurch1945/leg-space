@@ -2458,8 +2458,8 @@ const GANNET_HULL = [
   {x: 0.500, y: 0.555, w: 0.012, h: 0.095, high: true},
   {x: 0.628, y: 0.350, w: 0.012, h: 0.105, high: true},   // the bulkhead to the bridge, with a door in the middle
   {x: 0.628, y: 0.545, w: 0.012, h: 0.105, high: true},
-  {x: 0.522, y: 0.372, w: 0.050, h: 0.022},                // bunks and the mess table: low cover
-  {x: 0.522, y: 0.606, w: 0.050, h: 0.022},
+  {x: 0.508, y: 0.372, w: 0.040, h: 0.022},                // bunks and the mess table: low cover, clear of the airlocks
+  {x: 0.508, y: 0.606, w: 0.040, h: 0.022},
   {x: 0.585, y: 0.488, w: 0.030, h: 0.024},
   // the bridge, in the nose: small
   {x: 0.640, y: 0.410, w: 0.110, h: 0.012, high: true},
@@ -2496,6 +2496,7 @@ function gannetHullIn(PW, PH, cx, cy){
   // the ramp and both airlocks are carved: three ways off her
   const hatches = GANNET_HATCHES.map(h => ({x: h.x * sx + ox, y: h.y * sy + oy, side: h.side, main: !!h.main}));
   for(const h of hatches) carveDoorF(hull, h, PW, PH, 56);
+  coverClearOfDoors(hull, hatches, PW, PH);
   const hatch = hatches[0];
   const out = {x: hatch.x, y: hatch.y - 70 / PH};   // where the crew stands when they have come down the ramp
   const zone = {x0: 0.25 * sx + ox, y0: 0.32 * sy + oy, x1: 0.75 * sx + ox, y1: 0.68 * sy + oy};
@@ -5185,7 +5186,9 @@ function openInspect(e){
   const range = Math.round(arch.shotSpeed * arch.shotLife);
   const stateCol = e.morale === 'steady' ? '#6fd6ff' : e.morale === 'shaken' ? '#e0a33e' : '#e0483e';
   inspectEl.innerHTML =
-    '<h3 style="color:' + arch.color + '">' + arch.label + '</h3>' +
+    '<h3 style="color:' + arch.color + '">' + (e.name ? e.name.toUpperCase() : arch.label) + '</h3>' +
+    (e.name ? '<div class="csdesc" style="margin:-4px 0 6px;color:rgba(232,224,204,.6)">' + arch.label.toUpperCase() + (e.race ? ' \u00B7 ' + e.race + (e.sex ? ' \u00B7 ' + e.sex : '') : '') + (e.faction ? '<br>' + e.faction : '') + '</div>' : '') +
+    (e.wpnKey ? statRow('CARRIES', WPN_NAMES[e.wpnKey] || e.wpnKey) : '') +
     statRow('HP', Math.ceil(e.hp) + ' / ' + e.maxHp) +
     statRow('MOVE', Math.round(arch.moveRange)) +
     statRow('DMG', arch.dmg + (arch.pellets > 1 ? ' ×' + arch.pellets : '')) +
@@ -5202,7 +5205,9 @@ function openInspect(e){
     '<div class="csdesc">' +
       (isFearless(e) ? 'stress washes off them entirely' : (MORALE_DESC[e.morale] || '')) +
       (sedState(e) !== 'alert' ? '<br>' + sedState(e) + ': ' + SED_DESC[sedState(e)] : '') +
-    '</div>';
+    '</div>' +
+    (e.bio ? '<div class="csdesc" style="margin-top:6px;color:rgba(232,224,204,.85)">' + e.bio + '</div>' : '') +
+    (e.story ? '<div class="csdesc" style="margin-top:6px;font-style:italic;color:rgba(232,224,204,.6)">' + e.story + '</div>' : '');
   // clamp near the enemy inside the play area
   positionInspect(e);
 }
@@ -5517,6 +5522,7 @@ function renderObjectives(){
       : q && q.tamed ? (qilinAboard() ? '<span class="ok">✓ The Qilin is aboard; press the console</span>' : '◈ The Qilin follows your lead; walk it through the Gannet\u2019s hatch')
       : s.pkg && s.pkg.carried ? '◈ Carry the darted Qilin aboard the Gannet (Erina will know)'
       : s.pkg && !s.pkg.live ? '◈ Pick up the darted Qilin before it wakes'
+      : !(s.qilinFood > 0) && !(q && q.trust >= 3) ? '◈ Nobody brought Erina\u2019s feed (it is on her counter or in a pack at home). Dart it and carry it, or lift and come back with the satchel.'
       : '◈ Tame the Qilin: feed thrown near it, three times (' + (s.qilinFood || 0) + ' left) \u00B7 trust ' + (q ? q.trust || 0 : 0) + '/3 \u00B7 walk, do not run at it';
   }else if(s.pkg){
     const qLabel = s.pkg.quarry ? (ARCHETYPES[s.pkg.quarry] || {}).label || 'the quarry' : null;
@@ -11587,6 +11593,32 @@ const SPINDLE_LEVEL = buildSpindleLevel();
 // will not be caught and must not be killed, woodland friends that call out when anything comes near, a hunting party of five
 // with more behind them, and a satchel of Erina's feed. Three mouthfuls and it follows you home. ----
 const QILIN_NAMES = {leader: 'Dace Morrow', party: ['Hollis', 'Pell', 'Garrow', 'Vint', 'Sabb', 'Orrin Tace', 'Mell', 'Kettering']};
+// (Ben, 5 Nov) the party, as people: the player learns the world through its faces, so the faces are filled in
+const POACHERS = {
+  'Dace Morrow': {race: 'HUMAN', sex: 'MALE', wpn: 'rifle', bio: 'Leads the party. A licensed trapper once, until the licence went; he kept the rifle and the manner.',
+    story: 'Dace Morrow trapped under licence for the Garn reserves for eleven years, and was good at it, and was let go the year the reserves were sold. He went on trapping. He takes work from buyers who want things alive and do not ask how, keeps a party of people who owe him, and has never once been to the Cross, which is why Erina has never been able to find him. He wants the Qilin because somebody is paying four times what she can, and because it would be the best thing he ever caught.'},
+  'Hollis':      {race: 'MINOTAUR', sex: 'MALE', wpn: 'sawnoff', bio: 'Morrow\u2019s net man. Big, slow, patient, and the one who actually gets the net on.',
+    story: 'Hollis was a dock hand on Garn until a crate fell on his brother and the line paid nothing. Morrow paid for the funeral. He has thrown nets for him ever since and does not think of it as a choice.'},
+  'Pell':        {race: 'AMAROK', sex: 'FEMALE', wpn: 'carbine', bio: 'The tracker. Reads a glade the way other people read a face.',
+    story: 'Pell grew up in a wood like this one and left it when it was cut. She does not like Morrow and does not like nets; she likes being the one who finds the thing first, and nobody else will pay her for that.'},
+  'Garrow':      {race: 'HUMAN', sex: 'MALE', wpn: 'pistol', bio: 'Young, loud, and carries the party\u2019s water. Shoots at anything that moves.',
+    story: 'Garrow is nineteen and told his mother he was crewing a freighter. He has never seen a Qilin. He has never seen most things.'},
+  'Vint':        {race: 'VAMPIRE', sex: 'FEMALE', wpn: 'rifle', bio: 'The party\u2019s second gun. Says little; misses less.',
+    story: 'Vint was a marksman for a line that stopped paying, then for a man who stopped breathing, then for Morrow. She keeps a tally of what the party has caught and what it was sold for, and she has done the arithmetic on her share.'},
+  'Sabb':        {race: 'MINOTAUR', sex: 'FEMALE', wpn: 'sawnoff', bio: 'Reinforcement. Came in from the hull when the party called.',
+    story: 'Sabb minds Morrow\u2019s hull between jobs and comes out of it when somebody is dead. She would rather be in the hull.'},
+  'Orrin Tace':  {race: 'HUMAN', sex: 'MALE', wpn: 'carbine', bio: 'Reinforcement. An old hand of Morrow\u2019s, back for one more.',
+    story: 'Orrin Tace trapped with Morrow in the licensed years and quit when the licence went. He came back for this one because Morrow asked, and because the money would clear a debt on Garn that has a knife attached to it.'},
+  'Mell':        {race: 'AMAROK', sex: 'MALE', wpn: 'pistol', bio: 'Reinforcement. Pell\u2019s cousin; here because she is.',
+    story: 'Mell followed Pell into the party the way he followed her into everything. He is not a good shot and knows it.'},
+  'Kettering':   {race: 'HUMAN', sex: 'FEMALE', wpn: 'rifle', bio: 'Reinforcement. The buyer\u2019s own eyes on the job.',
+    story: 'Kettering does not work for Morrow; she works for the man paying him, and she is here to make sure the Qilin arrives. She has a hull of her own somewhere and a contract that names a price for Erina Jones too, if it comes to that.'},
+};
+function poacherDress(e, name){
+  const d = POACHERS[name] || {race: 'HUMAN', sex: 'MALE', wpn: 'pistol', bio: 'One of Morrow\u2019s.', story: ''};
+  e.name = name; e.race = d.race; e.sex = d.sex; e.wpnKey = d.wpn; e.bio = d.bio; e.story = d.story;
+  e.faction = 'MORROW\u2019S PARTY \u00B7 HUNTERS'; e.hunter = true;
+}
 let QILIN_LEVEL = null;
 function buildQilinLevel(){
   const PW = 3200, PH = 2000;
@@ -11668,10 +11700,15 @@ function qilinGive(cv){
   if(!charterFresh()) return false;
   ship.charter = {job: 'qilin', state: 'ticket', day: ship.day || 0, due: 900, rescued: false, food: 6};
   const cube = cubeItem('passage', 'Erina Jones', null);
-  counterHandover(cube, {label: 'the passage cube and the satchel of feed', short: 'PASSAGE CUBE', title: 'ERINA JONES\nTHE PASSAGE',
-    ask: 'She puts the cube and a satchel of her feed on the counter together. \u201CWhose hands? Hesper reads the cube; the feed you throw. Lose either and the wood keeps the Qilin.\u201D',
+  const satchel = feedItem(6);
+  const thenFeed = () => counterHandover(satchel, {label: 'the satchel of feed', short: 'THE FEED', title: 'ERINA JONES\nTHE FEED',
+    ask: 'The satchel next. \u201CSix handfuls. Thrown, not held out; it will not take from a hand. Whoever carries this is the one who has to stand still.\u201D',
+    say: 'Three mouthfuls and it is yours. Lose the satchel and the wood keeps it.', counterName: 'Erina\u2019s counter \u00B7 the feed', pc: pc(),
+    onTaken: (op) => { ship.charter.feedWith = op.name; }, onCounter: () => { ship.charter.feedWith = 'counter'; }});
+  counterHandover(cube, {label: 'the passage cube', short: 'PASSAGE CUBE', title: 'ERINA JONES\nTHE PASSAGE',
+    ask: 'She puts the cube on the counter. \u201CWhose hands? Hesper reads it and opens the hangar. Then the feed.\u201D',
     say: 'Hesper has the hull. Bring it back breathing or do not bring it back.', counterName: 'Erina\u2019s counter \u00B7 the passage', pc: pc(),
-    onTaken: (op) => { ship.charter.cubeWith = op.name; }, onCounter: () => { ship.charter.cubeWith = 'counter'; }});
+    onTaken: (op) => { ship.charter.cubeWith = op.name; thenFeed(); }, onCounter: () => { ship.charter.cubeWith = 'counter'; thenFeed(); }});
   missionStart('qilin');
   moodPush('Erina Jones', {a: 1.5, t: 0.3}, 'sent the crew for the Qilin', 'trade');
   quietFor(SIT_GAP_MS);
@@ -11845,13 +11882,13 @@ function qilinSetup(){
   for(const e of state.enemies){
     if(e.type !== 'poacher') continue;
     const def = QILIN_LEVEL.enemies.find(d => d.type === 'poacher' && Math.abs(d.x * W - e.home.x) < 1 && Math.abs(d.y * H - e.home.y) < 1);
-    e.name = (def && def.leader) ? QILIN_NAMES.leader : QILIN_NAMES.party[k++ % QILIN_NAMES.party.length];
-    e.leader = !!(def && def.leader); e.hunter = true;
-    if(e.leader) e.wpnKey = 'rifle';
+    poacherDress(e, (def && def.leader) ? QILIN_NAMES.leader : QILIN_NAMES.party[k++ % QILIN_NAMES.party.length]);
+    e.leader = !!(def && def.leader);
   }
   for(const e of state.enemies) if(e.type === 'qilin'){ e.trust = 0; e.nets = 0; e.tamed = false; e.glade = 5; }
-  state.qilinFood = (ship.charter && ship.charter.food) || 6;
+  state.qilinFood = feedCount();   // what the crew actually carried aboard
   state.foods = [];
+  if(!state.qilinFood){ showBannerLater('NOBODY BROUGHT THE FEED', 'ERINA\u2019S SATCHEL IS NOT IN ANY PACK', false, 5000); chronicle('combat', 'The crew came down the ramp without Erina\u2019s feed. Without it the Qilin cannot be tamed, only darted.'); }
   state.qilinTaken = false; state.poacherSpawned = 5; state.poacherCall = null;
   // the friends: small things in the glades that see everything
   state.civs = state.civs || [];
@@ -11864,6 +11901,19 @@ function qilinSetup(){
   foodBtnSync();
 }
 function qilinFoe(){ return (state.enemies || []).find(e => e.type === 'qilin') || null; }
+// Erina's feed: a satchel in a pack, so many handfuls
+function feedItem(n){ return {kind: 'gear', label: 'Erina\u2019s feed \u00B7 ' + n + ' handfuls', feed: n, own: 'Erina Jones'}; }
+function feedSatchel(){
+  for(const d of (SQUAD_DEFS || [])){ if(d.dead) continue; const it = (d.pack || []).find(i2 => i2 && i2.feed > 0); if(it) return it; }
+  return null;
+}
+function feedCount(){ let n = 0; for(const d of (SQUAD_DEFS || [])){ if(d.dead) continue; for(const it of (d.pack || [])) if(it && it.feed > 0) n += it.feed; } return n; }
+function feedSpend(){
+  const it = feedSatchel(); if(!it) return false;
+  it.feed--; it.label = 'Erina\u2019s feed \u00B7 ' + it.feed + ' handful' + (it.feed === 1 ? '' : 's');
+  if(it.feed <= 0){ for(const d of (SQUAD_DEFS || [])){ const k = (d.pack || []).indexOf(it); if(k >= 0){ d.pack.splice(k, 1); break; } } }
+  return true;
+}
 function qilinAboard(){
   const z = state.charterZone; if(!z) return false;
   const inZ = (x, y) => x >= z.x0 * W && x <= z.x1 * W && y >= z.y0 * H && y <= z.y1 * H;
@@ -12000,7 +12050,7 @@ function qilinTurnStart(){
     const n = Math.min(2, 9 - (state.poacherSpawned || 0));
     for(let i = 0; i < n; i++){
       const e = foeAt('poacher', W * (0.94 - i * 0.02), H * (0.06 + i * 0.03));
-      e.alert = 'alerted'; e.hunter = true; e.name = QILIN_NAMES.party[(state.poacherSpawned || 0) % QILIN_NAMES.party.length];
+      e.alert = 'alerted'; poacherDress(e, QILIN_NAMES.party[(state.poacherSpawned || 0) % QILIN_NAMES.party.length]);
       const c = state.squad.find(c2 => c2.alive); if(c) e.lastKnown = {x: c.x, y: c.y};
       state.enemies.push(e); state.poacherSpawned = (state.poacherSpawned || 0) + 1;
     }
@@ -12023,7 +12073,8 @@ function foodThrow(){
   const d = Math.hypot(q.x - c.x, q.y - c.y);
   if(d > 340 || !q.visible) return false;
   spendAction(1);
-  state.qilinFood--;
+  feedSpend();
+  state.qilinFood = feedCount();
   const ang = Math.atan2(q.y - c.y, q.x - c.x) + (Math.random() - 0.5) * 0.25;
   let range = Math.min(d - 40, 240);
   for(let s9 = 10; s9 <= range; s9 += 10){
@@ -12046,6 +12097,8 @@ function foodBtnSync(){
   const show = !!(currentLevel().qilin && !state.over && state.phase === 'player' && c && c.alive && q && q.alive && !q.tamed && state.qilinFood > 0 && q.visible && Math.hypot(q.x - c.x, q.y - c.y) <= 340 && c.ap >= 1);
   b.style.display = show ? 'block' : 'none';
   if(show) b.textContent = 'FEED \u00B7 ' + state.qilinFood + ' LEFT \u00B7 1 AP';
+  // the first sight of it says what to do
+  if(q && q.alive && q.visible && !state._qilinSeen){ state._qilinSeen = true; showBanner(state.qilinFood > 0 ? 'THE QILIN \u00B7 STAND STILL AND FEED IT (FEED, 1 AP)' : 'THE QILIN \u00B7 NO FEED ABOARD; DARTS, OR GO HOME', '#f0d070'); }
 }
 // home: the hangar, and whatever came back down the ramp
 function charterHomeQilin(){
@@ -13851,7 +13904,7 @@ function missionNext(id){
     const ch = charterOf('qilin') || {};
     if(ms.state !== 'open') return ch.state === 'done' ? 'Done. The Qilin is in Erina\u2019s forest cage; she paid ' + (ch.darted ? 500 : (ch.due || 900)) + ' CR at her counter.'
       : ch.state === 'blood' ? 'Over. The Qilin died in the wood. Erina will not forget it.' : ch.state === 'taken' ? 'Over. The hunting party took the Qilin.' : ch.state === 'lost' ? 'Lost on Tallis.' : 'Over. The crew came back without it.';
-    if(ch.state === 'ticket') return (ch.cubeWith === 'counter' ? 'The passage cube is on Erina\u2019s counter: make room in a pack and pick it up. Then ' : 'Take ') + 'the passage cube to the Shippers, east side of the Cross by the shipyard arch. Hesper Dunmore has the hangar key.';
+    if(ch.state === 'ticket') return (ch.cubeWith === 'counter' ? 'The passage cube is on Erina\u2019s counter: make room in a pack and pick it up. Then ' : 'Take ') + 'the passage cube to the Shippers, east side of the Cross by the shipyard arch. Hesper Dunmore has the hangar key.' + (ch.feedWith === 'counter' ? ' The satchel of feed is on Erina\u2019s counter too; without it the Qilin cannot be tamed.' : feedCount() ? '' : ' Make sure the satchel of feed is in a pack before you fly.');
     if(ch.state === 'cleared') return ship.district === 'hangar' ? 'Everyone aboard the Gannet (Bay 3), then press the bridge console in her nose.' : 'Through the hangar door behind the Shippers\u2019 counter. The Gannet is in Bay 3, fuelled.';
     if(ch.state === 'out') return 'Underway to Tallis. Thirty seconds of burn; hold on to something.';
     if(ch.state === 'spindle'){
@@ -14718,7 +14771,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 THE GANNET, REDRAWN';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 THE SATCHEL';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -20508,6 +20561,7 @@ function frame(now){
   if(s.phase === 'player' && s.pq && !s.over){
     processPanicQueue(realDt);
   }
+  if(currentLevel().qilin && !s.shipDeck) foodBtnSync();
 
   // player phase end check: every living character has spent their actions
   if(s.phase === 'player' && !s.over &&
@@ -22886,6 +22940,19 @@ const LOUNGE_POSTS = [
 const STATION_LABELS = {cells:'CELL CONTROL', locker:'EVIDENCE LOCKER', bridge:'BRIDGE', loadout:'LOADOUT', skills:'SKILLS', medpod:'MED POD',
   board:'CONTRACTS', cantina:'FOR HIRE', undock:'UNDOCK', gannet:'THE GANNET \u00B7 BRIDGE'};
 // a docked hatch is a door: carve the wall beneath it (fractions in, fractions out)
+// (Ben, 5 Nov) the rule: low cover never blocks a doorway unless it was put there on purpose. Any low wall inside a
+// doorway's clearance (the gap plus a body's width either side, and a stride in and out) is dropped from the plan.
+function coverClearOfDoors(walls, doors, PW, PH, clearPx){
+  const cx = (clearPx || 60) / PW, cy = (clearPx || 60) / PH;
+  for(let i = walls.length - 1; i >= 0; i--){
+    const w = walls[i];
+    if(w.high || w.keep) continue;
+    for(const d of doors){
+      if(w.x < d.x + cx && w.x + w.w > d.x - cx && w.y < d.y + cy && w.y + w.h > d.y - cy){ walls.splice(i, 1); break; }
+    }
+  }
+  return walls;
+}
 function carveDoorF(walls, a, PW, PH, gapPx){
   const gx = gapPx / PW, gy = gapPx / PH;
   for(let i = 0; i < walls.length; i++){
