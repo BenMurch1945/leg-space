@@ -14674,7 +14674,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 ODDMENTS';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 THE LEDGER';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15329,7 +15329,7 @@ const SHOP_DOSSIER = {
       'She does not sell animals across the counter. She pays crews to fetch them, alive.',
     sells: 'Dart rifles, goads, screamers, sawn-offs. Prices on the tags; her mood moves them.',
     buys: 'Catching kit only (darts, goads, screamers), clean. Nothing with a cannon\u2019s bore and nothing with somebody else\u2019s name on it.',
-    how: 'Trade at the counter, in hours (07:00 to 19:50). Erina serves; when she is through the back, Juni does. The cages are open to crews she trusts. There is a button under the counter and Juni knows where it is.',
+    how: 'Trade at the counter, in hours (07:00 to 19:50). Erina serves; when she is through the back, Juni does. Ask her for the ledger: every animal she is after, with stars for how hard. The cages are open to crews she trusts. There is a button under the counter and Juni knows where it is.',
   },
   tarn: {
     sign: 'TARN\u2019S ARMS', tag: 'Gunsmith. Everything on the shelf works.',
@@ -15353,6 +15353,82 @@ const CAST_STORY = {
     'He likes a customer who buys and a chat after, counts his locker every morning, and draws first on anyone with his property in their hands. Under all of it he wants to be somebody on the Cross: a man the law asks, a man the Beacon turns to look at. ' +
     'That wanting is the door into him, for better or worse.',
 };
+// ---- the ledger (Ben, 5 Nov): Erina's ticklist. Every animal she wants, how hard it is, what it pays, where it stands.
+// She carries it; you ask her for it at the counter, in hours, and she does the talking and the handing over. ----
+const ANIMALS = [
+  {id: 'miraj', name: 'Al-mi\u2019raj drove', stars: 1, pay: 0, where: 'The desert cage', cage: 'desert',
+    blurb: 'Eight horned hares, the first thing she ever brought home. They are in the desert cage and they are staying there.'},
+  {id: 'hound', name: 'Glass Hound', stars: 2, pay: ERINA_LEVEL.fee, where: 'The old service warren under the freight quarter', cage: 'grass',
+    blurb: 'Big as a dog, hide like frosted glass, bites to hold. Darts, the goad, the screamer; not lead. Down the service hatch by the east arch and back up it carrying.'},
+  {id: 'qilin', name: 'Qilin', stars: 4, pay: 900, where: 'Tallis, the old wood', cage: 'forest',
+    blurb: 'Deer-shaped, antlered, and not to be caught: tamed, with her feed, three mouthfuls, while a hunting party works the same glades with nets. A passage on the Gannet, there and back.'},
+  {id: 'peryton', name: 'Peryton', stars: 3, pay: 600, where: 'No lead yet', cage: null, lead: false,
+    blurb: 'A winged stag that casts the shadow of a man. She heard of one in the Garn uplands and has heard nothing since.'},
+  {id: 'lindworm', name: 'Lindworm', stars: 5, pay: 1500, where: 'No lead yet', cage: null, lead: false,
+    blurb: 'Two legs, no wings, forty feet of it, and a temper. Somebody would have to build a cage for it first. She has drawn the cage.'},
+  {id: 'colossus', name: 'Colossus', stars: 5, pay: 0, where: 'Nowhere she will say', cage: null, lead: false,
+    blurb: 'She will never ask. She will never stop wanting it.'},
+];
+function stars(n){ return '\u2605'.repeat(n) + '\u2606'.repeat(5 - n); }
+// where each animal stands: open to take, under way, in its cage, dead, taken by somebody else, or no lead yet
+function animalStatus(a){
+  if(a.id === 'miraj') return 'IN THE CAGE';
+  if(a.lead === false) return 'NO LEAD YET';
+  if(a.id === 'hound'){
+    const j = ship.erinaJob;
+    if(!j) return 'OPEN';
+    if(j.state === 'paid') return j.alive ? 'IN THE CAGE' : 'DEAD';
+    if(j.state === 'dead') return 'DEAD';
+    return 'UNDER WAY';
+  }
+  if(a.id === 'qilin'){
+    const ch = charterOf('qilin');
+    if(ship.qilinHome) return 'IN THE CAGE';
+    if(!ch) return 'OPEN';
+    if(ch.state === 'done') return 'IN THE CAGE';
+    if(ch.state === 'blood') return 'DEAD';
+    if(ch.state === 'taken') return 'TAKEN';
+    if(ch.state === 'lost' || ch.state === 'grief') return 'OPEN';
+    return 'UNDER WAY';
+  }
+  return 'OPEN';
+}
+// one animal at a time: the one under way, if any
+function animalLive(){ return ANIMALS.find(a => animalStatus(a) === 'UNDER WAY') || null; }
+function ledgerLine(a){ return stars(a.stars) + ' ' + a.name.toUpperCase() + ' \u00B7 ' + a.where + (a.pay ? ' \u00B7 ' + (a.id === 'hound' ? 'up to ' : '') + a.pay + ' CR' : '') + ' \u00B7 ' + animalStatus(a); }
+// the Glass Hound, as she puts it
+function houndOfferModal(cv){
+  const opE = pc();
+  return showEventModal('ERINA JONES \u00B7 THE LEDGER \u00B7 GLASS HOUND',
+    '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing.\u201D She slides a dart rifle across the counter. \u201CDarts, the goad, the screamer. Not lead. Lead makes a rug, and I do not pay for rugs. The service hatch is on the freight side of the Cross; I will have it unbolted by the time you get there.\u201D',
+    [{label: 'TAKE THE JOB', cb: () => erinaAccept(opE)}, {label: 'NOT TODAY', cb: () => ledgerShow(cv)}], {sub: stars(2) + ' \u00B7 UP TO ' + ERINA_LEVEL.fee + ' CR'});
+}
+// the Qilin, as she puts it
+function qilinOfferModal(cv){
+  return showEventModal('ERINA JONES \u00B7 THE LEDGER \u00B7 QILIN',
+    '\u201CThere is a Qilin on Tallis. In the old wood, in the glades. A hunting party went in after it four days ago with nets, which means they want it alive, which means somebody is paying them more than I can.\u201D ' +
+    'She puts a satchel on the counter. \u201CMy feed. Three mouthfuls and it will follow you. It will not take them from anyone who runs at it, and the wood will tell it if you do. I have paid Hesper for the hull. Do not dart it unless you have to, and do not kill it at all.\u201D',
+    [{label: 'TAKE THE PASSAGE', cb: () => qilinGive(cv)}, {label: 'NOT TODAY', cb: () => ledgerShow(cv)}], {sub: stars(4) + ' \u00B7 900 CR \u00B7 TALLIS'});
+}
+// the book, open on the counter
+function ledgerShow(cv){
+  const live = animalLive();
+  const lines = ANIMALS.map(ledgerLine).join('\n');
+  const btns = [];
+  if(!live){
+    for(const a of ANIMALS){
+      if(animalStatus(a) !== 'OPEN') continue;
+      if(a.id === 'hound') btns.push({label: 'TAKE \u00B7 GLASS HOUND ' + stars(a.stars), cb: () => houndOfferModal(cv)});
+      if(a.id === 'qilin') btns.push({label: 'TAKE \u00B7 QILIN ' + stars(a.stars), cb: () => qilinOfferModal(cv)});
+    }
+  }
+  btns.push({label: 'CLOSE THE BOOK', cb: () => {}});
+  const head = live ? 'She puts a finger on the line that is under way. \u201CThe ' + live.name + ' first. One at a time; I have one floor.\u201D\n\n'
+    : btns.length > 1 ? 'She opens the book on the counter and turns it round. \u201CThe ones with a place against them you can go and get. The rest I am waiting on word.\u201D\n\n'
+    : 'She opens the book on the counter and turns it round. \u201CNothing open today. There will be.\u201D\n\n';
+  return showEventModal('ERINA JONES \u00B7 THE LEDGER', head + lines, btns, {sub: 'THE ANIMALS SHE IS AFTER \u00B7 STARS ARE HOW HARD'});
+}
+function ledgerBtn(cv){ return (cv && cv.name === 'Erina Jones' && keeperAtCounter('Erina Jones') && !keeperAway('erina') && !moodRefuses('Erina Jones', pc())) ? [{label: 'THE LEDGER', cb: () => ledgerShow(cv)}] : []; }
 function signPt(sk){ const a = SHOPS[sk] && SHOPS[sk].anchors && SHOPS[sk].anchors.sign; return a ? {x: a.x * W, y: a.y * H} : null; }
 function signAt(x, y){
   if(ship.district !== 'cross') return null;
@@ -15414,6 +15490,7 @@ function openShopDossier(sk, first){
       '<div class="dsec" style="color:var(--plasma)">How it works</div><div class="dgame">' + D.how + '</div>' +
     '</div><div class="dcol">' +
       '<div class="dsec" style="color:var(--brass)">The people</div>' + people +
+      (sk === 'erina' ? '<div class="dsec" style="margin-top:14px;color:var(--brass)">The ledger \u00B7 the animals she is after</div><div class="dgame" style="margin-bottom:10px">' + ANIMALS.map(a => '<div class="drecrow"><span>' + stars(a.stars) + ' ' + a.name + '</span><b>' + animalStatus(a) + '</b></div>').join('') + '<div style="margin-top:4px;opacity:.7">Ask her for the book at the counter, in hours.</div></div>' : '') +
       '<div class="dsec" style="margin-top:14px;color:var(--brass)">Now \u00B7 ' + clockHHMM() + '</div><div class="dgame">' + shopNowLine(sk) + '</div>' +
     '</div></div>');
 }
@@ -15478,7 +15555,7 @@ function seesFrom(w, x, y){ return !!w && w.alive && !w.ko && !w.hidden && Math.
 function keeperAway(sk){
   const S = SHOPS[sk];
   const kp = (state.civs || []).find(c => c.name === S.keeper && c.alive && !c.gone);
-  if(!kp || kp.ko || castBusy(kp) || kp.errand) return true;
+  if(!kp || kp.ko || kp.hidden || castBusy(kp) || kp.errand) return true;
   if(kp.plan && kp.plan.bench > 0) return true;
   const fr = S.front;
   return !(kp.x > (fr.x0 - 0.02) * W && kp.x < (fr.x1 + 0.02) * W && kp.y > (fr.y0 - 0.06) * H && kp.y < (fr.y1 + 0.02) * H);
@@ -17898,7 +17975,7 @@ function portTalk(cv){
       disgust: '\u201CErina says I do not have to serve people I do not like. I am deciding.\u201D',
       sadness: '\u201CShelf is there.\u201D She sounds tired for someone so young.',
       indifferent: away
-        ? '\u201CShe is through the back with the animals. I can sell you anything on the shelf; I cannot sell you anything that is not.\u201D'
+        ? '\u201CShe is through the back with the animals. I can sell you anything on the shelf; I cannot sell you anything that is not. The ledger is hers; she will be a minute.\u201D'
         : '\u201CErina is at the counter. I just set things out and keep them tidy.\u201D She nods at the kit, laid out square to the edge.',
     }), [{label: 'LEAVE', cb: () => {}}]);
   }
@@ -17953,14 +18030,8 @@ function portTalk(cv){
         [{label: 'HAND IT OVER \u00B7 ' + (ship.charter.darted ? 500 : (ship.charter.due || 900)) + ' CR', cb: qilinSettle}].concat(close));
       return showEventModal('ERINA JONES', '\u201CHesper says it came down the ramp. So where is it?\u201D It follows whoever is leading; bring it to the counter.', close);
     }
-    // the second contract: offered once the hound is home, or once she trusts the crew enough anyway
-    if(j && j.state === 'paid' && !(ship.missions && ship.missions.qilin) && (houndHome() || moodFor('Erina Jones', pc()).t >= 0)){
-      return showEventModal('ERINA JONES', '\u201CThere is a Qilin on Tallis. In the old wood, in the glades. A hunting party went in after it four days ago with nets, which means they want it alive, which means somebody is paying them more than I can.\u201D ' +
-        'She puts a satchel on the counter. \u201CMy feed. Three mouthfuls and it will follow you. It will not take them from anyone who runs at it, and the wood will tell it if you do. I have paid Hesper for the hull. Do not dart it unless you have to, and do not kill it at all.\u201D',
-        [{label: 'TAKE THE PASSAGE', cb: () => qilinGive(cv)}, {label: 'NOT TODAY'}], {sub: 'THE QILIN \u00B7 900 CR \u00B7 TALLIS'});
-    }
     if(j && j.state === 'paid'){
-      return showEventModal('ERINA JONES', '\u201CNothing on my ledger for you today. There will be. Things keep getting loose.\u201D', close);
+      return showEventModal('ERINA JONES', animalLive() ? '\u201CYou have one of mine under way. Finish it.\u201D' : '\u201CThe book is on the counter. Pick something, or buy something.\u201D', ledgerBtn(cv).concat(sellBtn(cv)).concat(close));
     }
     if(carrier){
       return showEventModal('ERINA JONES',
@@ -17969,20 +18040,9 @@ function portTalk(cv){
     }
     if(wa && wa.crate === 'erina' && !ship.erinaJobs){
       return showEventModal('ERINA JONES',
-        '\u201CThe crate arrived, thanks to you. There is always something that needs bringing back, and always somewhere nobody sane goes to get it.\u201D',
-        [{label: 'ASK ABOUT THE WORK', cb: () => {
-          const opE2 = pc();
-          showEventModal('ERINA JONES \u00B7 THE WORK',
-            '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing. Darts, the goad, the screamer. Not lead.\u201D She slides a dart rifle across the counter. \u201CThe hatch is on the freight side; I will have it unbolted. Bring it back here, to me.\u201D',
-            [{label: 'TAKE THE JOB', cb: () => erinaAccept(opE2)}, {label: 'NOT TODAY'}]);
-        }}].concat(close));
+        '\u201CThe crate arrived, thanks to you. There is always something that needs bringing back, and always somewhere nobody sane goes to get it.\u201D She puts a hand flat on a ledger by the till.',
+        ledgerBtn(cv).concat(close));
     }
-    const opE = pc();
-    const offer = {label: 'ASK ABOUT THE WORK', cb: () => {
-      showEventModal('ERINA JONES \u00B7 THE WORK',
-        '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing.\u201D She slides a dart rifle across the counter. \u201CDarts, the goad, the screamer. Not lead. Lead makes a rug, and I do not pay for rugs. The service hatch is on the freight side of the Cross; I will have it unbolted by the time you get there. Bring it back here, to me.\u201D',
-        [{label: 'TAKE THE JOB', cb: () => erinaAccept(opE)}, {label: 'NOT TODAY'}]);
-    }};
     return showEventModal('ERINA JONES', moodSay('Erina Jones', {
       love: '\u201CYou again.\u201D It is nearly a smile. \u201CThe good shelf is the one behind me. Ask.\u201D',
       optimism: '\u201CI had a feeling you would be back. I have been keeping something aside.\u201D',
@@ -17999,7 +18059,7 @@ function portTalk(cv){
       disgust: '\u201CBuy and go.\u201D She does not look up from the ledger.',
       anger: '\u201CYou have a nerve coming in here.\u201D The hand below the counter stays there.',
       indifferent: '\u201CExotics. Live stock, mostly, and the kit to catch it without killing it. The dart rifle is on the shelf; the courage you bring yourself.\u201D She taps the leg that is not hers. \u201CI used to fetch my own. Now I pay.\u201D',
-    }), [offer].concat(sellBtn(cv)).concat(close));
+    }), ledgerBtn(cv).concat(sellBtn(cv)).concat(close));
   }
   if(cv.name === 'Hesper Dunmore'){
     const st = charterSt();
