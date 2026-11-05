@@ -5202,21 +5202,27 @@ function openInspect(e){
     (e.wpnKey ? statRow('CARRIES', WPN_NAMES[e.wpnKey] || e.wpnKey) : '') +
     statRow('HP', Math.ceil(e.hp) + ' / ' + e.maxHp) +
     statRow('MOVE', Math.round(arch.moveRange)) +
+    (e.type === 'qilin' ? '' :   // an animal has no gun, no wobble and no morale; it has a nerve
     statRow('DMG', arch.dmg + (arch.pellets > 1 ? ' ×' + arch.pellets : '')) +
     statRow('WOBBLE', arch.spread + '°') +
     statRow('RANGE', range + 'px') +
     (arch.melee ? statRow('MELEE', arch.melee) : '') +
     statRow('BRV', arch.bravery) +
     ((e.armor || 0) > 0 ? statRow('ARMOR', '<span style="color:#9aa4b5">' + Math.round(e.armor) + '</span>') : '') +
-    (isFearless(e) ? statRow('NERVE', 'FEARLESS') : statRow('STRESS', '<span style="color:#b06ae0">' + Math.round(e.stress) + '</span>')) +
+    (isFearless(e) ? statRow('NERVE', 'FEARLESS') : statRow('STRESS', '<span style="color:#b06ae0">' + Math.round(e.stress) + '</span>'))) +
     statRow('SEDATION', Math.round(e.sed || 0) + ' / ' + sedCap(e) + (sedState(e) !== 'alert' ? ' · ' + sedState(e).toUpperCase() : '')) +
-    statRow('ALERT', e.alert) +
+    (e.type === 'qilin' ? '' : statRow('ALERT', e.alert) +
     '<div class="csstate" style="color:' + (isFearless(e) ? '#b06ae0' : stateCol) + '">' +
-      (isFearless(e) ? 'fearless' : e.morale) + '</div>' +
+      (isFearless(e) ? 'fearless' : e.morale) + '</div>') +
     '<div class="csdesc">' +
-      (isFearless(e) ? 'stress washes off them entirely' : (MORALE_DESC[e.morale] || '')) +
+      (e.type === 'qilin' ? '' : isFearless(e) ? 'stress washes off them entirely' : (MORALE_DESC[e.morale] || '')) +
       (sedState(e) !== 'alert' ? '<br>' + sedState(e) + ': ' + SED_DESC[sedState(e)] : '') +
     '</div>' +
+    (e.type === 'qilin' && !e.tamed ? statRow('TRUST', (e.trust || 0) + ' / 3') +
+      statRow('NERVE', '<span style="color:' + ((e.stressQ || 0) >= QILIN_NERVE.bolt ? '#e0483e' : (e.stressQ || 0) >= QILIN_NERVE.wary ? '#e0a33e' : '#9fe08e') + '">' + Math.round(e.stressQ || 0) + ' / 100</span>') +
+      '<div class="csstate" style="color:' + ((e.stressQ || 0) >= QILIN_NERVE.bolt ? '#e0483e' : (e.stressQ || 0) >= QILIN_NERVE.wary ? '#e0a33e' : '#9fe08e') + '">' + ((e.stressQ || 0) >= QILIN_NERVE.bolt ? 'bolting' : (e.stressQ || 0) >= QILIN_NERVE.wary ? 'wary: will not come to the feed' : 'calm') + '</div>' +
+      '<div class="csdesc">Seen far off: a little. Seen close: a lot. Gunfire close: a lot; far off, not much. The wood calling out, or a handful thrown at it: a lot. It bleeds off ' + QILIN_NERVE.decay + ' a turn; above ' + QILIN_NERVE.wary + ' it will not come to the feed; at ' + QILIN_NERVE.bolt + ' it bolts and trusts you less.' + (e.stressWhy ? '<br>Last: ' + e.stressWhy + '.' : '') + '</div>' : '') +
+    (e.type === 'qilin' && e.tamed ? '<div class="csstate" style="color:#9fe08e">tamed</div><div class="csdesc">It follows whoever is leading. Walk it up the ramp.</div>' : '') +
     (e.bio ? '<div class="csdesc" style="margin-top:6px;color:rgba(232,224,204,.85)">' + e.bio + '</div>' : '') +
     (e.story ? '<div class="csdesc" style="margin-top:6px;font-style:italic;color:rgba(232,224,204,.6)">' + e.story + '</div>' : '');
   // clamp near the enemy inside the play area
@@ -5535,7 +5541,7 @@ function renderObjectives(){
       : s.pkg && s.pkg.carried ? '◈ Carry the darted Qilin aboard the Gannet (Erina will know)'
       : s.pkg && !s.pkg.live ? '◈ Pick up the darted Qilin before it wakes'
       : !(s.qilinFood > 0) && !(q && q.trust >= 3) ? '◈ Nobody brought Erina\u2019s feed (it is on her counter or in a pack at home). Dart it and carry it, or lift and come back with the satchel.'
-      : '◈ Tame the Qilin: equip the feed as a sidearm, aim and throw it to land within a few strides of it, three times (' + (s.qilinFood || 0) + ' handfuls left) \u00B7 trust ' + (q ? q.trust || 0 : 0) + '/3 \u00B7 walk, do not run at it';
+      : '◈ Tame the Qilin: equip the feed as a sidearm, aim and throw it to land close to it (not on it), three times (' + (s.qilinFood || 0) + ' handfuls left) \u00B7 trust ' + (q ? q.trust || 0 : 0) + '/3 \u00B7 nerve ' + (q ? Math.round(q.stressQ || 0) : 0) + '/100 (mouseover it)';
   }else if(s.pkg){
     const qLabel = s.pkg.quarry ? (ARCHETYPES[s.pkg.quarry] || {}).label || 'the quarry' : null;
     primary = s.pkg.delivered ? '<span class="ok">✓ ' + (qLabel ? qLabel + ' delivered, breathing' : 'Package delivered') + '</span>'
@@ -9059,6 +9065,7 @@ function footfallAt(c, walking){
 }
 
 function noiseAt(x, y, radius, quietVisual, snap){
+  if(snap && typeof qilinHear === 'function') qilinHear(x, y, radius);
   if(state.aar && state.phase === 'player' && radius > state.aar.loudest) state.aar.loudest = radius;
   if(state.invoice && state.phase === 'player') state.invoice.noise += radius;
   if(!quietVisual) pushNoiseRing(x, y, radius);
@@ -11669,7 +11676,7 @@ function buildQilinLevel(){
     location: 'Tallis, the green moon \u00B7 the old wood', time: 'Late light',
     brief: 'The Gannet is down at the wood\u2019s edge; the ramp is on the hold, topside, and the cabin has an airlock each side. Somewhere in the glades is a Qilin, and somewhere in the trees is a hunting party that wants it in a net.<br><br>' +
       'It will not be caught and it must not be killed. Walk; do not run at it. Its friends in the wood call out at anything that comes close, and when they call it moves and trusts you less. ' +
-      'Equip Erina\u2019s feed as a sidearm, aim, and throw it underarm to land within a few strides of it. Three mouthfuls and it is yours; it will follow whoever is leading, up the ramp and home. Darting it works and she will know. Killing it ends everything with her.',
+      'Equip Erina\u2019s feed as a sidearm, aim, and throw it underarm to land close to it, not on it. It has a nerve you can read by mouseover: keep your distance, keep quiet, and it comes to the feed. Three mouthfuls and it is yours; it will follow whoever is leading, up the ramp and home. Darting it works and she will know. Killing it ends everything with her.',
     objective: 'Tame the Qilin with three throws of feed \u00B7 walk it aboard the Gannet \u00B7 the console takes you home',
     pkgName: 'THE QILIN',
     player: {x: g.start.x, y: g.start.y},
@@ -12001,13 +12008,18 @@ function feedCount(){
 }
 function feedSpend(){ return true; }   // the throw itself spends the round, through the weapon's clip
 // a handful lands: the Qilin notices it within a few strides, or by chance later if it wanders near
-function feedLand(b){
+function feedLand(b, hit){
   b.feed = false;
   if(b.owner && b.owner.def && b.owner.mag){ const sl9 = b.owner.def.loadout.sidearm === 'feed' ? 'sidearm' : 'primary'; b.owner.def.feedLeft = b.owner.mag[sl9]; }
   const q = qilinFoe();
-  const f = {x: b.x, y: b.y, seen: !!(q && q.alive && Math.hypot(q.x - b.x, q.y - b.y) <= FEED_NOTICE)};
+  const d = q && q.alive ? Math.hypot(q.x - b.x, q.y - b.y) : 1e9;
+  // the closer it lands, the likelier it is noticed: certain inside 60 px, nothing past FEED_NOTICE
+  const odds = d <= 60 ? 1 : d >= FEED_NOTICE ? 0 : 1 - (d - 60) / (FEED_NOTICE - 60);
+  const roll = (state.feedRoll != null ? state.feedRoll : Math.random());
+  const f = {x: b.x, y: b.y, seen: odds > 0 && roll < odds, d: Math.round(d)};
   state.foods = state.foods || []; state.foods.push(f);
-  addPopup(f.x, f.y - 10, f.seen ? 'FEED' : 'FEED \u00B7 TOO FAR FROM IT', f.seen ? '#f0d070' : '#e0a33e');
+  if(hit){ qilinStress(q, QILIN_NERVE.hit, 'hit by a thrown handful'); f.seen = false; addPopup(f.x, f.y - 10, 'HIT IT \u00B7 IT DID NOT LIKE THAT', '#e07a5a'); }
+  else addPopup(f.x, f.y - 10, f.seen ? 'FEED \u00B7 IT NOTICED' : d >= FEED_NOTICE ? 'FEED \u00B7 TOO FAR FROM IT' : 'FEED \u00B7 IT DID NOT NOTICE', f.seen ? '#f0d070' : '#e0a33e');
   spawnBurst(f.x, f.y, 6, '#f0d070', 90);
   state.qilinFood = feedCount();
   if(!state._fedOnce){ state._fedOnce = true; chronicle('combat', (b.owner ? b.owner.name : 'The crew') + ' threw a handful of Erina\u2019s feed toward the Qilin and stood very still.'); }
@@ -12039,6 +12051,24 @@ function friendsAlarm(){
   return null;
 }
 // the Qilin's turn: it follows if tamed; it moves when the wood calls or something comes at it; it goes to the feed; otherwise it grazes
+// (Ben, 5 Nov) the Qilin's nerve: a meter, not a hair trigger. Operators seen far off add a little, close up a lot; gunfire far off
+// is nothing much, gunfire close is a lot; the wood calling is a lot; being hit by a thrown handful is a lot. It bleeds off every turn,
+// and the Qilin bolts only when the meter passes the line. Mouseover the Qilin to read it.
+const QILIN_NERVE = {bolt: 60, wary: 30, decay: 8, seenFar: 4, seenNear: 18, seenClose: 40, near: 200, close: 110, shotFar: 3, shotMid: 10, shotClose: 30, alarm: 25, hit: 25};
+function qilinStress(e, n, why){
+  if(!e || !e.alive || e.tamed) return;
+  const was = e.stressQ || 0;
+  e.stressQ = Math.max(0, Math.min(100, was + n));
+  e.stressWhy = why;
+  if(n > 0 && was < QILIN_NERVE.wary && e.stressQ >= QILIN_NERVE.wary && e.stressQ < QILIN_NERVE.bolt) addPopup(e.x, e.y - e.r - 14, 'WARY', '#e0a33e');
+}
+// gunfire and other snaps reach it by distance: a far shot is a bird going up, a close one is the end of the world
+function qilinHear(x, y, radius){
+  const q = qilinFoe(); if(!q || !q.alive || q.tamed || !currentLevel().qilin) return;
+  const d = Math.hypot(q.x - x, q.y - y);
+  if(d > Math.max(radius, 450) * 1.3) return;
+  qilinStress(q, d < QILIN_NERVE.near ? QILIN_NERVE.shotClose : d < 450 ? QILIN_NERVE.shotMid : QILIN_NERVE.shotFar, d < QILIN_NERVE.near ? 'gunfire close by' : 'gunfire in the wood');
+}
 function qilinDecide(e){
   const arch = ARCHETYPES.qilin;
   const g = buildMoveGraph(e);
@@ -12054,18 +12084,24 @@ function qilinDecide(e){
     return {path, shots: 0, idle: !path};
   }
   const glades = gladePts();
-  // something near, or the wood calling: away to the glade furthest from the trouble
+  // the meter: bleed, then what it sees this turn, then the wood
+  qilinStress(e, -QILIN_NERVE.decay, null);
+  let seen = null, seenD = 1e9;
+  for(const c of state.squad){ if(!c.alive || c.downed) continue; const d = Math.hypot(c.x - e.x, c.y - e.y); if(d < arch.vision && d < seenD && segClearHigh(c.x, c.y, e.x, e.y)){ seen = c; seenD = d; } }
+  if(seen) qilinStress(e, seenD < QILIN_NERVE.close ? QILIN_NERVE.seenClose : seenD < QILIN_NERVE.near ? QILIN_NERVE.seenNear : QILIN_NERVE.seenFar, seenD < QILIN_NERVE.near ? seen.name + ' too close' : 'operators in sight');
   const alarm = friendsAlarm();
-  let threat = alarm ? {x: alarm.x, y: alarm.y} : null;
-  if(!threat) for(const c of state.squad) if(c.alive && !c.downed && Math.hypot(c.x - e.x, c.y - e.y) < 110 && segClearHigh(c.x, c.y, e.x, e.y)) threat = {x: c.x, y: c.y, close: true};
-  if(!threat && e.netted){ threat = e.netted; e.netted = null; }
+  if(alarm) qilinStress(e, QILIN_NERVE.alarm, 'the wood called out');
+  let threat = null;
+  if(e.netted){ threat = e.netted; e.netted = null; }
+  else if((e.stressQ || 0) >= QILIN_NERVE.bolt) threat = alarm ? {x: alarm.x, y: alarm.y} : seen ? {x: seen.x, y: seen.y} : (state.foods || []).length ? state.foods[state.foods.length - 1] : {x: e.x + 1, y: e.y};
   if(threat){
     let best = null, bd = -1;
     glades.forEach((gl, i) => { const d = Math.hypot(gl.x - threat.x, gl.y - threat.y) + (i === e.glade ? -400 : 0); if(d > bd){ bd = d; best = i; } });
     e.glade = best; e.fleeTo = glades[best]; e.foodT = null;
-    if(alarm && e.trust > 0){ e.trust--; trustPop('SPOOKED \u00B7 TRUST ' + e.trust + '/3', '#e0a33e'); chronicle('combat', 'The wood called out (' + alarm.by + ' was too close) and the Qilin was gone from the glade before anyone saw it move. It trusts the crew a little less.'); }
-    else if(alarm){ trustPop('SPOOKED', '#e0a33e'); }
-    else if(threat.close) trustPop('TOO CLOSE', '#e0a33e');
+    const why = e.stressWhy || 'the net';
+    if(e.trust > 0){ e.trust--; trustPop('BOLTS \u00B7 TRUST ' + e.trust + '/3', '#e0a33e'); chronicle('combat', 'The Qilin bolted (' + why + ') and was gone from the glade before anyone saw it move. It trusts the crew a little less.'); }
+    else trustPop('BOLTS \u00B7 ' + why.toUpperCase(), '#e0a33e');
+    e.stressQ = Math.min(e.stressQ || 0, QILIN_NERVE.wary);   // the run itself lets some of it out
     return {path: goTo(e.fleeTo, arch.moveRange * 1.6), shots: 0, flee: true};
   }
   if(e.fleeTo){
@@ -12074,6 +12110,7 @@ function qilinDecide(e){
   }
   // the feed: a handful that landed within a few strides, or one it has wandered close to, approached slowly, eaten when reached
   const foods = (state.foods || []).filter(f => Math.hypot(f.x - e.x, f.y - e.y) < (f.seen ? 340 : 120) && segClearHigh(f.x, f.y, e.x, e.y)).sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y));
+  if(foods.length && (e.stressQ || 0) >= QILIN_NERVE.wary){ if(e.patrolT % 2 === 0) trustPop('WARY \u00B7 WILL NOT COME TO IT YET', '#e0a33e'); e.patrolT = (e.patrolT || 0) + 1; return {path: null, shots: 0, idle: true}; }
   if(foods.length){
     const f = foods[0];
     const d = Math.hypot(f.x - e.x, f.y - e.y);
@@ -12081,7 +12118,7 @@ function qilinDecide(e){
       state.foods = state.foods.filter(f2 => f2 !== f);
       e.trust = Math.min(3, (e.trust || 0) + 1);
       if(e.trust >= 3){
-        e.tamed = true; e.alert = 'unaware';
+        e.tamed = true; e.alert = 'unaware'; e.stressQ = 0;
         foodBtnSync();
         trustPop('TAMED \u00B7 IT WILL FOLLOW', '#9fe08e');
         showBanner('THE QILIN IS TAMED \u00B7 WALK IT TO THE GANNET', '#9fe08e');
@@ -12144,19 +12181,37 @@ function qilinTaken(e){
   chronicle('combat', (e.name || 'The hunters') + ' and the party dragged the netted Qilin into the trees. It is theirs now, unless the crew takes it back off them, which would be a different contract.');
 }
 // the turn starts: the party sends for more when it loses people
+// (Ben, 5 Nov) replayable: the party comes in from a different edge each time, never within PARTY_CLEAR of the Qilin or the crew
+const PARTY_CLEAR = 900;
+function partyEdge(){
+  const q = qilinFoe();
+  const far = (x, y) => (!q || Math.hypot(q.x - x, q.y - y) >= PARTY_CLEAR) && state.squad.every(c => !c.alive || Math.hypot(c.x - x, c.y - y) >= PARTY_CLEAR * 0.7);
+  const cands = [];
+  for(let k = 0; k < 40; k++){
+    const side = k % 4, t = 0.1 + 0.8 * ((k * 0.618034) % 1);
+    const x = side === 0 ? W * 0.95 : side === 1 ? W * 0.05 : W * t, y = side < 2 ? H * t : side === 2 ? H * 0.06 : H * 0.94;
+    if(far(x, y) && openGround(x, y, 20)) cands.push({x, y, side});
+  }
+  if(!cands.length) return {x: W * 0.95, y: H * 0.06, side: 0};
+  return cands[Math.floor(Math.random() * cands.length)];
+}
 function partyArrive(){
   const names = [QILIN_NAMES.leader].concat(QILIN_NAMES.party.slice(0, 4));
   const gl = gladePts();
+  const at = partyEdge();
+  const sideWord = at.side === 0 ? 'EAST' : at.side === 1 ? 'WEST' : at.side === 2 ? 'NORTH' : 'SOUTH';
+  const dx = at.side < 2 ? 0 : 1, dy = at.side < 2 ? 1 : 0;
+  let first = 0, fd = 1e9; gl.forEach((p, i) => { const d = Math.hypot(p.x - at.x, p.y - at.y); if(d < fd){ fd = d; first = i; } });
   names.forEach((nm, i) => {
-    const e = foeAt('poacher', W * (0.95 - (i % 3) * 0.025), H * (0.06 + Math.floor(i / 3) * 0.04 + (i % 2) * 0.02));
+    let x = at.x + dx * ((i % 3) - 1) * 60 + dy * (at.side === 0 ? -1 : 1) * Math.floor(i / 3) * 60, y = at.y + dy * ((i % 3) - 1) * 60 + dx * (at.side === 2 ? 1 : -1) * Math.floor(i / 3) * 60;
+    const e = foeAt('poacher', Math.max(30, Math.min(W - 30, x)), Math.max(30, Math.min(H - 30, y)));
     poacherDress(e, nm); e.leader = i === 0; e.alert = 'unaware';
-    e.huntGlade = 3;   // the north-east glade first, then the rest
-    void gl;
+    e.huntGlade = first;   // the nearest glade first, then the rest
     state.enemies.push(e);
   });
-  state.poacherSpawned = names.length; state.partyIn = true;
-  showBanner('A HUNTING PARTY CAME INTO THE WOOD \u00B7 ' + names.length + ' OF THEM, NORTH-EAST', '#c98b3e');
-  chronicle('combat', QILIN_NAMES.leader + '\u2019s party came into the wood from the north-east with nets and rifles and started working the glades.');
+  state.poacherSpawned = names.length; state.partyIn = true; state.partySide = sideWord;
+  showBanner('A HUNTING PARTY CAME INTO THE WOOD \u00B7 ' + names.length + ' OF THEM, FROM THE ' + sideWord, '#c98b3e');
+  chronicle('combat', QILIN_NAMES.leader + '\u2019s party came into the wood from the ' + sideWord.toLowerCase() + ' with nets and rifles and started working the glades.');
   updateHud && updateHud();
 }
 // a hunter who cannot see the Qilin walks the glades looking for it, one after another, at a hunter's pace
@@ -14930,7 +14985,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 IN ORBIT';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 NERVE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -20677,6 +20732,7 @@ function frame(now){
         break;
       }
 
+      if(!dead && b.feed){ const q9 = qilinFoe(); if(q9 && q9.alive && !q9.tamed && Math.hypot(q9.x - b.x, q9.y - b.y) < q9.r + b.r){ feedLand(b, true); dead = true; } }
       if(!dead && !b.feed){
         // a projectile is a projectile: it hits anyone but its shooter (a handful of feed is not a projectile; it lands)
         for(const c of s.squad){
