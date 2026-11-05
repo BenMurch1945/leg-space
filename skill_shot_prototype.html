@@ -2665,13 +2665,19 @@ function showEventModal(title, body, buttons, opts){
   if(!ov.querySelector){ return false; }   // headless: callers drive the callbacks directly
   // (Ben, 5 Nov) a face with a story carries its dossier into every conversation
   if(typeof CAST_STORY !== 'undefined'){
-    const who = Object.keys(CAST_STORY).find(n => title === n.toUpperCase() || title.indexOf(n.toUpperCase() + ' \u00B7') === 0);
+    const who = Object.keys(CAST_STORY).find(n => title === n.toUpperCase() || title.indexOf(n.toUpperCase() + ' \u00B7') === 0 || title.indexOf(n.toUpperCase() + '\n') === 0);
     if(who && !(buttons || []).some(b => b.label === 'DOSSIER')) buttons = (buttons || []).concat([{label: 'DOSSIER', cb: () => openCastDossier(who)}]);
   }
-  ov.innerHTML = '<div id="eventBox"><div id="eventTitle"></div>' + (opts && opts.sub ? '<div id="eventSub"></div>' : '') + '<div id="eventBody"></div><div id="eventBtns"></div></div>';
-  ov.querySelector('#eventTitle').textContent = title;
-  if(opts && opts.sub) ov.querySelector('#eventSub').textContent = opts.sub;
-  ov.querySelector('#eventBody').textContent = body;
+  ov.innerHTML = '<div id="eventBox"' + (opts && opts.wide ? ' style="max-width:720px"' : '') + '><div id="eventTitle"></div>' + (opts && opts.sub ? '<div id="eventSub"></div>' : '') + '<div id="eventBody"></div><div id="eventBtns"></div></div>';
+  // (Ben, 5 Nov) two things in a title go on two lines, not either side of a dot
+  const lines = (el, txt) => { el.textContent = ''; String(txt).split('\n').forEach((ln, i) => { if(i) el.appendChild(document.createElement('br')); el.appendChild(document.createTextNode(ln)); }); };
+  lines(ov.querySelector('#eventTitle'), title);
+  if(opts && opts.sub) lines(ov.querySelector('#eventSub'), opts.sub);
+  const bodyEl = ov.querySelector('#eventBody');
+  if(opts && opts.html){
+    bodyEl.innerHTML = opts.html;   // a table, with its own buttons: data-act names the handler in opts.acts
+    for(const b of bodyEl.querySelectorAll('[data-act]')) b.addEventListener('click', () => { ov.style.display = 'none'; simResume(); quietFor(SIT_GAP_MS); const f = opts.acts && opts.acts[b.getAttribute('data-act')]; if(f) f(); });
+  }else bodyEl.textContent = body;
   const row = ov.querySelector('#eventBtns');
   for(const btn of buttons){
     const b = document.createElement('button');
@@ -11628,11 +11634,12 @@ function charterSt(){ return (ship.charter && ship.charter.state) || null; }
 // Erina hands over the passage and the feed: a cube in a pocket, a contract in the journal
 function qilinGive(cv){
   if(!charterFresh()) return false;
-  const cube = cubeItem('passage', 'Erina Jones', null);
-  let holder = (state.squad || []).find(c => c.alive && c.def && (c.def.pack || []).length < 4) || null;
-  if(holder){ if(!Array.isArray(holder.def.pack)) holder.def.pack = []; holder.def.pack.push(cube); addPopup(holder.x, holder.y - holder.r - 14, 'PASSAGE CUBE \u00B7 PACKED', '#6fd6ff'); }
-  else if(cv){ const cc = cacheAt(cv.x, cv.y + 20); (cc.loot = cc.loot || []).push(cube); addPopup(cv.x, cv.y - 20, 'PASSAGE CUBE \u00B7 AT YOUR FEET', '#6fd6ff'); }
   ship.charter = {job: 'qilin', state: 'ticket', day: ship.day || 0, due: 900, rescued: false, food: 6};
+  const cube = cubeItem('passage', 'Erina Jones', null);
+  counterHandover(cube, {label: 'the passage cube and the satchel of feed', short: 'PASSAGE CUBE', title: 'ERINA JONES\nTHE PASSAGE',
+    ask: 'She puts the cube and a satchel of her feed on the counter together. \u201CWhose hands? Hesper reads the cube; the feed you throw. Lose either and the wood keeps the Qilin.\u201D',
+    say: 'Hesper has the hull. Bring it back breathing or do not bring it back.', counterName: 'Erina\u2019s counter \u00B7 the passage', pc: pc(),
+    onTaken: (op) => { ship.charter.cubeWith = op.name; }, onCounter: () => { ship.charter.cubeWith = 'counter'; }});
   missionStart('qilin');
   moodPush('Erina Jones', {a: 1.5, t: 0.3}, 'sent the crew for the Qilin', 'trade');
   quietFor(SIT_GAP_MS);
@@ -12178,41 +12185,46 @@ function erinaAccept(c){
   if(dr) camTour(dr.x, dr.y, 2600);
   return true;
 }
-// the counter: a dart rifle across it, and the question of whose hands
-function rifleOffer(c){
-  const gift = {kind: 'weapon', key: 'dart', mods: wpnRoll('dart', 1)};
+// the counter (Ben, 5 Nov): anything Erina hands over follows one rule. She asks whose hands; a full pack is not a hand;
+// nobody with room leaves it on the counter as a pickup, said out loud and written down, and nothing is ever lost for lack of a slot.
+function counterHandover(item, o){
   const erina = (state.civs || []).find(cv => cv.name === 'Erina Jones' && cv.alive);
-  const crew = (state.squad || []).filter(o => o.alive && o.def);
+  const crew = (state.squad || []).filter(c => c.alive && c.def);
   const give = (op) => {
     if(!Array.isArray(op.def.pack)) op.def.pack = [];
-    op.def.pack.push(gift);
-    addPopup(op.x, op.y - op.r - 14, 'DART RIFLE \u00B7 ' + op.name.toUpperCase() + ' HAS IT', '#9fe0d8');
-    if(erina) civSay(erina, 'Darts, not lead. It is on loan until the hound is on my floor.', 9);
-    ship.erinaJob.rifle = op.name;
-    chronicle('event', 'Erina slid a dart rifle across the counter and ' + op.name + ' took it. Darts, not lead, she said; it is on loan until the hound is on her floor.');
+    op.def.pack.push(item);
+    addPopup(op.x, op.y - op.r - 14, o.short + ' \u00B7 ' + op.name.toUpperCase() + ' HAS IT', '#9fe0d8');
+    if(erina && o.say) civSay(erina, o.say, 9);
+    chronicle('event', 'Erina slid ' + o.label + ' across the counter and ' + op.name + ' took ' + (o.plural ? 'them' : 'it') + '.');
+    if(o.onTaken) o.onTaken(op);
     if(typeof syncWeaponButtons === 'function') syncWeaponButtons();
     shipSave();
   };
   const counter = () => {
     const pt = erinaCounterPoint();
     const cc = cacheAt(pt.x * W + 30, pt.y * H + 10);
-    cc.name = 'Erina\u2019s counter \u00B7 the dart rifle'; cc.loot.push(gift);
-    ship.erinaJob.rifle = 'counter';
-    addPopup(cc.x, cc.y - 20, 'DART RIFLE \u00B7 ON THE COUNTER', '#9fe0d8');
-    if(erina) civSay(erina, 'Nobody with a hand free. It stays on the counter. Make room and take it before you go down.', 10);
-    chronicle('event', 'Erina put a dart rifle on the counter. Nobody in the crew had a hand free, so there it stays: make room and pick it up before the hatch.');
+    cc.name = o.counterName || ('Erina\u2019s counter \u00B7 ' + o.short.toLowerCase()); cc.loot.push(item);
+    addPopup(cc.x, cc.y - 20, o.short + ' \u00B7 ON THE COUNTER', '#9fe0d8');
+    if(erina) civSay(erina, 'Nobody with a hand free. It stays on the counter. Make room and take it before you go.', 10);
+    chronicle('event', 'Erina put ' + o.label + ' on the counter. Nobody in the crew had a hand free, so there it stays: make room and pick it up.');
+    if(o.onCounter) o.onCounter();
     shipSave();
   };
-  const free = crew.filter(o => (o.def.pack || []).length < 4);
+  const free = crew.filter(c => (c.def.pack || []).length < 4);
   if(!free.length){ counter(); return true; }
-  const btns = crew.map(o => ({label: o.name.toUpperCase() + ' \u00B7 ' + (o.def.pack || []).length + '/4' + ((o.def.pack || []).length >= 4 ? ' \u00B7 FULL' : ''), cb: () => { if((o.def.pack || []).length < 4) give(o); else { addPopup(o.x, o.y - o.r - 14, 'NO ROOM', '#e0a33e'); counter(); } }}));
+  const btns = crew.map(c => ({label: c.name.toUpperCase() + ' (' + (c.def.pack || []).length + '/4' + ((c.def.pack || []).length >= 4 ? ', FULL' : '') + ')', cb: () => { if((c.def.pack || []).length < 4) give(c); else { addPopup(c.x, c.y - c.r - 14, 'NO ROOM', '#e0a33e'); counter(); } }}));
   btns.push({label: 'LEAVE IT ON THE COUNTER', cb: counter});
   if(erina) civSay(erina, 'Whose hands?', 6);
-  const shown = showEventModal('ERINA JONES \u00B7 THE RIFLE',
-    'She lifts a dart rifle onto the counter, barrel toward herself, and looks along the crew. \u201CWhose hands? It is on loan. Darts, not lead; the hound comes back breathing or I do not pay.\u201D',
-    btns, {sub: 'A DART RIFLE \u00B7 ' + free.length + ' OF ' + crew.length + ' HAVE ROOM'});
-  if(shown === false){ const op = (c && (c.def.pack || []).length < 4) ? c : free[0]; give(op); }
+  const shown = showEventModal(o.title || 'ERINA JONES\nTHE COUNTER', o.ask, btns, {sub: o.short + '\n' + free.length + ' OF ' + crew.length + ' HAVE ROOM'});
+  if(shown === false){ const op = (o.pc && (o.pc.def.pack || []).length < 4) ? o.pc : free[0]; give(op); }
   return true;
+}
+function rifleOffer(c){
+  const gift = {kind: 'weapon', key: 'dart', mods: wpnRoll('dart', 1)};
+  return counterHandover(gift, {label: 'a dart rifle', short: 'DART RIFLE', title: 'ERINA JONES\nTHE RIFLE',
+    ask: 'She lifts a dart rifle onto the counter, barrel toward herself, and looks along the crew. \u201CWhose hands? It is on loan. Darts, not lead; the hound comes back breathing or I do not pay.\u201D',
+    say: 'Darts, not lead. It is on loan until the hound is on my floor.', counterName: 'Erina\u2019s counter \u00B7 the dart rifle', pc: c,
+    onTaken: (op) => { ship.erinaJob.rifle = op.name; }, onCounter: () => { ship.erinaJob.rifle = 'counter'; }});
 }
 function hatchEnter(){
   const hf = hatchFacts(); if(!hf.open || !state.portDock) return false;
@@ -13807,7 +13819,7 @@ function missionNext(id){
     const ch = charterOf('qilin') || {};
     if(ms.state !== 'open') return ch.state === 'done' ? 'Done. The Qilin is in Erina\u2019s forest cage; she paid ' + (ch.darted ? 500 : (ch.due || 900)) + ' CR at her counter.'
       : ch.state === 'blood' ? 'Over. The Qilin died in the wood. Erina will not forget it.' : ch.state === 'taken' ? 'Over. The hunting party took the Qilin.' : ch.state === 'lost' ? 'Lost on Tallis.' : 'Over. The crew came back without it.';
-    if(ch.state === 'ticket') return 'Take the passage cube to the Shippers, east side of the Cross by the shipyard arch. Hesper Dunmore has the hangar key.';
+    if(ch.state === 'ticket') return (ch.cubeWith === 'counter' ? 'The passage cube is on Erina\u2019s counter: make room in a pack and pick it up. Then ' : 'Take ') + 'the passage cube to the Shippers, east side of the Cross by the shipyard arch. Hesper Dunmore has the hangar key.';
     if(ch.state === 'cleared') return ship.district === 'hangar' ? 'Everyone aboard the Gannet (Bay 3), then press the bridge console in her nose.' : 'Through the hangar door behind the Shippers\u2019 counter. The Gannet is in Bay 3, fuelled.';
     if(ch.state === 'out') return 'Underway to Tallis. Thirty seconds of burn; hold on to something.';
     if(ch.state === 'spindle'){
@@ -14674,7 +14686,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 THE LEDGER';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '5 Nov \u00B7 THE BOOK, PROPERLY';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15399,34 +15411,42 @@ function ledgerLine(a){ return stars(a.stars) + ' ' + a.name.toUpperCase() + ' \
 // the Glass Hound, as she puts it
 function houndOfferModal(cv){
   const opE = pc();
-  return showEventModal('ERINA JONES \u00B7 THE LEDGER \u00B7 GLASS HOUND',
+  return showEventModal('ERINA JONES\nTHE GLASS HOUND',
     '\u201CThere is a Glass Hound in the old service warren under the freight quarter. Big as a dog, hide like frosted glass, bites to hold. I want it on this floor and breathing.\u201D She slides a dart rifle across the counter. \u201CDarts, the goad, the screamer. Not lead. Lead makes a rug, and I do not pay for rugs. The service hatch is on the freight side of the Cross; I will have it unbolted by the time you get there.\u201D',
-    [{label: 'TAKE THE JOB', cb: () => erinaAccept(opE)}, {label: 'NOT TODAY', cb: () => ledgerShow(cv)}], {sub: stars(2) + ' \u00B7 UP TO ' + ERINA_LEVEL.fee + ' CR'});
+    [{label: 'TAKE THE JOB', cb: () => erinaAccept(opE)}, {label: 'NOT TODAY', cb: () => ledgerShow(cv)}], {sub: stars(2) + '\nUP TO ' + ERINA_LEVEL.fee + ' CR'});
 }
 // the Qilin, as she puts it
 function qilinOfferModal(cv){
-  return showEventModal('ERINA JONES \u00B7 THE LEDGER \u00B7 QILIN',
+  return showEventModal('ERINA JONES\nTHE QILIN',
     '\u201CThere is a Qilin on Tallis. In the old wood, in the glades. A hunting party went in after it four days ago with nets, which means they want it alive, which means somebody is paying them more than I can.\u201D ' +
     'She puts a satchel on the counter. \u201CMy feed. Three mouthfuls and it will follow you. It will not take them from anyone who runs at it, and the wood will tell it if you do. I have paid Hesper for the hull. Do not dart it unless you have to, and do not kill it at all.\u201D',
-    [{label: 'TAKE THE PASSAGE', cb: () => qilinGive(cv)}, {label: 'NOT TODAY', cb: () => ledgerShow(cv)}], {sub: stars(4) + ' \u00B7 900 CR \u00B7 TALLIS'});
+    [{label: 'TAKE THE PASSAGE', cb: () => qilinGive(cv)}, {label: 'NOT TODAY', cb: () => ledgerShow(cv)}], {sub: stars(4) + '\n900 CR \u00B7 TALLIS'});
 }
 // the book, open on the counter
+const ANIMAL_OFFERS = {hound: (cv) => houndOfferModal(cv), qilin: (cv) => qilinOfferModal(cv)};
 function ledgerShow(cv){
   const live = animalLive();
-  const lines = ANIMALS.map(ledgerLine).join('\n');
-  const btns = [];
-  if(!live){
-    for(const a of ANIMALS){
-      if(animalStatus(a) !== 'OPEN') continue;
-      if(a.id === 'hound') btns.push({label: 'TAKE \u00B7 GLASS HOUND ' + stars(a.stars), cb: () => houndOfferModal(cv)});
-      if(a.id === 'qilin') btns.push({label: 'TAKE \u00B7 QILIN ' + stars(a.stars), cb: () => qilinOfferModal(cv)});
-    }
-  }
-  btns.push({label: 'CLOSE THE BOOK', cb: () => {}});
-  const head = live ? 'She puts a finger on the line that is under way. \u201CThe ' + live.name + ' first. One at a time; I have one floor.\u201D\n\n'
-    : btns.length > 1 ? 'She opens the book on the counter and turns it round. \u201CThe ones with a place against them you can go and get. The rest I am waiting on word.\u201D\n\n'
-    : 'She opens the book on the counter and turns it round. \u201CNothing open today. There will be.\u201D\n\n';
-  return showEventModal('ERINA JONES \u00B7 THE LEDGER', head + lines, btns, {sub: 'THE ANIMALS SHE IS AFTER \u00B7 STARS ARE HOW HARD'});
+  const open = ANIMALS.filter(a => animalStatus(a) === 'OPEN' && ANIMAL_OFFERS[a.id]);
+  const head = live ? 'She puts a finger on the line that is under way. \u201CThe ' + live.name + ' first. One at a time; I have one floor.\u201D'
+    : open.length ? 'She opens the book on the counter and turns it round. \u201CThe ones with a place against them you can go and get. The rest I am waiting on word.\u201D'
+    : 'She opens the book on the counter and turns it round. \u201CNothing open today. There will be.\u201D';
+  const esc = (s9) => String(s9).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const tint = (st) => st === 'OPEN' ? 'var(--plasma)' : st === 'UNDER WAY' ? 'var(--brass)' : st === 'IN THE CAGE' ? '#9fe08e' : st === 'DEAD' || st === 'TAKEN' ? '#e0483e' : 'rgba(232,224,204,.4)';
+  const acts = {};
+  const rows = ANIMALS.map(a => {
+    const st = animalStatus(a);
+    const dim = st === 'NO LEAD YET' || st === 'IN THE CAGE';
+    let btn = '';
+    if(!live && st === 'OPEN' && ANIMAL_OFFERS[a.id]){ acts['take_' + a.id] = () => ANIMAL_OFFERS[a.id](cv); btn = '<button data-act="take_' + a.id + '" style="font:700 10px Space Grotesk,sans-serif;letter-spacing:.16em;padding:6px 12px;background:#1a1708;border:1px solid var(--brass);color:var(--brass);cursor:pointer">TAKE</button>'; }
+    return '<tr style="opacity:' + (dim ? 0.55 : 1) + '">' +
+      '<td style="padding:8px 10px 8px 0;white-space:nowrap;color:var(--brass);letter-spacing:.1em">' + stars(a.stars) + '</td>' +
+      '<td style="padding:8px 10px 8px 0"><div style="font:800 12px Cinzel,serif;letter-spacing:.14em;color:var(--bone)">' + esc(a.name).toUpperCase() + '</div><div style="font-size:11px;color:rgba(232,224,204,.6)">' + esc(a.where) + '</div></td>' +
+      '<td style="padding:8px 10px;white-space:nowrap;font:700 11px Space Grotesk,sans-serif;color:var(--brass)">' + (a.pay ? (a.id === 'hound' ? 'up to ' : '') + a.pay + ' CR' : '') + '</td>' +
+      '<td style="padding:8px 10px;white-space:nowrap;font:700 10px Space Grotesk,sans-serif;letter-spacing:.16em;color:' + tint(st) + '">' + st + '</td>' +
+      '<td style="padding:8px 0;text-align:right">' + btn + '</td></tr>';
+  }).join('');
+  const html = '<div style="margin-bottom:12px">' + esc(head) + '</div><table style="width:100%;border-collapse:collapse;border-top:1px solid rgba(232,224,204,.12)">' + rows + '</table>';
+  return showEventModal('ERINA JONES\nTHE LEDGER', '', [{label: 'CLOSE THE BOOK', cb: () => {}}], {sub: 'THE ANIMALS SHE IS AFTER\nSTARS ARE HOW HARD', html, acts, wide: true});
 }
 function ledgerBtn(cv){ return (cv && cv.name === 'Erina Jones' && keeperAtCounter('Erina Jones') && !keeperAway('erina') && !moodRefuses('Erina Jones', pc())) ? [{label: 'THE LEDGER', cb: () => ledgerShow(cv)}] : []; }
 function signPt(sk){ const a = SHOPS[sk] && SHOPS[sk].anchors && SHOPS[sk].anchors.sign; return a ? {x: a.x * W, y: a.y * H} : null; }

@@ -7625,7 +7625,7 @@ function spSetup(){
   pump(6, 16);   // arrives: headless, the passage changes hands at once
   return {crew, hero, cv};
 }
-function spFly(){ G.state.flight.events = []; G.state.flight.intro = 0; for(let i = 0; i < 60 * 32 && G.state.flight; i++) pump(1, 16); }
+function spFly(){ if(!G.state.flight) return false; G.state.flight.events = []; G.state.flight.intro = 0; for(let i = 0; i < 60 * 32 && G.state.flight; i++) pump(1, 16); return true; }
 // GN1 the whole loop: cube, counter, hangar, console, flight, the moon, the brother, the console again, home, Oskar pays
 const gn1 = (() => {
   const {crew, hero} = spSetup();
@@ -7770,6 +7770,7 @@ const qn1 = (() => {
   for(const c of crewL){ c.x = zx - 20; c.y = zy; } q.x = zx + 20; q.y = zy;
   const aboard = G.qilinAboard() === true && G.missionNext('qilin').indexOf('aboard') >= 0;
   const lifted = G.charterConsole() && G.charterSt() === 'back' && G.ship.charter.tamed === true && G.ship.charter.rescued === true;
+  if(!lifted){ console.log('QN1 could not lift:', JSON.stringify({fed1, fed2, spooked, hunted, more, fed3, fed4, trust: q.trust, tamed: q.tamed, food: G.state.qilinFood, foods: G.state.foods.length, st: G.charterSt(), aboard: G.qilinAboard()})); G.undockToDeck(); G.doShipReset(); return {ok: false, lifted}; }
   spFly();
   const qc = G.qilinFollower();
   const home = !G.state.flight && G.charterSt() === 'home' && G.ship.district === 'hangar' && !!qc && qc.beast.follow === heroL.name && qc.darted === false &&
