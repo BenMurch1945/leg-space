@@ -424,6 +424,8 @@
   .csWin{background:rgba(14,18,32,.98);border:1.5px solid rgba(212,168,67,.5);
     box-shadow:0 0 60px rgba(0,0,0,.75);padding:26px 30px;max-height:88vh;
     overflow-y:auto;overflow-x:hidden;}
+  .csNextBody{float:right;background:transparent;color:#6fd6ff;border:1px solid rgba(111,214,255,.6);font:700 9px 'Space Grotesk',sans-serif;letter-spacing:.2em;padding:3px 8px;cursor:pointer;margin:-3px 0 0 8px;}
+  .csNextBody:hover{background:rgba(111,214,255,.12);}
   .csWinHead{font-size:11px;letter-spacing:.3em;color:var(--brass);margin-bottom:14px;
     border-bottom:1px solid rgba(212,168,67,.3);padding-bottom:9px;white-space:nowrap;}
   #csSheet{width:500px;}
@@ -498,6 +500,11 @@
     font:800 17px 'Space Grotesk',sans-serif;letter-spacing:.26em;padding:14px 40px;
     cursor:pointer;box-shadow:0 0 26px rgba(212,168,67,.35);animation:deployPulse 1.6s ease-in-out infinite;}
   #landbtn:hover{box-shadow:0 0 40px rgba(212,168,67,.8);}
+  #blastbtn{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:72;
+    background:#0f1a22;color:#6fd6ff;border:2px solid #6fd6ff;
+    font:800 17px 'Space Grotesk',sans-serif;letter-spacing:.26em;padding:14px 40px;
+    cursor:pointer;box-shadow:0 0 26px rgba(111,214,255,.35);animation:deployPulse 1.6s ease-in-out infinite;}
+  #blastbtn:hover{box-shadow:0 0 40px rgba(111,214,255,.8);}
   #ironsbtn{position:fixed;left:236px;bottom:26px;z-index:72;
     background:#1a1024;border:1px solid #b0526d;color:#e8b0c0;
     font:800 12px 'Cinzel',serif;letter-spacing:.14em;padding:10px 16px;cursor:pointer;}
@@ -1407,6 +1414,7 @@
     <div id="brieftoast"></div>
     <button id="winbtn" style="display:none">✓ COMPLETE CONTRACT</button>
     <button id="landbtn" style="display:none">LAND AND BEGIN CONTRACT</button>
+    <button id="blastbtn" style="display:none">BLAST OFF</button>
     <button id="ironsbtn" style="display:none">⚔ DRAW IRONS</button>
     <button id="foodbtn" style="display:none" title="Throw a handful of Erina's feed to land short of the Qilin. One action. It comes to it when nothing is moving near it.">FEED</button>
     <button id="sqbtn" style="display:none">SQUAD · TOGETHER</button>
@@ -4177,8 +4185,10 @@ function openCharSheet(c, mode, corpse){
             (it.kind === 'credits' ? '<i class="csQty">' + it.value + '</i>' : '') + '</div>'
           : '') + '</div>';
       }
+      const nearL = lootTargetsNear(c); const atL = nearL.indexOf(corpse);
       sideHtml = '<div id="csSide" class="csWin">' +
-        '<div class="csWinHead">' + (corpse.chest ? (corpse.name || 'STRONGBOX').toUpperCase() : corpse.cache ? 'ON THE FLOOR \u00B7 DROPPED GEAR' : 'THE FALLEN \u00B7 ' + archL.toUpperCase()) + '</div>' +
+        '<div class="csWinHead">' + (corpse.chest ? (corpse.name || 'STRONGBOX').toUpperCase() : corpse.cache ? 'ON THE FLOOR \u00B7 DROPPED GEAR' : 'THE FALLEN \u00B7 ' + (corpse.name ? corpse.name.toUpperCase() : archL.toUpperCase())) +
+          (nearL.length > 1 ? '<button class="csNextBody" data-nextbody="1" title="Another body or pile is within reach. Switch to it.">NEXT \u25B8 ' + (atL + 1) + ' OF ' + nearL.length + '</button>' : '') + '</div>' +
         '<div id="csLoot" class="csBagGrid">' + lg + '</div>' +
         '<div id="csInfoBox"></div>' +
       '</div>';
@@ -4332,6 +4342,14 @@ function openCharSheet(c, mode, corpse){
         for(const t2 of ov.querySelectorAll('.csTile.csSel')) t2.classList.remove('csSel');
         tile.classList.add('csSel');
         info(tile.dataset.key);
+      });
+    }
+    // another body under the first: the switch
+    for(const nb of ov.querySelectorAll('[data-nextbody]')){
+      nb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const nearL = lootTargetsNear(c); const i2 = nearL.indexOf(corpse);
+        if(nearL.length > 1) openCharSheet(c, 'loot', nearL[(i2 + 1) % nearL.length]);
       });
     }
     // loot tiles: credits stash on click; the rest select, and drag
@@ -4920,6 +4938,7 @@ function squadMoveToggle(){
 document.getElementById('ironsbtn').addEventListener('click', () => { ironsToggle(); });
 { const fb = document.getElementById('foodbtn'); if(fb && fb.addEventListener) fb.addEventListener('click', () => { foodThrow(); }); }
 { const lb = document.getElementById('landbtn'); if(lb && lb.addEventListener) lb.addEventListener('click', () => { charterLandNow(); }); }
+{ const bb = document.getElementById('blastbtn'); if(bb && bb.addEventListener) bb.addEventListener('click', () => { blastOff(); }); }
 document.getElementById('sqbtn').addEventListener('click', () => { squadMoveToggle(); });
 document.getElementById('endturnbtn').addEventListener('click', () => {
   if(state.range) return;
@@ -5537,7 +5556,7 @@ function renderObjectives(){
     const q = qilinFoe();
     primary = s.quarryDead ? '<span style="color:#e0483e">✗ The Qilin is dead. Erina pays for stock, not pelts.</span>'
       : s.qilinTaken ? '<span style="color:#e0483e">✗ The hunters have the Qilin</span>'
-      : q && q.tamed ? (qilinAboard() ? '<span class="ok">✓ The Qilin is aboard; press the console</span>' : '◈ The Qilin follows your lead; walk it through the Gannet\u2019s hatch')
+      : q && q.tamed ? (qilinAboard() ? '<span class="ok">✓ The Qilin is aboard' + (shipOutside().length ? '; ' + shipOutside().map(c => c.name).join(' and ') + ' still outside the hull' : '') + '; BLAST OFF when everyone is back</span>' : '◈ The Qilin follows your lead; get everyone back to the ship (the lit hull)')
       : s.pkg && s.pkg.carried ? '◈ Carry the darted Qilin aboard the Gannet (Erina will know)'
       : s.pkg && !s.pkg.live ? '◈ Pick up the darted Qilin before it wakes'
       : !(s.qilinFood > 0) && !(q && q.trust >= 3) ? '◈ Nobody brought Erina\u2019s feed (it is on her counter or in a pack at home). Dart it and carry it, or lift and come back with the satchel.'
@@ -8141,6 +8160,7 @@ function civStruck(cv, dmg, team, owner, sed, src){
       }
       return true;
     }
+    if(cv.beast && team === 'player' && currentLevel().cage) cageHarm(cv, owner, !(sed && dmg < 1));   // (Ben, 6 Nov) the cages have cameras
     if(sed && dmg < 1){
       cv.ko = true;   // a sedated bystander is a mercy, not a casualty
       if(state.portDock && team === 'player' && owner && owner.name && cv.kind !== 'constable')
@@ -9447,7 +9467,8 @@ function cageBeastsSeed(kind){
   if(kind === 'forest' && ship.qilinHome){ const p = spot(); state.civs.push(beastMake('qilin', p.x, p.y, 'The Qilin')); n++; }
   if(kind === 'desert'){
     const c = spot();
-    for(let i = 0; i < 8; i++){ const a = rng() * Math.PI * 2, r = 30 + rng() * 90; let x = c.x + Math.cos(a) * r, y = c.y + Math.sin(a) * r; if(!openGround(x, y, 10)){ const p = spot(); x = p.x; y = p.y; } state.civs.push(beastMake('miraj', x, y, MIRAJ_NAMES[i])); n++; }
+    const gone = ((ship.erinaWrath && ship.erinaWrath.dead) || []).filter(d => d.kind === 'miraj').map(d => d.name);
+    for(let i = 0; i < 8; i++){ const a = rng() * Math.PI * 2, r = 30 + rng() * 90; let x = c.x + Math.cos(a) * r, y = c.y + Math.sin(a) * r; if(!openGround(x, y, 10)){ const p = spot(); x = p.x; y = p.y; } if(gone.includes(MIRAJ_NAMES[i])) continue; state.civs.push(beastMake('miraj', x, y, MIRAJ_NAMES[i])); n++; }
   }
   return n;
 }
@@ -11146,6 +11167,7 @@ function districtGo(to){
 }
 // the cages: Erina lets the crews she trusts walk them. Trust above her resting suspicion, no contempt, and the shop open.
 function cageAllowed(){
+  if(erinaGone()) return {ok: false, why: 'shut', note: 'The Exotics is shut. Nobody is minding the cages now.'};
   const c = pc();
   if(!keeperAtCounter('Erina Jones')) return {ok: false, why: 'shut', note: 'The Exotics is shut. The cages open when the counter does.'};
   if(moodRefuses('Erina Jones', c)) return {ok: false, why: 'refused', note: 'Erina will not have this crew on her floor, let alone in her cages.'};
@@ -11169,6 +11191,90 @@ function cageContents(kind){
   return '';
 }
 function houndHome(){ const j = ship.erinaJob; return !!(j && j.state === 'paid' && j.alive); }
+// ---- (Ben, 6 Nov) Erina watches her cages. Hurt one of her animals in there and she knows at once; kill one and she and Juni meet
+// you on the Cross in plate with miniguns. There is no talking after that. ----
+function cageHarm(cv, owner, fatal){
+  const w = ship.erinaWrath || (ship.erinaWrath = {day: ship.day || 0, dead: [], hurt: 0, state: 'seen', told: false});
+  const kind = cv.beast.kind;
+  if(fatal){
+    w.dead.push({kind, name: cv.name || null});
+    if(kind === 'hound' && ship.erinaJob) ship.erinaJob.alive = false;
+    if(kind === 'qilin') ship.qilinHome = false;
+  }else w.hurt++;
+  w.state = 'seen';
+  ship.erinaBlood = true;
+  moodPush('Erina Jones', {t: -4, f: -4, j: -3, a: -3}, 'the crew ' + (fatal ? 'killed' : 'hurt') + ' one of her animals in the cage', 'stock');
+  moodPush('Juni', {t: -3, f: -3, j: -2}, 'the crew ' + (fatal ? 'killed' : 'hurt') + ' one of the animals', 'stock');
+  const who = owner && owner.name ? owner.name : 'The crew';
+  if(!w.told){
+    w.told = true;
+    showBanner('THE CAGE HAS CAMERAS \u00B7 ERINA SAW THAT', '#e0483e');
+    chronicle('crime', who + ' ' + (fatal ? 'killed' : 'shot') + ' ' + (cv.name || ('a ' + (BEASTS[kind] || {}).label || kind).toLowerCase()) + ' in Erina\u2019s ' + kind + ' cage. The cages are watched from the counter. She saw it as it happened.');
+  }else chronicle('crime', who + ' ' + (fatal ? 'killed' : 'shot') + ' ' + (cv.name || 'another animal') + ' in the cage, on camera.');
+  if(fatal && !w.warned){ w.warned = true; showBannerLater('THE CAGE HAS CAMERAS', 'SHE WILL BE WAITING ON THE CROSS', false, 4500); }
+  shipSave();
+}
+function erinaGone(){ const w = ship.erinaWrath; return !!(w && (w.state === 'fight' || w.state === 'done')); }
+// back on the Cross with blood on the cage floor: the shop door opens and the two of them come out in plate
+function erinaWrathArrive(){
+  const w = ship.erinaWrath; if(!w || w.state !== 'seen' || !w.dead.length) return false;
+  const lead = pc() || state.squad.find(c => c.alive); if(!lead) return false;
+  const door = SHOPS.erina.anchors.door_out;
+  const defs = [
+    {name: 'Erina Jones', race: 'HUMAN', sex: 'FEMALE', cls: 'breaker', title: 'in plate', color: '#e07a5a', loadout: {primary: 'mg88'}, armor: 40, outfit: 'juggernaut',
+      stats: {health: 64, bravery: 40, fearless: 1, move: 110, vision: 420},
+      bio: 'Erina Jones, out from behind the counter for the first time in years, in a Juggernaut rig cut for a woman with one arm and one leg of her own, carrying an MG-88 like it weighs nothing. She is not here to talk.'},
+    {name: 'Juni', race: 'AMAROK', sex: 'FEMALE', cls: 'runner', title: 'in plate', color: '#d9a066', loadout: {primary: 'mg88'}, armor: 32, outfit: 'trooperplate',
+      stats: {health: 44, bravery: 30, fearless: 1, move: 160, vision: 440},
+      bio: 'Juni, in Trooper Plate two sizes too big, with the second MG-88 from under the counter. She fed those animals every morning.'},
+  ];
+  const foes = [];
+  defs.forEach((d, i) => {
+    const e = makeNamedFoe(d, door.x * W + (i ? 36 : -36), door.y * H + 10);
+    e.wasCiv = true; e.alert = 'alerted'; e.lastKnown = {x: lead.x, y: lead.y}; e.faction = 'ERINA\u2019S EXOTICS';
+    e.armor = d.armor; e.maxArmor = d.armor; e.outfit = d.outfit; e.bio = d.bio; e.wrath = true;
+    e.loot = [{kind: 'weapon', key: 'mg88', own: d.name}, {kind: 'credits', value: i ? 30 : 140}];
+    if(ARCHETYPES[namedArchetype(d)]) ARCHETYPES[namedArchetype(d)].label = d.name + ', in plate';
+    foes.push(e);
+  });
+  // the keeper and the help leave the floor as people and come back on it as this
+  state.civs = (state.civs || []).filter(cv => cv.name !== 'Erina Jones' && cv.name !== 'Juni');
+  for(const e of foes) state.enemies.push(e);
+  w.state = 'fight';
+  shopLock('erina', true);
+  state.portFight = true;
+  if(!state.deckCombat) enterDeckCombat();
+  showBanner('ERINA AND JUNI \u00B7 PLATE AND MINIGUNS \u00B7 THEY ARE COMING FOR YOU', '#e0483e');
+  chronicle('combat', 'The door of the Exotics opened and Erina Jones came out of it in a Juggernaut rig with an MG-88, Juni a step behind her in plate with the other one. Nobody on the Cross had ever seen either of them with a gun. Nobody got in the way.');
+  startEnemyTurn();
+  shipSave();
+  return true;
+}
+// the clock on it: she comes when the crew is on the Cross; the fight resolves when they are down, or the crew is gone
+function erinaWrathTick(){
+  const w = ship.erinaWrath; if(!w) return;
+  if(w.state === 'seen' && w.dead.length && ship.district === 'cross' && state.portDock && !state.deckCombat && !currentLevel().cage && !state.over && !busy()){
+    if(!w.at) w.at = performance.now() + 1800;   // long enough to see the floor before the door opens
+    else if(performance.now() >= w.at){ w.at = null; erinaWrathArrive(); }
+    return;
+  }
+  if(w.state === 'fight'){
+    const theirs = (state.enemies || []).filter(e => e.wrath);
+    if(theirs.length && theirs.every(e => !e.alive)){
+      w.state = 'done';
+      const bD = bz(); if(bD) bzSet({deadCast: Array.from(new Set((bD.deadCast || []).concat(theirs.map(e => e.name))))});
+      chronicle('combat', 'Erina Jones and Juni died on the Cross in front of their own door. The Exotics is shut. The animals in the back will want feeding, and nobody is coming.');
+      showBanner('THE EXOTICS IS SHUT FOR GOOD', '#8c8c96');
+      shipSave();
+    }else if(!theirs.length || !state.deckCombat){
+      // the crew left the floor with them standing: they go back inside and wait for next time
+      const dead = theirs.filter(e => !e.alive).map(e => e.name);
+      if(dead.length){ const bD = bz(); if(bD) bzSet({deadCast: Array.from(new Set((bD.deadCast || []).concat(dead)))}); }
+      w.state = dead.length === 2 ? 'done' : 'seen'; w.at = null;
+      shipSave();
+    }
+  }
+}
 // what a door would say if you asked it: title, state, and what it takes
 function doorStatus(dr){
   if(dr.cage) return cageDoorStatus(dr);
@@ -12026,6 +12132,52 @@ function feedLand(b, hit){
   if(typeof updateHud === 'function') updateHud();
 }
 const FEED_NOTICE = 200;   // a throw that lands within this of the Qilin is noticed at once
+// the ship is the target area once the animal is in hand: tamed and following, or darted and carried
+function shipTargetOn(){
+  if(!state.charterGround || !state.charterZone || state.over) return false;
+  if(charterJob() === 'qilin'){ const q = qilinFoe(); return !!((q && q.alive && q.tamed) || (state.pkg && !state.pkg.live && !state.pkg.delivered)); }
+  return !!(state.pkg && state.pkg.carried);
+}
+function shipInZone(x, y){ const z = state.charterZone; return !!z && x >= z.x0 * W && x <= z.x1 * W && y >= z.y0 * H && y <= z.y1 * H; }
+function shipOutside(){ return (state.squad || []).filter(c => c.alive && !shipInZone(c.x, c.y)); }
+// BLAST OFF: the animal is in and at least one operator is in with it
+function blastReady(){
+  if(!shipTargetOn()) return false;
+  const inQ = charterJob() === 'qilin' ? qilinAboard() : charterPkgAboard();
+  return inQ && (state.squad || []).some(c => c.alive && shipInZone(c.x, c.y));
+}
+function blastBtnSync(){
+  const b = (typeof document.getElementById === 'function') && document.getElementById('blastbtn'); if(!b || !b.style) return;
+  const on = blastReady() && state.phase === 'player';
+  b.style.display = on ? 'block' : 'none';
+  if(on){ const o = shipOutside(); b.textContent = o.length ? 'BLAST OFF \u00B7 ' + o.length + ' STILL OUTSIDE' : 'BLAST OFF'; }
+}
+// the press: a warning if anyone is still out there, then the lift
+function blastOff(){
+  if(!blastReady()) return false;
+  const out = shipOutside();
+  if(!out.length) return blastOffNow();
+  const names = out.map(c => c.name).join(' and ');
+  const shown = showEventModal('ARE YOU SURE?', 'You\u2019ll be leaving ' + names + ' behind! The Gannet does not come back for anyone. Whoever is outside the hull when she lifts stays on ' + charterJobDef().dest.charAt(0) + charterJobDef().dest.slice(1).toLowerCase() + ' for good.',
+    [{label: 'WAIT FOR THEM', cb: () => {}}, {label: 'BLAST OFF ANYWAY', cb: () => blastOffNow()}], {sub: 'STILL OUTSIDE: ' + names.toUpperCase()});
+  void shown;
+  return 'ask';
+}
+function blastOffNow(){
+  if(!blastReady()) return false;
+  const out = shipOutside();
+  const where = charterJobDef().dest.charAt(0) + charterJobDef().dest.slice(1).toLowerCase();
+  for(const c of out){
+    c.alive = false; c.downed = false; c.moving = false; c.run = null;
+    if(c.def){ c.def.dead = true; c.def.leftAt = where; ship.graves.push(c.name); }
+    chronicle('crew', c.name + ' was left on ' + where + '. The ramp came up without them. The berth stands empty.');
+    addPopup(c.x, c.y - c.r - 14, 'LEFT BEHIND', '#e0483e');
+  }
+  if(out.length) showBanner(out.map(c => c.name.toUpperCase()).join(', ') + ' LEFT ON ' + where.toUpperCase(), '#e0483e');
+  if(state.sel == null || !state.squad[state.sel] || !state.squad[state.sel].alive) state.sel = Math.max(0, state.squad.findIndex(c => c.alive));
+  blastBtnSync();
+  return charterDepart(true);
+}
 function qilinAboard(){
   const z = state.charterZone; if(!z) return false;
   const inZ = (x, y) => x >= z.x0 * W && x <= z.x1 * W && y >= z.y0 * H && y <= z.y1 * H;
@@ -12123,7 +12275,7 @@ function qilinDecide(e){
         trustPop('TAMED \u00B7 IT WILL FOLLOW', '#9fe08e');
         showBanner('THE QILIN IS TAMED \u00B7 WALK IT TO THE GANNET', '#9fe08e');
         // the way home, marked: the ramp as the extraction, and the camera shows it
-        { const g = currentLevel().gannet; if(g){ const hx = g.hatch.x * W, hy = g.hatch.y * H; state.extract = {x: hx, y: hy + 40, r: 120, label: 'THE GANNET \u00B7 WALK IT THROUGH THE RAMP, THEN THE CONSOLE'}; camTour(hx, hy, 2600); } }
+        { const g = currentLevel().gannet; if(g){ const hx = g.hatch.x * W, hy = g.hatch.y * H; state.extract = null; camTour(hx, hy, 2600); } }   // the hull lights up as the target area (shipTargetOn) and BLAST OFF appears when it is in
         chronicle('combat', 'The Qilin took the third mouthful from the ground at ' + (pc() ? pc().name : 'the crew') + '\u2019s feet and did not go away afterwards. It will follow whoever is leading now.');
       }else{
         trustPop('EATS \u00B7 TRUST ' + e.trust + '/3');
@@ -14122,8 +14274,8 @@ function missionNext(id){
     if(ch.state === 'out') return 'Underway to Tallis. Thirty seconds of burn; hold on to something.';
     if(ch.state === 'spindle'){
       const q = qilinFoe();
-      if(q && q.tamed) return qilinAboard() ? 'The Qilin is aboard. Press the Gannet\u2019s console to go home.' : 'The Qilin is following you. Walk it through the Gannet\u2019s hatch, then press the console.';
-      if(state.pkg && state.pkg.carried) return 'The Qilin is darted and in your arms. Get it through the hatch, then the console. Erina will know.';
+      if(q && q.tamed) return qilinAboard() ? 'The Qilin is aboard. Get everyone back to the ship and press BLAST OFF.' : 'The Qilin is following you. Get everyone back to the ship (the lit hull); BLAST OFF appears when it is in.';
+      if(state.pkg && state.pkg.carried) return 'The Qilin is darted and in your arms. Get everyone back to the ship (the lit hull) and press BLAST OFF. Erina will know.';
       return 'Find the Qilin in the glades. Walk, do not run; mind the small things that call out. Throw feed near it (FEED, ' + (state.qilinFood || 0) + ' left) three times. ' + (state.qilinTaken ? 'The hunters have it.' : 'The hunting party wants it in a net.');
     }
     if(ch.state === 'back') return 'Underway to the Cross.';
@@ -14565,10 +14717,10 @@ function updateIxBtn(){
   }
   let b = document.getElementById('ixBtn');
   const c = pc();
-  let target = null;
+  let target = null, nearN = 0;
   if(c && c.alive && state && !state.over && !busy()){
-    target = state.enemies.find(e2 => !e2.alive && !e2.looted && !lootSpent(e2) &&
-      Math.hypot(e2.x - c.x, e2.y - c.y) < 52);
+    const near = lootTargetsNear(c);
+    target = near[0] || null; nearN = near.length;
   }
   const ovS = document.getElementById('charSheet');
   const sheetOpen = !!(ovS && ovS.style && ovS.style.display === 'flex');
@@ -14587,11 +14739,16 @@ function updateIxBtn(){
     });
   }
   updateIxBtn._t = {c, target};
-  b.textContent = 'LOOT';
+  b.textContent = nearN > 1 ? 'LOOT \u00B7 ' + nearN + ' HERE' : 'LOOT';
   const sp = worldToScreen(c.x + c.r + 10, c.y - c.r - 10);
   b.style.left = sp.x + 'px';
   b.style.top = sp.y + 'px';
   b.style.display = 'block';
+}
+// (Ben, 6 Nov) every body or pile within reach, nearest first: two circles on top of each other are two bodies
+function lootTargetsNear(c){
+  return (state.enemies || []).filter(e2 => !e2.alive && !e2.looted && !lootSpent(e2) && Math.hypot(e2.x - c.x, e2.y - c.y) < 52)
+    .sort((a, b2) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b2.x - c.x, b2.y - c.y));
 }
 function refreshDropBtn(){
   const holding = !!(pc() && carriedThing(pc()));
@@ -14985,7 +15142,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '5 Nov \u00B7 THE EMPTY WOOD';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '6 Nov \u00B7 THE CAMERAS';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -20548,7 +20705,7 @@ function frame(now){
   if(state && state.shipDeck && state.squad) deckSeparate();
   camGlideTick(); spotlightTick();
   if(state && state.squad && !editorOn && ((state._stripT || 0) + 400 < performance.now())){ state._stripT = performance.now(); nextStripTick(); }
-  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ clockTick(realDt); waTick(realDt); houndTick(realDt); lawTick(realDt); talkGoalTick(realDt); shopCustomersTick(realDt); signTick(); }
+  if(state && state.squad && !editorOn && !(state.simPause && state.shipDeck && !state.deckCombat)){ clockTick(realDt); waTick(realDt); houndTick(realDt); lawTick(realDt); talkGoalTick(realDt); shopCustomersTick(realDt); signTick(); erinaWrathTick(); }
   if(state && state.flight) flightTick(realDt);
   if(state && state.squad && !editorOn) partyPulse();
   if(state && state.squad && !editorOn){
@@ -20797,6 +20954,7 @@ function frame(now){
     processPanicQueue(realDt);
   }
   if(currentLevel().qilin && !s.shipDeck) foodBtnSync();
+  if(s.charterGround) blastBtnSync();
 
   // player phase end check: every living character has spent their actions
   if(s.phase === 'player' && !s.over &&
@@ -22424,6 +22582,51 @@ function draw(){
     }
   }
 
+  // (Ben, 6 Nov) the Qilin, once seen, wears the target: inside the small ring a handful is always noticed, inside the big one it might be
+  if(currentLevel().qilin && !s.shipDeck){
+    const q = qilinFoe();
+    if(q && q.alive && !q.ko && !q.tamed && q.visible && (s.qilinFood || 0) > 0){
+      const spinQ = performance.now() / 1800;
+      ctx.save();
+      ctx.setLineDash([6, 6]);
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(240,208,112,.28)';
+      ctx.beginPath(); ctx.arc(q.x, q.y, FEED_NOTICE, -spinQ, -spinQ + Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([10, 6]);
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = 'rgba(240,208,112,.75)';
+      ctx.beginPath(); ctx.arc(q.x, q.y, 60, spinQ, spinQ + Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = "700 9px 'Space Grotesk',sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(240,208,112,.85)';
+      ctx.fillText('THROW THE FEED IN HERE', q.x, q.y - 60 - 8);
+      ctx.fillStyle = 'rgba(240,208,112,.4)';
+      ctx.fillText('MIGHT NOTICE', q.x, q.y - FEED_NOTICE - 6);
+      ctx.restore();
+    }
+  }
+  // the hull as the target area once the animal is yours: everyone back to the ship, and the button does the rest
+  if(shipTargetOn()){
+    const z = s.charterZone;
+    const zx = z.x0 * W, zy = z.y0 * H, zw = (z.x1 - z.x0) * W, zh = (z.y1 - z.y0) * H;
+    const pul = 0.5 + 0.5 * Math.sin(performance.now() / 500);
+    ctx.save();
+    ctx.fillStyle = 'rgba(111,214,255,' + (0.05 + 0.05 * pul) + ')';
+    ctx.fillRect(zx, zy, zw, zh);
+    ctx.setLineDash([14, 8]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(111,214,255,' + (0.45 + 0.3 * pul) + ')';
+    ctx.strokeRect(zx, zy, zw, zh);
+    ctx.setLineDash([]);
+    ctx.font = "700 11px 'Space Grotesk',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(111,214,255,.9)';
+    ctx.fillText('GET EVERYONE BACK TO THE SHIP', zx + zw / 2, zy - 10);
+    const outQ = shipOutside();
+    if(outQ.length){ ctx.font = "600 9px 'Space Grotesk',sans-serif"; ctx.fillStyle = 'rgba(224,163,62,.9)'; ctx.fillText('STILL OUTSIDE: ' + outQ.map(c => c.name.toUpperCase()).join(', '), zx + zw / 2, zy + zh + 14); }
+    ctx.restore();
+  }
   // retrieval markers ride ABOVE the fog: objectives are intel, not sights
   if(s.extract && s.pkg && !s.pkg.delivered){
     const ex = s.extract;
