@@ -593,6 +593,10 @@
   .csiRows b{color:var(--bone);text-align:right;white-space:nowrap;}
   .csiSpec{font-size:11px;letter-spacing:.14em;color:#b06ae0;margin-bottom:8px;}
   .csiDesc{font-size:12.5px;font-style:italic;color:rgba(232,224,204,.7);line-height:1.6;}
+  .csiMaker{color:var(--brass);cursor:pointer;}
+  .csiMaker:hover{text-decoration:underline;}
+  .wcmaker{font-size:9px;letter-spacing:.3em;color:var(--brass);margin:-6px 0 8px;cursor:pointer;opacity:.85;}
+  .wcmaker:hover{opacity:1;text-decoration:underline;}
   .csDossier .csdRace{font-family:'Cinzel',serif;font-size:19px;font-weight:800;
     color:var(--bone);letter-spacing:.1em;margin-bottom:8px;}
   .csdFlavor{font-size:13px;color:rgba(232,224,204,.75);line-height:1.65;margin-bottom:14px;}
@@ -972,7 +976,7 @@
   .rinfobtn{border-color:rgba(111,214,255,.4);}
   .rinfobtn:hover{border-color:rgba(111,214,255,.8);color:var(--plasma);}
   #dossier{
-    position:fixed;inset:0;z-index:70;display:none;
+    position:fixed;inset:0;z-index:95;display:none;   /* above the character sheet: the maker line opens it from there */
     background:rgba(6,8,16,.88);cursor:pointer;
   }
   #dossier.show{display:flex;align-items:center;justify-content:center;}
@@ -1468,6 +1472,13 @@ const WEAPONS = {
             coneMin:0.75*DEG, coneMax:18*DEG, coneSpeed:8},
   bloodprince: {dmg:24, pellets:1, burst:1, speed:1550, r:4, bounces:0, life:0.85, burstGap:0, bloom:0, pen:5, noise:760, bodyPen:3, critMul:2.6,
             coneMin:0.4*DEG, coneMax:16*DEG, coneSpeed:6.2, race:'vampire'},
+  // (Ben, 9 Nov) Vantek's rifle catalogue: three rhythms from one maker. coneDwell > 1 keeps the cone near its maximum and dips briefly.
+  vr12:    {maker:'vantek', dmg:14,  pellets:1, burst:1, speed:1150, r:4,   bounces:0, life:0.66, burstGap:0, bloom:0, pen:2,   noise:620, bodyPen:1, critMul:1.8,
+            coneMin:1.5*DEG, coneMax:9*DEG, coneSpeed:3.5, coneDwell:1},
+  vr28:    {maker:'vantek', dmg:13,  pellets:1, burst:1, speed:1000, r:2,   bounces:0, life:0.6,  burstGap:0, bloom:0, pen:1,   noise:420, bodyPen:0, critMul:2.0,
+            coneMin:0.3*DEG, coneMax:20*DEG, coneSpeed:12, coneDwell:1.4},
+  vr40:    {maker:'vantek', dmg:19,  pellets:1, burst:1, speed:1400, r:2.5, bounces:0, life:0.715, burstGap:0, bloom:0, pen:5,  noise:780, bodyPen:2, critMul:2.3,
+            coneMin:0.25*DEG, coneMax:14*DEG, coneSpeed:2.2, coneDwell:2.6},
   dvalin:  {dmg:4.5, pellets:8, burst:1, speed:780, r:3, bounces:0, life:0.5, burstGap:0, bloom:0, pen:1, noise:820, bodyPen:1, critMul:1.8,
             coneMin:4*DEG, coneMax:22*DEG, coneSpeed:7},
   hydra:   {dmg:3.8, pellets:6, burst:2, speed:760, r:3, bounces:0, life:0.5, burstGap:0.12, bloom:2*DEG, pen:1, noise:860, bodyPen:1, critMul:1.6,
@@ -4089,6 +4100,7 @@ function openCharSheet(c, mode, corpse){
         '<div class="csiLine">' + it.kind.toUpperCase() +
           (it.value && it.kind !== 'credits' ? ' \u00B7 WORTH ' + it.value + ' CR AT A VENDOR' : '') + '</div>' +
         (it.own ? '<div class="csiLine" style="color:#e0a33e">TAKEN FROM ' + it.own.toUpperCase() + '</div>' : '') +
+        (it.kind === 'weapon' ? makerLineHtml(it.key) : '') +
         (it.kind === 'weapon' && !foe ? wpnTableHtml(it.key, wpnItemMods(it), c) : '') +
         '<div class="csiDesc">' + (it.kind === 'weapon' ? (WPN_DESC[it.key] || '')
           : it.kind === 'credits' ? 'Hard currency. Click it and it is yours; nobody will mind.'
@@ -4118,6 +4130,7 @@ function openCharSheet(c, mode, corpse){
     panel.innerHTML = '<div class="csiName" style="color:' + tileColor(key) + '">' + (WPN_NAMES[key] || key).toUpperCase() + '</div>' +
       '<div class="csiLine">' + (GROUP_LABELS[m.group] || '').toUpperCase() + ' \u00B7 ' + (WPN_CALLSIGNS[key] || '') +
         (ISSUE_STOCK.includes(key) ? ' \u00B7 ISSUE' : '') + (heldSlot ? ' \u00B7 IN HAND' : '') + '</div>' +
+      makerLineHtml(key) +
       (foe ? '' : wpnTableHtml(key, modsP, c, {self: !!heldSlot})) +
       (canUseTile(d, key) ? '' : '<div class="csiSpec" style="color:#e0483e">NOT RATED FOR ' + (d.cls || '').toUpperCase() + '</div>') +
       '<div class="csiDesc">' + (WPN_DESC[key] || '') + '</div>';
@@ -5317,6 +5330,7 @@ function weaponCardHtml(c){
   return '<div class="wcslot">' + (c.slot === 'primary' ? '① PRIMARY' : '② SIDEARM') +
       (w.flashless ? ' · <span style="color:#6fd6ff">STEALTH</span>' : ' · <span style="color:#e0a33e">LOUD</span>') + '</div>' +
     '<div class="wcname">' + WPN_NAMES[key] + '</div>' +
+    (makerOf(key) ? '<div class="wcmaker" data-maker="' + makerOf(key) + '" title="' + MAKERS[makerOf(key)].slogan + ' Click for the maker\u2019s dossier.">' + MAKERS[makerOf(key)].name.toUpperCase() + '</div>' : '') +
     (isFinite(clipOf(key)) && c.mag ? '<div id="wcmagline">' + wcMagHtml(c) + '</div>' : '') +
     '<div class="wcstats">' + stats.map(([l, v, frac]) =>
       '<div class="wcstat"><span>' + l + '</span><b>' + v + '</b></div>' +
@@ -5415,6 +5429,9 @@ const WPN_DESC = {
 
   trainer: "The Bureau's training iron. Heavier rounds than the field pattern, and a cone that breathes like it has all day. Every operative starts here.",
   rifle:   'Vidar Long-Rifle: one heavy round at full speed. Penetrates cover, ricochets once. Loud, a 460 giveaway when fired.',
+  vr12:    'The Anchor. Vantek\u2019s all-rounder: a cone that breathes slowly and never opens far, eight rounds, a medium round that forgives a narrow miss. Right for most fights at most ranges. Wrong for the perfect shot: it has no very small moment to find.',
+  vr28:    'The Needle. Light, quick, small-calibre: the cone snaps to almost nothing and snaps open again, so the window is brief and the reward is a round through a gap nothing else fits. Right for threading cover at medium range. Wrong for shooting through it, and unkind when you are late.',
+  vr40:    'Vantek Pro. The cone breathes slowly and sits wide, then touches a pinpoint for a moment and leaves. Nineteen a round, through the crate and the man behind it, across a whole glade. Right for the one shot that decides it. Wrong for a firefight: four rounds, a report everyone hears, and a miss you pay for.',
   mg:      'Ares-7 Autogun: six small, fast slugs per trigger. Suppression and pinning by sheer volume. 430 giveaway.',
   sawnoff: 'Sawn-off Shotgun: six pellets, murderous up close, spent quickly with range. 520 giveaway.',
   pistol:  'K18 Dual Pistol: two quick rounds, quiet. A 160 giveaway; the ghost\'s working tool.',
@@ -5434,7 +5451,7 @@ const WPN_DESC = {
 };
 
 const WPN_SLOTS = {
-  primary: ['rifle', 'mg', 'carbine', 'mg88', 'dart', 'blade'],
+  primary: ['rifle', 'vr12', 'vr28', 'vr40', 'mg', 'carbine', 'mg88', 'dart', 'blade'],
   sidearm: ['pistol', 'sawnoff', 'goad', 'screamer', 'revolver', 'feed'],
 };
 // ---------- specials (recovered) ----------
@@ -5819,13 +5836,13 @@ const STAT_TIPS = {
 const FACE_ICONS = ['⚔', '☠', '♞', '✠', '★', '☾', '◆', '⚑'];  // null = name initial
 
 const WPN_CLIP = {
-  trainer: 999, rifle: 5, bloodprince: 3, carbine: 9, mg: 36, mg88: 120, stdautogun: 24,
+  trainer: 999, rifle: 5, bloodprince: 3, carbine: 9, mg: 36, mg88: 120, stdautogun: 24, vr12: 8, vr28: 6, vr40: 4,
   sawnoff: 2, pistol: 8, revolver: 6, dart: 4, screamer: 6, goad: 6, feed: 6,
   dvalin: 6, hydra: 8,
 };
 const WPN_AMMO = {
   stdautogun: 'Lead',
-  trainer: 'Rubber', rifle: 'Lead', bloodprince: 'Uranium', carbine: 'Lead',
+  trainer: 'Rubber', rifle: 'Lead', bloodprince: 'Uranium', carbine: 'Lead', vr12: 'Lead', vr28: 'Lead', vr40: 'Lead',
   mg: 'Lead', mg88: 'Lead', sawnoff: 'Lead', pistol: 'Lead', revolver: 'Lead',
   dart: 'Chem', screamer: 'EMP', goad: 'EMP', blade: 'None', feed: 'Feed',
   dvalin: 'Lead', hydra: 'Lead', boardinghammer: 'None', reckoning: 'None',
@@ -5857,7 +5874,7 @@ const WPN_CALLSIGNS = {
   stdautogun:'MULE', stdblade:'SPLINTER', stdknife:'BURR',
   trainer:'PATIENCE', rifle:'VIDAR', bloodprince:'PRINCE', carbine:'WRAITH',
   mg:'ARES-7', mg88:'MG-88', sawnoff:'SAWN-OFF', pistol:'ECHO-2', revolver:'GOLIATH',
-  dart:'DART', screamer:'SCREAMER', goad:'STUNNER', blade:'FENRIR', feed:'FEED',
+  dart:'DART', screamer:'SCREAMER', goad:'STUNNER', blade:'FENRIR', vr12:'ANCHOR', vr28:'NEEDLE', vr40:'VR-40', feed:'FEED',
   dvalin:'BOXLOCK', hydra:'HYDRA', boardinghammer:'HAMMER', reckoning:'RECKONING',
 };
 const GROUP_COLORS = {
@@ -5967,6 +5984,7 @@ function openWeaponGrid(def, slot, onDone){
       iRows.appendChild(le); iRows.appendChild(ve);
     }
     const rules = [];
+    if(makerOf(key)) rules.push('BY ' + MAKERS[makerOf(key)].name.toUpperCase());
     if(w.race) rules.push(w.race.toUpperCase() + 'S ONLY');
     if((m.tags || []).includes('suppressed')) rules.push('SUPPRESSED');
     if((m.tags || []).includes('nonlethal')) rules.push('NON-LETHAL');
@@ -7974,7 +7992,13 @@ function coneAngle(){
   if(c.perfect) return mn;    // the moment: fully settled, breathless, steel included
   // a blade at full draw breathes like a sprinter: the harder the leap, the wilder the line
   const stoke = w.melee ? (1 + (state.power || 0) * 2.5) : 1;
-  return mn + (w.coneMax - mn) * (0.5 + 0.5*Math.cos(state.coneT * aimBreathSpeed(c, w) * stoke));
+  return mn + (w.coneMax - mn) * coneBreath(w, state.coneT * aimBreathSpeed(c, w) * stoke);
+}
+// the shape of a breath: 0 at the narrowest, 1 at the widest. coneDwell above 1 holds the cone wide and makes the narrow moment brief.
+function coneBreath(w, t){
+  const ph = 0.5 + 0.5 * Math.cos(t);
+  const d = (w && w.coneDwell) || 1;
+  return d === 1 ? ph : Math.pow(ph, 1 / d);
 }
 function maxMoveDist(c){
   c = c || pc();
@@ -10988,7 +11012,7 @@ const SLOT_PRICE = 2500;
 const WPN_PRICE = {
   stdautogun: 90, stdblade: 70, stdknife: 30,
   pistol: 140, screamer: 180, dart: 200, sawnoff: 220, goad: 240, revolver: 260, feed: 0,
-  rifle: 300, carbine: 380, mg: 450, blade: 500, mg88: 800, bloodprince: 1400,
+  rifle: 300, carbine: 380, mg: 450, blade: 500, mg88: 800, bloodprince: 1400, vr12: 350, vr28: 520, vr40: 1100,
   dvalin: 340, hydra: 620, boardinghammer: 700, reckoning: 1500,
 };
 const SELL_RATE = 0.5;
@@ -11013,6 +11037,9 @@ const WPN_META = {
   stdknife:    {group: 'melee',       hands: 1, tags: []},
   unarmed:     {group: 'melee',       hands: 1, tags: []},
   rifle:       {group: 'rifles',      hands: 2, tags: []},
+  vr12:        {group: 'rifles',      hands: 2, tags: []},
+  vr28:        {group: 'rifles',      hands: 2, tags: []},
+  vr40:        {group: 'rifles',      hands: 2, tags: []},
   bloodprince: {group: 'rifles',      hands: 2, tags: ['vampire-keyed']},
   carbine:     {group: 'carbines',    hands: 2, tags: ['suppressed']},
   mg:          {group: 'autoguns',    hands: 2, tags: []},
@@ -14827,7 +14854,7 @@ function shopItem(keeper, k){
 function tarnItem(k){ return shopItem('Tarn', k); }
 function tarnSeed(){
   // the locker holds the stock; the shelves are empty until he puts the day's display out
-  const keys = ['pistol', 'revolver', 'rifle', 'stdautogun', 'pistol', 'sawnoff', 'carbine', 'revolver'];
+  const keys = ['pistol', 'revolver', 'rifle', 'stdautogun', 'pistol', 'sawnoff', 'carbine', 'vr12'];
   return {stock: [null, null, null, null], locker: keys.map(tarnItem),
     keeper: 'Tarn', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, tarn: true, base: 4, lockerSeen: 8};
 }
@@ -14997,6 +15024,44 @@ function shopSteal(i, cName){
 // one piece, stat by stat, beside what the operator holds in the same slot.
 // rows: {label, v, hv, better} where hv is the held value (null when nothing is held there,
 // or when this IS the held piece) and better is true/false/null against it.
+// ---- (Ben, 9 Nov) the makers. A weapon carries `maker`; the card shows it as a line of its own, and the line opens a dossier,
+// so the player learns the companies the way they learn the cast. The original roster is unassigned until Ben assigns it. ----
+const MAKERS = {
+  vantek: {name: 'Vantek', slogan: 'When it matters.', origin: 'Vantage Technical Cooperative, a frontier workshop',
+    story: 'Vantek began as the Vantage Technical Cooperative, a repair workshop on a remote frontier world where a broken machine could mean a lost harvest. During the Winter of Broken Machines its engineers found that most failures came from needless complexity and parts that fitted nothing else, so they simplified, standardised and made their own. The first Vantek rifle, the V1, was built the same way, and some are still firing centuries on; Vantek still makes the parts. There was no visionary founder. The company grew from a workshop to a galactic manufacturer without losing the engineering culture, and after MKI tried to buy it, its workforce took a voting stake to keep it that way. Its names are the catalogue: VR-12, VC-7, Pro VR-40. The designation tells you what you are buying.',
+    hand: 'In the hand: a cone that settles and stays settled, modest ceilings, ammunition you can find anywhere, parts that fit. A Vantek gun is never the best gun in the room. It is the one that does the same thing on turn one and turn forty.',
+    motto: 'If you can make it better, you should.',
+    rival: 'Morgan and Klab Industries'},
+};
+function makerOf(key){ const w = WEAPONS[key]; return (w && w.maker && MAKERS[w.maker]) ? w.maker : null; }
+function makerLineHtml(key){
+  const mk = makerOf(key); if(!mk) return '';
+  const M = MAKERS[mk];
+  return '<div class="csiLine csiMaker" data-maker="' + mk + '" title="Open the maker\u2019s dossier">MAKER \u00B7 ' + M.name.toUpperCase() + ' \u00B7 \u201C' + M.slogan.toUpperCase() + '\u201D \u00B7 DOSSIER \u25B8</div>';
+}
+function openMakerDossier(mk){
+  const M = MAKERS[mk]; if(!M) return false;
+  ship.makersSeen = ship.makersSeen || {};
+  if(!ship.makersSeen[mk]){ ship.makersSeen[mk] = true; chronicle('event', 'The crew read up on ' + M.name + '. ' + M.slogan); }
+  const made = Object.keys(WEAPONS).filter(k => WEAPONS[k].maker === mk && WPN_NAMES[k]);
+  return dossierShow(
+    '<div class="dhead" style="color:var(--brass)">' + M.name.toUpperCase() + '</div>' +
+    '<div class="dsub">\u201C' + M.slogan + '\u201D \u00B7 ' + M.origin + '</div>' +
+    '<div class="dcols"><div class="dcol">' +
+      '<div class="dsec" style="color:var(--brass)">The company</div><div class="dlore">' + M.story + '</div>' +
+      (M.motto ? '<div class="dlore" style="margin-top:8px;font-style:italic;opacity:.8">\u201C' + M.motto + '\u201D</div>' : '') +
+    '</div><div class="dcol">' +
+      '<div class="dsec" style="color:var(--plasma)">In the hand</div><div class="dgame" style="margin-bottom:10px">' + M.hand + '</div>' +
+      '<div class="dsec" style="color:var(--brass)">The catalogue</div>' + made.map(k => '<div class="drecrow"><span>' + WPN_NAMES[k] + '</span><b>' + (GROUP_LABELS[(WPN_META[k] || {}).group] || '') + ' \u00B7 ' + (WPN_PRICE[k] || 0) + ' CR</b></div>').join('') +
+      (M.rival ? '<div class="dsec" style="margin-top:14px;color:var(--brass)">Rival</div><div class="dgame">' + M.rival + '</div>' : '') +
+    '</div></div>');
+}
+if(typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', (ev) => {
+  const t = ev.target && ev.target.closest ? ev.target.closest('[data-maker]') : null;
+  if(!t) return;
+  ev.stopPropagation();
+  openMakerDossier(t.getAttribute('data-maker'));
+}, true);
 function wpnStatList(w, key){
   if(!w) return [];
   const rng = w.melee ? Math.round(w.range || 0) : Math.round((w.speed || 0) * (w.life || 0));
@@ -15142,7 +15207,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '6 Nov \u00B7 THE CAMERAS';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '9 Nov \u00B7 VANTEK';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15773,7 +15838,7 @@ function shopOpenNow(){ const sh = shopOf(); return !!(sh && !sh.keeperDead && o
 // a SHOP: its lock key, its rooms as anchors, the shelves it displays on. A ROUTINE: a day in steps, each a verb from a small vocabulary.
 const SHOPS = {
   tarn: {keeper: 'Tarn', lock: 'tarn', shelves: [4, 5, 6, 7], label: 'Tarn\u2019s Arms', his: 'his', benchLabel: 'AT THE BENCH',
-    deliveryKeys: () => ['pistol', ['rifle', 'carbine', 'sawnoff', 'revolver'][Math.floor(Math.random() * 4)], 'stdautogun'],
+    deliveryKeys: () => ['pistol', ['rifle', 'carbine', 'sawnoff', 'revolver', 'vr12', 'vr28', 'vr40'][Math.floor(Math.random() * 7)], 'stdautogun'],
     anchors: {door_out: {x: 0.19, y: 0.278}, door_in: {x: 0.19, y: 0.238}, counter: {x: 0.18, y: 0.14}, bench: {x: 0.105, y: 0.128},
       lockers: {x: 0.108, y: 0.215}, workshop: {x: 0.112, y: 0.14}, store: {x: 0.115, y: 0.215}, sign: {x: 0.218, y: 0.241}},
     front: {x0: 0.15, y0: 0.13, x1: 0.23, y1: 0.245}, rect: {x0: 0.08, y0: 0.09, x1: 0.24, y1: 0.26}},
@@ -23111,7 +23176,7 @@ function draw(){
 const WPN_NAMES = {
   unarmed:'Unarmed',
   stdautogun:'Standard Autogun', stdblade:'Standard Blade', stdknife:'Standard Knife',
-  trainer: "MG-0 'Old Patience'",rifle:'Vidar Long-Rifle', mg:'Ares-7 Autogun', sawnoff:'Sawn-off Shotgun', pistol:'Echo-2 Silenced Pistol', goad:'Neural Stunner',
+  trainer: "MG-0 'Old Patience'",rifle:'Vidar Long-Rifle', vr12:'Vantek VR-12 \u201CAnchor\u201D', vr28:'Vantek VR-28 \u201CNeedle\u201D', vr40:'Vantek Pro VR-40', mg:'Ares-7 Autogun', sawnoff:'Sawn-off Shotgun', pistol:'Echo-2 Silenced Pistol', goad:'Neural Stunner',
   carbine:'Wraith Carbine', mg88:'MG-88 Cerberus', dart:'Neuro Dart Rifle', screamer:'Screamer', revolver:'Goliath-3 Hand Cannon',
   blade:'Fenrir Blade', bloodprince:'The Blood Prince',
   dvalin:'Boxlock Scattergun', hydra:'ARSG Combat Shotgun "Hydra"',
@@ -23133,7 +23198,8 @@ const WPN_FIELDS = [
   {k:'r',         label:'Projectile size',     min:1.5,  max:10,   step:0.5},
   {k:'coneMin',   label:'Cone min (°)',        min:0.5,  max:15,   step:0.25, deg:true},
   {k:'coneMax',   label:'Cone max (°)',        min:2,    max:40,   step:0.5,  deg:true},
-  {k:'coneSpeed', label:'Breathe speed',       min:0.5,  max:8,    step:0.1},
+  {k:'coneSpeed', label:'Breathe speed',       min:0.5,  max:14,   step:0.1},
+  {k:'coneDwell', label:'Breathe dwell (hold wide)', min:1, max:4,  step:0.1},
 ];
 // per-archetype tuning: stats + the AI scoring weights that drive behaviour
 const SQUAD_FIELDS = [
