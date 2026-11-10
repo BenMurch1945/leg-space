@@ -1495,6 +1495,13 @@ const WEAPONS = {
             coneMin:1.8*DEG, coneMax:10*DEG, coneSpeed:4.5},
   dvalin:  {dmg:4.5, pellets:8, burst:1, speed:780, r:3, bounces:0, life:0.5, burstGap:0, bloom:0, pen:1, noise:820, bodyPen:1, critMul:1.8,
             coneMin:4*DEG, coneMax:22*DEG, coneSpeed:7},
+  // (Ben, 10 Nov) Vantek's scatterguns. The Peacemaker hits harder than it wounds (impact); the Duplex fires four shells in two pairs (burstGaps).
+  vs5:     {maker:'vantek', dmg:2.2, pellets:12, burst:1, speed:780, r:2, bounces:0, life:0.5, burstGap:0, bloom:0, pen:0.3, noise:720, bodyPen:1, critMul:1.3,
+            coneMin:9*DEG, coneMax:20*DEG, coneSpeed:2.5},
+  vs13:    {maker:'vantek', dmg:0.25, impact:2, pellets:24, burst:1, speed:650, r:2, bounces:0, life:0.4, burstGap:0, bloom:0, pen:0.1, noise:680, bodyPen:1, critMul:1.0, suppress:2.5,
+            coneMin:16*DEG, coneMax:22*DEG, coneSpeed:2},
+  vsduplex:{maker:'vantek', dmg:2.5, pellets:4, burst:4, speed:780, r:3, bounces:0, life:0.5, burstGap:0.06, burstGaps:[0.06, 0.35, 0.06], bloom:2*DEG, pen:0.6, noise:950, bodyPen:1, critMul:1.5,
+            coneMin:6*DEG, coneMax:24*DEG, coneSpeed:5},
   hydra:   {dmg:3.8, pellets:6, burst:2, speed:760, r:3, bounces:0, life:0.5, burstGap:0.12, bloom:2*DEG, pen:1, noise:860, bodyPen:1, critMul:1.6,
             coneMin:3.2*DEG, coneMax:20*DEG, coneSpeed:7.5},
   boardinghammer: {melee:true, dmg:26, clipDmg:10, range:90, dashSpeed:700, pellets:1, burst:1, speed:700, r:3, bounces:0, life:0.3, critMul:1.7,
@@ -5469,6 +5476,9 @@ const WPN_DESC = {
   dart:    'Neuro Dart Rifle: one dart, sixteen units of sleep, at range. Drops a soldier outright; big game takes several. 240 giveaway.',
   screamer:'Screamer: a harmless shell that detonates pure NOISE where it lands (350). Send the pod somewhere you aren\'t.',
   feed:    'Erina\'s feed: a handful, thrown underarm. Lands where you aim it; the Qilin comes to it if it lands within a few strides and nothing is moving. Six handfuls to the satchel, and no reloading.',
+  vs5:     'The Scarecrow. The farmstead scattergun: twelve small pellets in a wide cloud from a cone that hardly breathes, so timing barely matters. Right for whatever is at arm\u2019s length, for the inexperienced, and for frightening things off. Wrong for anything past a few strides, and for plate or cover: light pellets, nothing behind them.',
+  vs13:    'The Peacemaker. Twenty-four blunt balls, impact far above their damage: they hurt, rattle and scatter a crowd without killing it (suppression \u00D72.5). Right for breaking up a group, a mob, a line in a corridor. Wrong for stopping a determined man: a few points of damage, four shells, and point blank into the vulnerable can still kill.',
+  vsduplex:'The Duplex. Four shells in two pairs: a double blast, a mechanical pause, a double blast, four fat pellets each. The pause lets the first pair change the world before the second arrives: cover gone, a man exposed. Right for the close fight you mean to end. Wrong for everything else: two attacks to the clip, a report the whole port hears, and recoil that walks.',
   dvalin:"The working shotgun of the Known: a plain boxlock action that has never once jammed and never once impressed anybody. Eight pellets of honest lead per shell. The quartermaster stocks it by the crate.",
   hydra:"Drum-fed double-thunder. The ARSG fires paired shells faster than the ear can separate them, which is why every deck crew calls it by the thing with too many heads.",
   boardinghammer:"Ship-corridor doctrine in four kilos of haft and head: when the door is locked, the door is wrong. Short lunge, total argument. Issued wherever breaching charges are considered too subtle.",
@@ -5479,7 +5489,7 @@ const WPN_DESC = {
 };
 
 const WPN_SLOTS = {
-  primary: ['rifle', 'vr12', 'vr28', 'vr40', 'mg', 'va6', 'va18', 'va30', 'carbine', 'vc8', 'vc16', 'vc32', 'mg88', 'dart', 'blade'],
+  primary: ['rifle', 'vr12', 'vr28', 'vr40', 'mg', 'va6', 'va18', 'va30', 'carbine', 'vc8', 'vc16', 'vc32', 'vs5', 'vs13', 'vsduplex', 'mg88', 'dart', 'blade'],
   sidearm: ['pistol', 'sawnoff', 'goad', 'screamer', 'revolver', 'feed'],
 };
 // ---------- specials (recovered) ----------
@@ -5866,14 +5876,14 @@ const FACE_ICONS = ['⚔', '☠', '♞', '✠', '★', '☾', '◆', '⚑'];  //
 const WPN_CLIP = {
   trainer: 999, rifle: 5, bloodprince: 3, carbine: 9, mg: 36, mg88: 120, stdautogun: 24, vr12: 8, vr28: 6, vr40: 4, vc8: 18, vc16: 18, vc32: 18, va6: 30, va18: 32, va30: 36,
   sawnoff: 2, pistol: 8, revolver: 6, dart: 4, screamer: 6, goad: 6, feed: 6,
-  dvalin: 6, hydra: 8,
+  dvalin: 6, hydra: 8, vs5: 6, vs13: 4, vsduplex: 8,
 };
 const WPN_AMMO = {
   stdautogun: 'Lead',
   trainer: 'Rubber', rifle: 'Lead', bloodprince: 'Uranium', carbine: 'Lead', vr12: 'Lead', vr28: 'Lead', vr40: 'Lead', vc8: 'Lead', vc16: 'Lead', vc32: 'Lead', va6: 'Lead', va18: 'Lead', va30: 'Lead',
   mg: 'Lead', mg88: 'Lead', sawnoff: 'Lead', pistol: 'Lead', revolver: 'Lead',
   dart: 'Chem', screamer: 'EMP', goad: 'EMP', blade: 'None', feed: 'Feed',
-  dvalin: 'Lead', hydra: 'Lead', boardinghammer: 'None', reckoning: 'None',
+  dvalin: 'Lead', hydra: 'Lead', boardinghammer: 'None', reckoning: 'None', vs5: 'Lead', vs13: 'Rubber', vsduplex: 'Lead',
 };
 function clipOf(key, mods){
   const w = WEAPONS[key];
@@ -5903,7 +5913,7 @@ const WPN_CALLSIGNS = {
   trainer:'PATIENCE', rifle:'VIDAR', bloodprince:'PRINCE', carbine:'WRAITH',
   mg:'ARES-7', mg88:'MG-88', sawnoff:'SAWN-OFF', pistol:'ECHO-2', revolver:'GOLIATH',
   dart:'DART', screamer:'SCREAMER', goad:'STUNNER', blade:'FENRIR', vr12:'ANCHOR', vr28:'NEEDLE', vr40:'VR-40', vc8:'KEEPER', vc16:'TRACER', vc32:'KEEPER PRO', va6:'KEYSTONE', va18:'WARDEN', va30:'PRO G', feed:'FEED',
-  dvalin:'BOXLOCK', hydra:'HYDRA', boardinghammer:'HAMMER', reckoning:'RECKONING',
+  dvalin:'BOXLOCK', hydra:'HYDRA', boardinghammer:'HAMMER', reckoning:'RECKONING', vs5:'SCARECROW', vs13:'PEACEMAKER', vsduplex:'DUPLEX',
 };
 const GROUP_COLORS = {
   rifles:'#c5556f', carbines:'#8fb08a', autoguns:'#d4a843', heavy:'#e0483e',
@@ -11131,7 +11141,7 @@ const WPN_PRICE = {
   stdautogun: 90, stdblade: 70, stdknife: 30,
   pistol: 140, screamer: 180, dart: 200, sawnoff: 220, goad: 240, revolver: 260, feed: 0,
   rifle: 300, carbine: 380, mg: 450, blade: 500, mg88: 800, bloodprince: 1400, vr12: 350, vr28: 520, vr40: 1100, vc8: 320, vc16: 570, vc32: 1050, va6: 240, va18: 480, va30: 1200,
-  dvalin: 340, hydra: 620, boardinghammer: 700, reckoning: 1500,
+  dvalin: 340, hydra: 620, boardinghammer: 700, reckoning: 1500, vs5: 180, vs13: 420, vsduplex: 760,
 };
 const SELL_RATE = 0.5;
 
@@ -11177,6 +11187,9 @@ const WPN_META = {
   goad:        {group: 'melee',       hands: 1, tags: ['nonlethal']},
   blade:       {group: 'blades',      hands: 2, tags: []},
   dvalin:      {group: 'scatterguns', hands: 2, tags: []},
+  vs5:         {group: 'scatterguns', hands: 2, tags: []},
+  vs13:        {group: 'scatterguns', hands: 2, tags: ['blunt']},
+  vsduplex:    {group: 'scatterguns', hands: 2, tags: []},
   hydra:       {group: 'scatterguns', hands: 2, tags: []},
   boardinghammer: {group: 'blunt',    hands: 2, tags: []},
   reckoning:   {group: 'blunt',       hands: 2, tags: []},
@@ -14995,7 +15008,7 @@ function shopItem(keeper, k){
 function tarnItem(k){ return shopItem('Tarn', k); }
 function tarnSeed(){
   // the locker holds the stock; the shelves are empty until he puts the day's display out
-  const keys = ['pistol', 'revolver', 'rifle', 'stdautogun', 'va6', 'sawnoff', 'vc8', 'vr12'];
+  const keys = ['pistol', 'vs5', 'rifle', 'stdautogun', 'va6', 'sawnoff', 'vc8', 'vr12'];
   return {stock: [null, null, null, null], locker: keys.map(tarnItem),
     keeper: 'Tarn', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, tarn: true, base: 4, lockerSeen: 8};
 }
@@ -15211,7 +15224,7 @@ function wpnStatList(w, key){
   out.push(['DAMAGE', w.dmg != null ? w.dmg : 0, false]);
   if(w.impact != null && w.impact !== w.dmg) out.push(['IMPACT', w.impact, false]);
   if(w.pellets > 1) out.push(['PELLETS', w.pellets, false]);
-  if(!w.melee) out.push(['BURST', w.burst || 1, false], ['CLIP', isFinite(clipOf(key)) ? clipOf(key, null) : 0, false]);
+  if(!w.melee) out.push([w.pellets > 1 ? 'SHELLS' : 'BURST', w.burst || 1, false], ['CLIP', isFinite(clipOf(key)) ? clipOf(key, null) : 0, false]);
   out.push([w.melee ? 'REACH' : 'RANGE', rng, false]);
   if(!w.melee){ const f = fallOf(w, key); if(f && f.from < 1){ out.push(['FULL BITE', Math.round(f.from * rng), false], ['BITE AT END', Math.round(f.floor * 100), false]); } }
   if(!w.melee && w.dmg > 0 && !w.sed) out.push(['SUPPRESSION', w.suppress || 1, false]);
@@ -15351,7 +15364,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '10 Nov \u00B7 FLESH';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '10 Nov \u00B7 THE SCARECROW';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15983,7 +15996,7 @@ function shopOpenNow(){ const sh = shopOf(); return !!(sh && !sh.keeperDead && o
 // a SHOP: its lock key, its rooms as anchors, the shelves it displays on. A ROUTINE: a day in steps, each a verb from a small vocabulary.
 const SHOPS = {
   tarn: {keeper: 'Tarn', lock: 'tarn', shelves: [4, 5, 6, 7], label: 'Tarn\u2019s Arms', his: 'his', benchLabel: 'AT THE BENCH',
-    deliveryKeys: () => ['pistol', ['rifle', 'carbine', 'sawnoff', 'revolver', 'vr12', 'vr28', 'vr40', 'vc8', 'vc16', 'vc32', 'va6', 'va18', 'va30'][Math.floor(Math.random() * 13)], 'stdautogun'],
+    deliveryKeys: () => ['pistol', ['rifle', 'carbine', 'sawnoff', 'revolver', 'vr12', 'vr28', 'vr40', 'vc8', 'vc16', 'vc32', 'va6', 'va18', 'va30', 'vs5', 'vs13', 'vsduplex'][Math.floor(Math.random() * 16)], 'stdautogun'],
     anchors: {door_out: {x: 0.19, y: 0.278}, door_in: {x: 0.19, y: 0.238}, counter: {x: 0.18, y: 0.14}, bench: {x: 0.105, y: 0.128},
       lockers: {x: 0.108, y: 0.215}, workshop: {x: 0.112, y: 0.14}, store: {x: 0.115, y: 0.215}, sign: {x: 0.218, y: 0.241}},
     front: {x0: 0.15, y0: 0.13, x1: 0.23, y1: 0.245}, rect: {x0: 0.08, y0: 0.09, x1: 0.24, y1: 0.26}},
@@ -20998,19 +21011,26 @@ function frame(now){
       let a = s.burst.baseA + (Math.random()*2 - 1) * bloomed;
       if(w.sameLine){ if(s.burst.lineA == null) s.burst.lineA = a; else a = s.burst.lineA; }   // (Ben, 10 Nov) the Tracer: one line for the whole burst
       if(!s.burst.fall) s.burst.fall = fallOf(w, sc.loadout[sc.slot]);
-      s.bullets.push({
-        x: sc.x, y: sc.y,
-        vx: Math.cos(a)*s.burst.speed, vy: Math.sin(a)*s.burst.speed, a0: a,
-        r: w.r, dmg: w.dmg, maxSpeed: w.speed, team: 'player', owner: sc, pen: (w.pen || 1) + (sc.perfectShot && s.burst.fired === 0 ? 1 : 0), sed: w.sed || 0, noise: w.noise || 0,
-        bodyPen: w.bodyPen || 1, volleyId: state.volleyId, critMul: w.critMul || 2, suppress: w.suppress || 1, impact: w.impact != null ? w.impact : w.dmg,   // every round of a burst carries what the first does
-        tracked: (state.aar && state.aar.rounds++, true),
-        maxBounces: w.bounces, ex: s.burst.ex,
-        flown: 0, fall: s.burst.fall,
-        bounces: 0, life: w.life, trail: []
-      });
-      spawnBurst(sc.x, sc.y, 4, '#d4a843', s.burst.speed*0.12);
+      // (Ben, 10 Nov) a shell of a burst scatters its pellets across the cone like a single shot does (the Hydra fired one pellet a shell before)
+      const nPel = Math.max(1, w.pellets || 1);
+      for(let pi = 0; pi < nPel; pi++){
+        let ap = a;
+        if(nPel > 1){ const f = (pi / (nPel - 1)) * 2 - 1; ap = a + f * bloomed * 0.9 + (Math.random() * 2 - 1) * bloomed * 0.15; }
+        s.bullets.push({
+          x: sc.x, y: sc.y,
+          vx: Math.cos(ap)*s.burst.speed, vy: Math.sin(ap)*s.burst.speed, a0: a,
+          r: w.r, dmg: w.dmg, maxSpeed: w.speed, team: 'player', owner: sc, pen: (w.pen || 1) + (sc.perfectShot && s.burst.fired === 0 ? 1 : 0), sed: w.sed || 0, noise: w.noise || 0,
+          bodyPen: w.bodyPen || 1, volleyId: state.volleyId, critMul: w.critMul || 2, suppress: w.suppress || 1, impact: w.impact != null ? w.impact : w.dmg,   // every round of a burst carries what the first does
+          tracked: (state.aar && state.aar.rounds++, true),
+          maxBounces: w.bounces, ex: s.burst.ex,
+          flown: 0, fall: s.burst.fall,
+          bounces: 0, life: w.life, trail: []
+        });
+      }
+      spawnBurst(sc.x, sc.y, 4 + nPel, '#d4a843', s.burst.speed*0.12);
       s.shake = Math.max(s.shake, 3.5);
-      s.burst.fired++; s.burst.left--; s.burst.timer = w.burstGap;
+      s.burst.fired++; s.burst.left--;
+      s.burst.timer = (w.burstGaps && w.burstGaps[s.burst.fired - 1] != null) ? w.burstGaps[s.burst.fired - 1] : w.burstGap;   // the Duplex: a pair, a breath, a pair
     }
     if(s.burst.left <= 0) s.burst = null;
   }
@@ -23322,7 +23342,7 @@ const WPN_NAMES = {
   trainer: "MG-0 'Old Patience'",rifle:'Vidar Long-Rifle', vr12:'Vantek VR-12 \u201CAnchor\u201D', vr28:'Vantek VR-28 \u201CNeedle\u201D', vr40:'Vantek Pro VR-40', mg:'Ares-7 Autogun', sawnoff:'Sawn-off Shotgun', pistol:'Echo-2 Silenced Pistol', goad:'Neural Stunner',
   carbine:'Wraith Carbine', va6:'Vantek VA-6 \u201CKeystone\u201D', va18:'Vantek VA-18 \u201CWarden\u201D', va30:'Vantek VA-30 Pro G', vc8:'Vantek VC-8 \u201CKeeper\u201D', vc16:'Vantek VC-16 \u201CTracer\u201D', vc32:'Vantek VC-32 \u201CKeeper Pro\u201D', mg88:'MG-88 Cerberus', dart:'Neuro Dart Rifle', screamer:'Screamer', revolver:'Goliath-3 Hand Cannon',
   blade:'Fenrir Blade', bloodprince:'The Blood Prince',
-  dvalin:'Boxlock Scattergun', hydra:'ARSG Combat Shotgun "Hydra"',
+  dvalin:'Boxlock Scattergun', hydra:'ARSG Combat Shotgun "Hydra"', vs5:'Vantek VS-5 \u201CScarecrow\u201D', vs13:'Vantek VS-13 \u201CPeacemaker\u201D', vsduplex:'Vantek VS Duplex',
   boardinghammer:'Boarding Hammer', reckoning:'The Reckoning'};
 const WPN_FIELDS = [
   {k:'dmg',       label:'Damage / projectile', min:0.5,  max:20,   step:0.1},

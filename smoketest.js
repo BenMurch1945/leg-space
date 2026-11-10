@@ -4789,6 +4789,50 @@ const flh1 = (() => {
   return {ok: hurt && dead && keeper && bluntPain && healed && crimes, hurt, dead, keeper, bluntPain, healed, crimes};
 })();
 console.log('FLH1 flesh:', flh1.ok ? 'PASS' : 'FAIL', flh1.ok ? '' : JSON.stringify(flh1));
+
+// VSG1 (Ben, 10 Nov) Vantek's scatterguns: tables; the Duplex fires four shells of four pellets in two pairs with a breath between;
+// a shell of any burst now scatters all its pellets (the Hydra too); the Peacemaker hurts more than it wounds and leaves a bystander alive
+const vsg1 = (() => {
+  const keys = ['vs5', 'vs13', 'vsduplex'];
+  const tables = keys.every(k => G.WEAPONS[k] && G.WEAPONS[k].maker === 'vantek' && G.WPN_META[k].group === 'scatterguns' && G.WPN_SLOTS.primary.includes(k) && /Vantek/.test(G.WPN_NAMES[k]) && /Right for/.test(G.WPN_DESC[k]) && /Wrong for/.test(G.WPN_DESC[k]) && G.WPN_CALLSIGNS[k]);
+  const doc = G.WEAPONS.vs5.pellets === 12 && G.WEAPONS.vs5.dmg === 2.2 && G.WPN_CLIP.vs5 === 6 && G.WPN_PRICE.vs5 === 180 && G.WEAPONS.vs5.critMul === 1.3 && G.WEAPONS.vs5.noise === 720 &&
+    G.WEAPONS.vs13.pellets === 24 && G.WEAPONS.vs13.dmg === 0.25 && G.WEAPONS.vs13.impact === 2 && G.WPN_CLIP.vs13 === 4 && G.WPN_PRICE.vs13 === 420 && G.WEAPONS.vs13.critMul === 1.0 && G.WEAPONS.vs13.noise === 680 && G.WEAPONS.vs13.suppress === 2.5 &&
+    G.WEAPONS.vsduplex.pellets === 4 && G.WEAPONS.vsduplex.burst === 4 && G.WEAPONS.vsduplex.dmg === 2.5 && G.WPN_CLIP.vsduplex === 8 && G.WPN_PRICE.vsduplex === 760 && G.WEAPONS.vsduplex.critMul === 1.5 && G.WEAPONS.vsduplex.noise === 950 && G.WEAPONS.vsduplex.burstGaps.length === 3 && G.WEAPONS.vsduplex.burstGaps[1] > G.WEAPONS.vsduplex.burstGaps[0] * 4;
+  const rows = G.wpnStatList(G.WEAPONS.vsduplex, 'vsduplex');
+  const card = rows.some(r => r[0] === 'SHELLS' && r[1] === 4) && rows.some(r => r[0] === 'PELLETS' && r[1] === 4) && G.wpnStatList(G.WEAPONS.vs13, 'vs13').some(r => r[0] === 'IMPACT' && r[1] === 2) && !G.wpnStatList(G.WEAPONS.vs5, 'vs5').some(r => r[0] === 'IMPACT');
+  // the rhythm: frames at which new pellets appear
+  G.restart(); G.dismissBrief(); G.dismissSys();
+  const c = G.pc(); G.state.walls = []; G.state.enemies.forEach(e => { e.x = -999; e.y = -999; });
+  const volley = (k, frames) => {
+    c.def.loadout.primary = k; c.weapon = k; c.slot = 'primary'; c.mag.primary = 99; c.ap = 9;
+    G.state.bullets = []; G.state.aiming = true; G.state.power = 1; G.state.aimVec = {x: 100, y: 0}; G.state.coneT = 0;
+    G.fire();
+    const seen = [], at = [];
+    const scan = (f) => { for(const b of G.state.bullets) if(!seen.includes(b)){ seen.push(b); at.push(f); } };
+    scan(0);
+    for(let i = 1; i <= frames; i++){ pump(1, 16); scan(i); }
+    G.state.aiming = false; G.state.burst = null; G.state.bullets = [];
+    return {n: seen.length, at};
+  };
+  const d = volley('vsduplex', 60);
+  const shells = [...new Set(d.at)];
+  const duplex = d.n === 16 && shells.length === 4 && (shells[1] - shells[0]) <= 6 && (shells[2] - shells[1]) >= 18 && (shells[3] - shells[2]) <= 6;
+  const h = volley('hydra', 30); const hydra = h.n === 12 && [...new Set(h.at)].length === 2;
+  const sc = volley('vs5', 10); const scare = sc.n === 12;
+  // the Peacemaker on a bystander: one pellet hurts (impact 2 of pain), the man lives
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT;
+  G.doShipReset(); G.ship.clock = 12 * 60; G.enterPort('cross');
+  const hero = G.state.squad[0];
+  const tide = G.state.civs.find(cv => !cv.name && cv.alive && !cv.beast);
+  const pel = {dmg: 0.25, impact: 2, vx: 100, vy: 0, team: 'player', owner: hero, flown: 0, fall: null, sed: 0, r: 2};
+  G.civStruck(tide, 0.25, 'player', hero, 0, pel);
+  const peace = tide.alive && tide.hurt && Math.abs(tide.hp - 5.75) < 1e-9 && G.painOf(pel, {armor: 0, flesh: 0.25}) === 2 * 1.6;
+  const tarn = G.shopRec('tarn');
+  const stocked = !!tarn && (tarn.locker || []).concat(tarn.stock || []).some(it => it && it.key === 'vs5');
+  G.undockToDeck(); G.doShipReset();
+  return {ok: tables && doc && card && duplex && hydra && scare && peace && stocked, tables, doc, card, duplex, hydra, scare, peace, stocked, shells};
+})();
+console.log('VSG1 Vantek scatterguns:', vsg1.ok ? 'PASS' : 'FAIL', vsg1.ok ? '' : JSON.stringify(vsg1));
 const ck1 = (() => {
   G.PORT_LEVELS.gateway = G.CROSSPORT_PORT;
   G.doShipReset(); G.ship.clock = 8 * 60; G.enterPort('cross');
