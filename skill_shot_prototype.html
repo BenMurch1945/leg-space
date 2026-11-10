@@ -5341,6 +5341,7 @@ function weaponCardHtml(c){
   const fB = w.melee ? null : fallOf(w, key);
   const stats = [
     ['DAMAGE', dmg, w.sed ? Math.min(1, w.sed / 60) : Math.min(1, perShot / 34)],
+    ...(w.impact != null && w.impact !== w.dmg ? [['IMPACT', w.impact + (w.pellets > 1 ? '\u00D7' + w.pellets : '') + ' \u00B7 hits harder than it wounds', Math.min(1, w.impact * (w.pellets || 1) / 34)]] : []),
     ['RANGE', rng, Math.min(1, (w.melee ? (w.range || 0) : Math.min(charVisionRange(c), w.speed * w.life)) / 620)],
     ...(fB && fB.from < 1 ? [['BITE', 'full to ' + Math.round(fB.from * fB.range) + 'px \u00B7 ' + Math.round(fB.floor * 100) + '% at the end', null]] : []),
     ...((w.suppress || 1) !== 1 ? [['SUPPRESSION', '\u00D7' + w.suppress + ' on nerves', Math.min(1, w.suppress / 2)]] : []),
@@ -8177,6 +8178,19 @@ function bladeDash(c, angle, power){
 // one law for a bystander hit by anything: a blade, a slam, a round. Returns true when handled.
 // A thief with a knife fights on real stats; a badge converts the whole beat; a sedative is a mercy;
 // anything else kills, and the witnesses decide what the law hears.
+// (Ben, 10 Nov) everyone has hit points. The pool of a bystander, by what they are; beasts from their own table; the named by their defs.
+function civHp(cv){
+  if(cv.beast) return (BEASTS[cv.beast.kind] || {}).hp || 6;
+  if(cv.named && cv.named.stats && cv.named.stats.health) return cv.named.stats.health;
+  if(cv.kind === 'constable') return 18;
+  if(cv.kind === 'trader' || cv.kind === 'keeper') return 10;
+  if(cv.kind === 'helper') return 8;
+  if(cv.name && !cv.tide) return 10;
+  return 6;
+}
+function civEnsureHp(cv){ if(cv.hp == null || cv.maxHp == null){ cv.maxHp = civHp(cv); cv.hp = cv.maxHp; } return cv; }
+// hurt bystanders walk slower until morning
+function civHealOvernight(){ let n = 0; for(const cv of (state.civs || [])){ if(cv.hurt){ cv.hurt = false; cv.hp = cv.maxHp; n++; } } for(const k in (state.districts || {})){ const d = state.districts[k]; for(const cv of ((d && d.civs) || [])){ if(cv.hurt){ cv.hurt = false; cv.hp = cv.maxHp; n++; } } } return n; }
 function civStruck(cv, dmg, team, owner, sed, src){
     if(cv.arch && cv.kind !== 'constable' && state.deckCombat && team === 'player'){
       // the knife comes out: the thief fights on real stats, not bystander luck
@@ -8211,16 +8225,43 @@ function civStruck(cv, dmg, team, owner, sed, src){
       }
       return true;
     }
-    if(cv.beast && team === 'player' && currentLevel().cage) cageHarm(cv, owner, !(sed && dmg < 1));   // (Ben, 6 Nov) the cages have cameras
+    if(cv.beast && team === 'player' && currentLevel().cage && sed && dmg < 1) cageHarm(cv, owner, false);   // (Ben, 6 Nov) the cages have cameras (a dart is a hurt; a round is handled below)
     if(sed && dmg < 1){
       cv.ko = true;   // a sedated bystander is a mercy, not a casualty
       if(state.portDock && team === 'player' && owner && owner.name && cv.kind !== 'constable')
         bzCrimeWitness(cv.x, cv.y, {grade: 'minor', who: owner.name,
           what: 'assault on a bystander'}, owner);
       addPopup(cv.x, cv.y - 14, 'BYSTANDER SEDATED', '#6fd6ff');
-    }else{
+      return true;
+    }
+    // the round lands: hit points first, and the hit hurts whether or not it kills
+    civEnsureHp(cv);
+    const dmgEff = src && src.dmg != null ? impactDamage(src) : dmg;
+    const splitC = applyDamage(cv, dmgEff);
+    cv.hitFlash = 1;
+    const mine = team === 'player';
+    if(cv.hp > 0){
+      // hurt, not dead: they run from it, limp for the day, and remember who did it
+      cv.hurt = true; cv.hurtBy = owner && owner.name ? owner.name : null;
+      cv.panic = Math.max(cv.panic || 0, 2.6 + Math.random() * 1.6);
+      panicCivs(cv.x, cv.y, 1);
+      addPopup(cv.x, cv.y - 14, splitC.flesh.toFixed(1) + ' \u00B7 HIT', '#e0a33e');
+      spawnBurst(cv.x, cv.y, 6, '#e0483e', 140);
+      if(cv.beast && currentLevel().cage && mine) cageHarm(cv, owner, false);
+      if(cv.name && mine && !cv.beast){
+        moodPush(cv.name, {t: -2, f: -3, a: -2}, 'was shot by the crew', 'stock');
+        lifeNote(cv.name, 'was shot by ' + (owner && owner.name ? owner.name : 'the crew') + ' and lived');
+        chronicle('crime', cv.name + ' took a round from ' + (owner && owner.name ? owner.name : 'the crew') + ' and ran. Hurt, not dead; they will remember which.');
+        const skH = shopKeyOf(cv.name);
+        if(skH && SHOPS[skH].keeper === cv.name && !shopLocked(skH)){ shopLock(skH, true); showBanner(SHOPS[skH].label.toUpperCase() + ' \u00B7 SHUT FOR THE DAY', '#e0a33e'); }
+      }
+      if(state.portDock && mine && owner && owner.name && cv.kind !== 'constable' && !cv.beast)
+        bzCrimeWitness(cv.x, cv.y, {grade: 'minor', who: owner.name, what: 'the wounding of a bystander'}, owner);
+      return true;
+    }
+    {
       cv.alive = false;
-      const mine = team === 'player';
+      if(cv.beast && currentLevel().cage && mine) cageHarm(cv, owner, true);
       {
         const shD = state.portDock && bz() && bz().shop;
         if(shD && cv.name === shD.keeper && !shD.keeperDead){
@@ -8390,7 +8431,7 @@ function dischargeVolley(baseA, cone, speed){
       vx: Math.cos(a)*speed, vy: Math.sin(a)*speed,
       r: w.r, dmg: w.dmg, maxSpeed: w.speed, team: 'player', owner: c, pen: (w.pen || 1) + (c.perfectShot ? 1 : 0), sed: w.sed || 0, noise: w.noise || 0,
       bodyPen: w.bodyPen || 1, volleyId: state.volleyId, critMul: w.critMul || 2, tracked: (state.aar && state.aar.rounds++, true),
-      scream: w.screamNoise || 0, feed: !!w.feed, suppress: w.suppress || 1,
+      scream: w.screamNoise || 0, feed: !!w.feed, suppress: w.suppress || 1, impact: w.impact != null ? w.impact : w.dmg,
       maxBounces: w.bounces, ex,
       flown: 0, fall,
       bounces: 0, life: w.life, trail: []
@@ -9199,7 +9240,7 @@ function openGround(x, y, r){
 // a stride at the civilian scale: set against the crew's own walk, never above it
 function civSpd(cv){
   const ref = Math.min(LW, LH) * 0.3 * TUNE.runSpeedMul * 2;   // the crew's deck walk
-  return ref * (cv.gait || 0.8) * (cv && cv.name && !cv.tide ? 0.85 : 1);   // the named have somewhere to be; the tide has somewhere to be first
+  return ref * (cv.gait || 0.8) * (cv && cv.name && !cv.tide ? 0.85 : 1) * (cv && cv.hurt ? 0.7 : 1);   // the named have somewhere to be; the tide has somewhere to be first; the hurt limp
 }
 // ---- walking the port: one procedural nav grid, rebuilt from what is standing right now ----
 // A clearance grid: a cell is free only if a walker of CNAV.clr radius can stand anywhere in it.
@@ -9493,14 +9534,14 @@ function crookDrift(cv, er, dt){
 // ---- the beasts (Ben, 3 Nov): what lives in the cages. Not people: they graze, they roam, they bolt from anything that comes at
 // them fast, and they come to look at anyone who stands still long enough. Nothing in a cage is for sale. ----
 const BEASTS = {
-  hound: {label: 'Glass Hound', race: 'GLASS HOUND', r: 11, spook: 80, curious: 300, still: 5, near: 44, pace: 1.3, tint: 'rgba(159,224,216,.85)', edge: 'rgba(220,250,245,.9)',
+  hound: {label: 'Glass Hound', race: 'GLASS HOUND', r: 11, hp: 30, spook: 80, curious: 300, still: 5, near: 44, pace: 1.3, tint: 'rgba(159,224,216,.85)', edge: 'rgba(220,250,245,.9)',
     bio: 'Big as a dog, hide like frosted glass, bites to hold. The crew brought it up out of the warren breathing, and it has not forgotten the smell of whoever carried it.'},
-  miraj: {label: 'Al-mi\u2019raj', race: 'AL-MI\u2019RAJ', r: 6, spook: 120, curious: 260, still: 7, near: 56, pace: 1.6, tint: 'rgba(222,190,120,.9)', edge: 'rgba(255,240,200,.9)',
+  miraj: {label: 'Al-mi\u2019raj', race: 'AL-MI\u2019RAJ', r: 6, hp: 4, spook: 120, curious: 260, still: 7, near: 56, pace: 1.6, tint: 'rgba(222,190,120,.9)', edge: 'rgba(255,240,200,.9)',
     bio: 'A hare the colour of the sand with one black horn a hand long. Curious as a cat and twice as quick to leave. Erina named every one of them.'},
 };
-BEASTS.qilin = {label: 'Qilin', race: 'QILIN', r: 12, spook: 0, curious: 0, still: 99, near: 60, pace: 2.6, tint: 'rgba(240,208,112,.9)', edge: 'rgba(255,240,190,.95)',
+BEASTS.qilin = {label: 'Qilin', race: 'QILIN', r: 12, hp: 40, spook: 0, curious: 0, still: 99, near: 60, pace: 2.6, tint: 'rgba(240,208,112,.9)', edge: 'rgba(255,240,190,.95)',
   bio: 'Deer-shaped, antlered, scaled where a deer is furred, and quiet. It takes nothing it is not given and goes nowhere it is not led. It followed the crew home from Tallis.'};
-BEASTS.friend = {label: 'A small thing', race: 'THE WOOD', r: 4, spook: 0, curious: 0, still: 99, near: 30, pace: 1.0, tint: 'rgba(200,190,150,.8)', edge: 'rgba(240,235,210,.9)',
+BEASTS.friend = {label: 'A small thing', race: 'THE WOOD', r: 4, hp: 2, spook: 0, curious: 0, still: 99, near: 30, pace: 1.0, tint: 'rgba(200,190,150,.8)', edge: 'rgba(240,235,210,.9)',
   bio: 'One of the small things that live in the glades and see everything that moves in them. When it calls, the Qilin listens.'};
 const MIRAJ_NAMES = ['Burr', 'Tansy', 'Nettle', 'Sorrel', 'Dock', 'Clover', 'Thistle', 'Scrap'];
 function beastMake(kind, x, y, name){
@@ -10523,6 +10564,16 @@ function fallMul(b){
 function impactDamage(b){
   return b.dmg * fallMul(b);
 }
+// (Ben, 10 Nov) what a round hits with, as opposed to what it wounds: the same number for an ordinary bullet, higher for a blunt one
+function impactForce(b){
+  return (b.impact != null ? b.impact : b.dmg) * fallMul(b);
+}
+// pain: stress in proportion to the impact, for operators, enemies and bystanders alike; plate that took most of it halves the pain
+function painOf(b, split, mul){
+  const f = b ? impactForce(b) : 0;
+  const plated = split && split.armor > split.flesh;
+  return f * (mul || 1.6) * (plated ? 0.5 : 1);
+}
 
 // being shot AT is stressful even when it misses: a round passing within a
 // unit's suppression band adds stress once per bullet per unit
@@ -10732,7 +10783,7 @@ function hitEnemy(e, b){
   if(e.hp <= 0){
     kill(e, b);
   }else{
-    addStress(e, dmg*1.6 + (rear ? 6 : 0));
+    addStress(e, Math.max(painOf(b, splitE), dmg * 1.6 * (splitE.armor > splitE.flesh ? 0.5 : 1)) + (rear ? 6 : 0));   // pain by impact; a crit still hurts at least as much as it wounds
     // being shot is very informative, about the shooter, if the shooter is a person
     alertEnemy(e, b.x - b.vx*0.1, b.y - b.vy*0.1, true,
       (b.owner && b.owner.stats) ? b.owner : null);
@@ -10770,7 +10821,7 @@ function hitChar(c, b){
   spawnBurst(b.x, b.y, 10, '#e0483e', 220);
   state.shake = Math.max(state.shake, 7);
   if(c.hp <= 0) charDown(c);
-  else { addStress(c, dmg*2 + (rear ? 6 : 0)); updateHud(); }
+  else { addStress(c, Math.max(painOf(b, split, 2), dmg * 2 * (split.armor > split.flesh ? 0.5 : 1)) + (rear ? 6 : 0)); updateHud(); }
 }
 
 function squadWipe(){
@@ -15158,6 +15209,7 @@ function wpnStatList(w, key){
   const out = [];
   if(w.sed) out.push(['SEDATIVE', w.sed, false]);
   out.push(['DAMAGE', w.dmg != null ? w.dmg : 0, false]);
+  if(w.impact != null && w.impact !== w.dmg) out.push(['IMPACT', w.impact, false]);
   if(w.pellets > 1) out.push(['PELLETS', w.pellets, false]);
   if(!w.melee) out.push(['BURST', w.burst || 1, false], ['CLIP', isFinite(clipOf(key)) ? clipOf(key, null) : 0, false]);
   out.push([w.melee ? 'REACH' : 'RANGE', rng, false]);
@@ -15299,7 +15351,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '10 Nov \u00B7 THE WARDEN';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '10 Nov \u00B7 FLESH';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15910,6 +15962,7 @@ function shiftTick(skip){
 }
 // the night van: a keeper with no locker of their own gets their sold slots filled again before morning
 function shopsRefillOvernight(){
+  civHealOvernight();   // (Ben, 10 Nov) the hurt are whole again by morning; what they remember stays
   const b = bz(); if(!b) return 0;
   let n = 0;
   for(const sh of [b.shop, b.shop2]){
@@ -20293,7 +20346,7 @@ function enemyFireAt(e, target){
     s.bullets.push({
       x: e.x, y: e.y,
       vx: Math.cos(a)*fwSpeed, vy: Math.sin(a)*fwSpeed,
-      r: 3, dmg: fwDmg * TUNE.enemyDmgMul, maxSpeed: fwSpeed, team: 'enemy', owner: e, pen: fwPen,
+      r: 3, dmg: fwDmg * TUNE.enemyDmgMul, impact: fwDmg * TUNE.enemyDmgMul, maxSpeed: fwSpeed, team: 'enemy', owner: e, pen: fwPen,
       maxBounces: 0, ex,
       flown: 0, fall: {from: 0.7, floor: 0.6, range: fwSpeed * fwLife},
       bounces: 0, life: fwLife, trail: []
@@ -20949,7 +21002,7 @@ function frame(now){
         x: sc.x, y: sc.y,
         vx: Math.cos(a)*s.burst.speed, vy: Math.sin(a)*s.burst.speed, a0: a,
         r: w.r, dmg: w.dmg, maxSpeed: w.speed, team: 'player', owner: sc, pen: (w.pen || 1) + (sc.perfectShot && s.burst.fired === 0 ? 1 : 0), sed: w.sed || 0, noise: w.noise || 0,
-        bodyPen: w.bodyPen || 1, volleyId: state.volleyId, critMul: w.critMul || 2, suppress: w.suppress || 1,   // every round of a burst carries what the first does
+        bodyPen: w.bodyPen || 1, volleyId: state.volleyId, critMul: w.critMul || 2, suppress: w.suppress || 1, impact: w.impact != null ? w.impact : w.dmg,   // every round of a burst carries what the first does
         tracked: (state.aar && state.aar.rounds++, true),
         maxBounces: w.bounces, ex: s.burst.ex,
         flown: 0, fall: s.burst.fall,
@@ -23293,6 +23346,7 @@ const WPN_FIELDS = [
   {k:'fallFrom',  label:'Bite: full until (fraction of flight)', min:0.2, max:1, step:0.05},
   {k:'fallFloor', label:'Bite: at the end (fraction of damage)', min:0.2, max:1, step:0.05},
   {k:'suppress',  label:'Suppression (near-miss stress mult)', min:0.5, max:3, step:0.1},
+  {k:'impact',    label:'Impact (pain per hit; blank = damage)', min:0, max:20, step:0.1},
 ];
 // per-archetype tuning: stats + the AI scoring weights that drive behaviour
 const SQUAD_FIELDS = [
