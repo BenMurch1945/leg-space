@@ -4678,6 +4678,44 @@ const fb1 = (() => {
   return {ok: full && curve && groups && flew && card && drew, full, curve, groups, flew, card, drew};
 })();
 console.log('FB1 the bite:', fb1.ok ? 'PASS' : 'FAIL', fb1.ok ? '' : JSON.stringify(fb1));
+
+// VC1 (Ben, 10 Nov) Vantek's carbines: tables and numbers; the Tracer fires all three rounds down one line, the Keeper does not;
+// every round of a burst carries crit, body-pen and the bite; Tarn keeps a Keeper
+const vc1 = (() => {
+  const keys = ['vc8', 'vc16', 'vc32'];
+  const tables = keys.every(k => G.WEAPONS[k] && G.WEAPONS[k].maker === 'vantek' && G.WEAPONS[k].burst === 3 && G.WPN_META[k].group === 'carbines' && G.WPN_SLOTS.primary.includes(k) && G.WPN_CLIP[k] === 18 && G.WPN_AMMO[k] === 'Lead' && /Vantek/.test(G.WPN_NAMES[k]) && /Right for/.test(G.WPN_DESC[k]) && /Wrong for/.test(G.WPN_DESC[k]) && !G.WEAPONS[k].altMode);
+  const doc = G.WEAPONS.vc8.dmg === 4.8 && G.WPN_PRICE.vc8 === 320 && G.WEAPONS.vc8.noise === 480 && G.WEAPONS.vc16.dmg === 4 && G.WEAPONS.vc16.pen > G.WEAPONS.vc8.pen * 2 && G.WPN_PRICE.vc16 === 570 && G.WEAPONS.vc16.noise === 540 && G.WEAPONS.vc16.sameLine === true && G.WEAPONS.vc16.bloom === 0 &&
+    G.WEAPONS.vc32.dmg === 6 && G.WPN_PRICE.vc32 === 1050 && G.WEAPONS.vc32.noise === 480 && G.WEAPONS.vc32.bloom < G.WEAPONS.vc8.bloom && G.classAllows('runner', 'vc16') && !G.classAllows('witch', 'vc8');
+  const rng = (k) => Math.round(G.WEAPONS[k].speed * G.WEAPONS[k].life);
+  const ranges = rng('vc8') === rng('vc16') && rng('vc32') > rng('vc8') && rng('vc32') < rng('carbine') && G.fallOf(G.WEAPONS.vc32, 'vc32').from === 0.8 && G.fallOf(G.WEAPONS.vc8, 'vc8').from === 0.7;
+  // the bursts
+  G.restart(); G.dismissBrief(); G.dismissSys();
+  const c = G.pc(); G.state.walls = []; G.state.enemies.forEach(e => { e.x = -999; e.y = -999; });
+  const burstOf = (k, perfect) => {
+    c.def.loadout.primary = k; c.weapon = k; c.slot = 'primary'; c.mag.primary = 18; c.ap = 9; c.perfect = !!perfect;
+    G.state.bullets = []; G.state.aiming = true; G.state.power = 1; G.state.aimVec = {x: 100, y: 0}; G.state.coneT = Math.PI;   // the cone at its widest, so the roll shows
+    G.fire();
+    const seen = [];   // rounds as they leave the barrel, before anything happens to them
+    for(let i = 0; i < 40 && (G.state.burst || seen.length < 3); i++){ for(const b of G.state.bullets) if(!seen.includes(b)) seen.push(b); pump(1, 16); for(const b of G.state.bullets) if(!seen.includes(b)) seen.push(b); }
+    const bs = seen.slice(0, 3).map(b => ({a: b.a0, crit: b.critMul, bp: b.bodyPen, fall: b.fall, pen: b.pen, v: b.volleyId}));
+    G.state.aiming = false; G.state.burst = null; G.state.bullets = [];
+    return bs;
+  };
+  let oneLine = true, spread = false;
+  for(let k9 = 0; k9 < 4; k9++){
+    const tr = burstOf('vc16'); if(tr.length !== 3 || Math.abs(tr[0].a - tr[1].a) > 1e-9 || Math.abs(tr[1].a - tr[2].a) > 1e-9) oneLine = false;
+    const kp = burstOf('vc8'); if(kp.length === 3 && (Math.abs(kp[0].a - kp[1].a) > 1e-6 || Math.abs(kp[1].a - kp[2].a) > 1e-6)) spread = true;
+  }
+  const tr2 = burstOf('vc16', true);
+  const carried = tr2.length === 3 && tr2.every(b => b.crit === 2.0 && b.bp === 1 && b.fall && b.fall.from === 0.7 && b.v === tr2[0].v) && tr2[0].pen === 4 && tr2[1].pen === 3;   // the perfect shot adds pen to the first round only
+  G.PORT_LEVELS.gateway = G.CROSSPORT_PORT;
+  G.doShipReset(); G.ship.clock = 12 * 60; G.enterPort('cross');
+  const tarn = G.shopRec('tarn');
+  const stocked = !!tarn && (tarn.locker || []).concat(tarn.stock || []).some(it => it && it.key === 'vc8');
+  G.undockToDeck(); G.doShipReset();
+  return {ok: tables && doc && ranges && oneLine && spread && carried && stocked, tables, doc, ranges, oneLine, spread, carried, stocked};
+})();
+console.log('VC1 Vantek carbines:', vc1.ok ? 'PASS' : 'FAIL', vc1.ok ? '' : JSON.stringify(vc1));
 const ck1 = (() => {
   G.PORT_LEVELS.gateway = G.CROSSPORT_PORT;
   G.doShipReset(); G.ship.clock = 8 * 60; G.enterPort('cross');
