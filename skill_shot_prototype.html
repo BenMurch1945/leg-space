@@ -1486,6 +1486,13 @@ const WEAPONS = {
             coneMin:0.8*DEG, coneMax:14*DEG, coneSpeed:8},
   vc32:    {maker:'vantek', dmg:6,   pellets:1, burst:3, speed:1100, r:2.5, bounces:0, life:0.636, burstGap:0.08, bloom:0.4*DEG, pen:1.5, noise:480, bodyPen:1, critMul:1.8, fallFrom:0.8, fallFloor:0.7,
             coneMin:1.0*DEG, coneMax:7*DEG, coneSpeed:4.5},
+  // (Ben, 10 Nov) Vantek's autoguns. The Warden suppresses (suppress multiplies near-miss and cover-impact stress).
+  va6:     {maker:'vantek', dmg:2.6, pellets:1, burst:6, speed:1300, r:1.5, bounces:0, life:0.43, burstGap:0.1,   bloom:0.5*DEG, pen:0.5, noise:600, bodyPen:1, critMul:1.4,
+            coneMin:2.5*DEG, coneMax:14*DEG, coneSpeed:5},
+  va18:    {maker:'vantek', dmg:2.0, pellets:1, burst:8, speed:1300, r:1.5, bounces:0, life:0.4,  burstGap:0.085, bloom:1.2*DEG, pen:0.4, noise:640, bodyPen:1, critMul:1.3, suppress:1.6,
+            coneMin:3.5*DEG, coneMax:22*DEG, coneSpeed:5.5},
+  va30:    {maker:'vantek', dmg:3.4, pellets:1, burst:6, speed:1400, r:1.5, bounces:0, life:0.5,  burstGap:0.1,   bloom:0.1*DEG, pen:0.8, noise:600, bodyPen:1, critMul:1.5, fallFrom:0.75, fallFloor:0.65,
+            coneMin:1.8*DEG, coneMax:10*DEG, coneSpeed:4.5},
   dvalin:  {dmg:4.5, pellets:8, burst:1, speed:780, r:3, bounces:0, life:0.5, burstGap:0, bloom:0, pen:1, noise:820, bodyPen:1, critMul:1.8,
             coneMin:4*DEG, coneMax:22*DEG, coneSpeed:7},
   hydra:   {dmg:3.8, pellets:6, burst:2, speed:760, r:3, bounces:0, life:0.5, burstGap:0.12, bloom:2*DEG, pen:1, noise:860, bodyPen:1, critMul:1.6,
@@ -5336,6 +5343,7 @@ function weaponCardHtml(c){
     ['DAMAGE', dmg, w.sed ? Math.min(1, w.sed / 60) : Math.min(1, perShot / 34)],
     ['RANGE', rng, Math.min(1, (w.melee ? (w.range || 0) : Math.min(charVisionRange(c), w.speed * w.life)) / 620)],
     ...(fB && fB.from < 1 ? [['BITE', 'full to ' + Math.round(fB.from * fB.range) + 'px \u00B7 ' + Math.round(fB.floor * 100) + '% at the end', null]] : []),
+    ...((w.suppress || 1) !== 1 ? [['SUPPRESSION', '\u00D7' + w.suppress + ' on nerves', Math.min(1, w.suppress / 2)]] : []),
     ['NOISE', noiseVal, Math.min(1, noiseVal / 900)],
     ['COST', (w.apCost || 1) + ' AP', null],
   ];
@@ -5450,6 +5458,9 @@ const WPN_DESC = {
   pistol:  'K18 Dual Pistol: two quick rounds, quiet. A 160 giveaway; the ghost\'s working tool.',
   goad:    'Neural Stunner: a slow, fat bolt of stun chemistry. Near-silent (90). Drops bodies without kills; the dose slows their legs first.',
   carbine: 'Wraith Carbine: quiet precision (140 giveaway). Toggle SINGLE for one clean round, or BURST for three louder ones (220).',
+  va6:     'The Keystone. Vantek\u2019s standard autogun: six rounds, a moderate breath, a forgiving window, thirty to the clip. Right for medium-range fights where volume does the work and for anyone who wants a gun that behaves. Wrong for cover and plate: light rounds, little penetration, and the group loosens with distance.',
+  va18:    'The Warden. Eight rounds in a deliberately wide pattern: fewer land, but every near miss and every round that chews the cover he is behind rattles him (suppression \u00D71.6). Right for breaking a line, pinning a dangerous gun, unsettling a group. Wrong for killing one exposed man efficiently: four bursts to the clip, light rounds, loud.',
+  va30:    'Pro G: the Precision Grouping System. Six rounds that stay where the first one went, almost no bloom, more per round, more reach, the same 600 of noise as the Keystone. Right for taking one target apart at medium and long range. Wrong for area pressure (the Warden) and for cover (the Tracer), and wrong for your purse.',
   vc8:     'The Keeper. Vantek\u2019s service carbine: a smooth, forgiving cone and three rounds in a tight, not identical, group. Eighteen to the clip. Right for ordinary fights at ordinary ranges, and for learning what a burst is. Wrong for heavy plate and anything behind real cover: light rounds, little penetration.',
   vc16:    'The Tracer. Aim once; all three rounds fly the exact same line, no spread, no bloom, so the second lands where the first did and the third goes through the hole they made. Right for a man behind a crate. Wrong for a miss: miss with the first and you miss with all three. Louder than the Keeper, and the cone is quicker and less kind.',
   vc32:    'Keeper Pro. It is a Keeper, built further: more per round, more reach, a tighter group, the same 480 of noise. Right for anyone who likes the Keeper and wants it to work at the ranges where the Keeper starts to fade. Wrong for the budget: three times the price for a better version of the same idea, and still no answer to cover.',
@@ -5467,7 +5478,7 @@ const WPN_DESC = {
 };
 
 const WPN_SLOTS = {
-  primary: ['rifle', 'vr12', 'vr28', 'vr40', 'mg', 'carbine', 'vc8', 'vc16', 'vc32', 'mg88', 'dart', 'blade'],
+  primary: ['rifle', 'vr12', 'vr28', 'vr40', 'mg', 'va6', 'va18', 'va30', 'carbine', 'vc8', 'vc16', 'vc32', 'mg88', 'dart', 'blade'],
   sidearm: ['pistol', 'sawnoff', 'goad', 'screamer', 'revolver', 'feed'],
 };
 // ---------- specials (recovered) ----------
@@ -5852,13 +5863,13 @@ const STAT_TIPS = {
 const FACE_ICONS = ['⚔', '☠', '♞', '✠', '★', '☾', '◆', '⚑'];  // null = name initial
 
 const WPN_CLIP = {
-  trainer: 999, rifle: 5, bloodprince: 3, carbine: 9, mg: 36, mg88: 120, stdautogun: 24, vr12: 8, vr28: 6, vr40: 4, vc8: 18, vc16: 18, vc32: 18,
+  trainer: 999, rifle: 5, bloodprince: 3, carbine: 9, mg: 36, mg88: 120, stdautogun: 24, vr12: 8, vr28: 6, vr40: 4, vc8: 18, vc16: 18, vc32: 18, va6: 30, va18: 32, va30: 36,
   sawnoff: 2, pistol: 8, revolver: 6, dart: 4, screamer: 6, goad: 6, feed: 6,
   dvalin: 6, hydra: 8,
 };
 const WPN_AMMO = {
   stdautogun: 'Lead',
-  trainer: 'Rubber', rifle: 'Lead', bloodprince: 'Uranium', carbine: 'Lead', vr12: 'Lead', vr28: 'Lead', vr40: 'Lead', vc8: 'Lead', vc16: 'Lead', vc32: 'Lead',
+  trainer: 'Rubber', rifle: 'Lead', bloodprince: 'Uranium', carbine: 'Lead', vr12: 'Lead', vr28: 'Lead', vr40: 'Lead', vc8: 'Lead', vc16: 'Lead', vc32: 'Lead', va6: 'Lead', va18: 'Lead', va30: 'Lead',
   mg: 'Lead', mg88: 'Lead', sawnoff: 'Lead', pistol: 'Lead', revolver: 'Lead',
   dart: 'Chem', screamer: 'EMP', goad: 'EMP', blade: 'None', feed: 'Feed',
   dvalin: 'Lead', hydra: 'Lead', boardinghammer: 'None', reckoning: 'None',
@@ -5890,7 +5901,7 @@ const WPN_CALLSIGNS = {
   stdautogun:'MULE', stdblade:'SPLINTER', stdknife:'BURR',
   trainer:'PATIENCE', rifle:'VIDAR', bloodprince:'PRINCE', carbine:'WRAITH',
   mg:'ARES-7', mg88:'MG-88', sawnoff:'SAWN-OFF', pistol:'ECHO-2', revolver:'GOLIATH',
-  dart:'DART', screamer:'SCREAMER', goad:'STUNNER', blade:'FENRIR', vr12:'ANCHOR', vr28:'NEEDLE', vr40:'VR-40', vc8:'KEEPER', vc16:'TRACER', vc32:'KEEPER PRO', feed:'FEED',
+  dart:'DART', screamer:'SCREAMER', goad:'STUNNER', blade:'FENRIR', vr12:'ANCHOR', vr28:'NEEDLE', vr40:'VR-40', vc8:'KEEPER', vc16:'TRACER', vc32:'KEEPER PRO', va6:'KEYSTONE', va18:'WARDEN', va30:'PRO G', feed:'FEED',
   dvalin:'BOXLOCK', hydra:'HYDRA', boardinghammer:'HAMMER', reckoning:'RECKONING',
 };
 const GROUP_COLORS = {
@@ -8379,7 +8390,7 @@ function dischargeVolley(baseA, cone, speed){
       vx: Math.cos(a)*speed, vy: Math.sin(a)*speed,
       r: w.r, dmg: w.dmg, maxSpeed: w.speed, team: 'player', owner: c, pen: (w.pen || 1) + (c.perfectShot ? 1 : 0), sed: w.sed || 0, noise: w.noise || 0,
       bodyPen: w.bodyPen || 1, volleyId: state.volleyId, critMul: w.critMul || 2, tracked: (state.aar && state.aar.rounds++, true),
-      scream: w.screamNoise || 0, feed: !!w.feed,
+      scream: w.screamNoise || 0, feed: !!w.feed, suppress: w.suppress || 1,
       maxBounces: w.bounces, ex,
       flown: 0, fall,
       bounces: 0, life: w.life, trail: []
@@ -10545,14 +10556,34 @@ function flushStressPops(){
 
 // fear scales with the round: a rifle crack past the ear outranks a spent pellet
 function grazeStressOf(b, braced){
-  const v = 2 + impactDamage(b) * 0.5;
+  const v = (2 + impactDamage(b) * 0.5) * (b.suppress || 1);   // (Ben, 10 Nov) a suppression gun rattles harder
   return braced ? v * 0.5 : v;
 }
 function pinStressOf(b, braced){
-  const v = 3 + impactDamage(b) * 0.75;
+  const v = (3 + impactDamage(b) * 0.75) * (b.suppress || 1);
   return braced ? v * 0.5 : v;
 }
 
+// (Ben, 10 Nov) a round into a wall rattles whoever is beside it: the cover they hug within 80 px, any wall within 40. Once per unit per round.
+function wallImpactRattle(b, w){
+  for(const c of [...state.squad, ...state.enemies]){
+    if(!c.alive || c.ko || c === b.owner) continue;
+    const dImp = Math.hypot(c.x-b.x, c.y-b.y);
+    if(dImp > 80) continue;
+    if(dImp > 40 && !(!w.high && adjacentLowWalls(c).includes(w))) continue;
+    if(b.grazed && b.grazed.has(c)) continue;
+    (b.grazed || (b.grazed = new Set())).add(c);
+    const pAmt = pinStressOf(b, c.braced);
+    addStress(c, pAmt);
+    stressPop(c, pAmt);
+    const now = performance.now();
+    if(!c.pinPopAt || now - c.pinPopAt > 1400){
+      c.pinPopAt = now;
+      if(c.stats || c.visible) addPopup(c.x, c.y - c.r - 12, 'PINNED', '#e0a33e');
+      if(c.stats) explainState('pinned');
+    }
+  }
+}
 function grazeCheck(b){
   const list = [...state.squad, ...state.enemies];
   for(const u of list){
@@ -11048,7 +11079,7 @@ const SLOT_PRICE = 2500;
 const WPN_PRICE = {
   stdautogun: 90, stdblade: 70, stdknife: 30,
   pistol: 140, screamer: 180, dart: 200, sawnoff: 220, goad: 240, revolver: 260, feed: 0,
-  rifle: 300, carbine: 380, mg: 450, blade: 500, mg88: 800, bloodprince: 1400, vr12: 350, vr28: 520, vr40: 1100, vc8: 320, vc16: 570, vc32: 1050,
+  rifle: 300, carbine: 380, mg: 450, blade: 500, mg88: 800, bloodprince: 1400, vr12: 350, vr28: 520, vr40: 1100, vc8: 320, vc16: 570, vc32: 1050, va6: 240, va18: 480, va30: 1200,
   dvalin: 340, hydra: 620, boardinghammer: 700, reckoning: 1500,
 };
 const SELL_RATE = 0.5;
@@ -11082,6 +11113,9 @@ const WPN_META = {
   vc16:        {group: 'carbines',    hands: 2, tags: []},
   vc32:        {group: 'carbines',    hands: 2, tags: []},
   mg:          {group: 'autoguns',    hands: 2, tags: []},
+  va6:         {group: 'autoguns',    hands: 2, tags: []},
+  va18:        {group: 'autoguns',    hands: 2, tags: []},
+  va30:        {group: 'autoguns',    hands: 2, tags: []},
   mg88:        {group: 'heavy',       hands: 2, tags: []},
   sawnoff:     {group: 'handcannons', hands: 1, tags: []},
   pistol:      {group: 'pistols',     hands: 1, tags: ['suppressed']},
@@ -14910,7 +14944,7 @@ function shopItem(keeper, k){
 function tarnItem(k){ return shopItem('Tarn', k); }
 function tarnSeed(){
   // the locker holds the stock; the shelves are empty until he puts the day's display out
-  const keys = ['pistol', 'revolver', 'rifle', 'stdautogun', 'pistol', 'sawnoff', 'vc8', 'vr12'];
+  const keys = ['pistol', 'revolver', 'rifle', 'stdautogun', 'va6', 'sawnoff', 'vc8', 'vr12'];
   return {stock: [null, null, null, null], locker: keys.map(tarnItem),
     keeper: 'Tarn', keeperDead: false, grudge: null, stocktakeT: 0, counted: false, tarn: true, base: 4, lockerSeen: 8};
 }
@@ -15128,6 +15162,7 @@ function wpnStatList(w, key){
   if(!w.melee) out.push(['BURST', w.burst || 1, false], ['CLIP', isFinite(clipOf(key)) ? clipOf(key, null) : 0, false]);
   out.push([w.melee ? 'REACH' : 'RANGE', rng, false]);
   if(!w.melee){ const f = fallOf(w, key); if(f && f.from < 1){ out.push(['FULL BITE', Math.round(f.from * rng), false], ['BITE AT END', Math.round(f.floor * 100), false]); } }
+  if(!w.melee && w.dmg > 0 && !w.sed) out.push(['SUPPRESSION', w.suppress || 1, false]);
   if(w.melee) out.push(['DASH', Math.round(w.dashSpeed || 0), false]);
   out.push(['NOISE', w.noise || 0, true]);
   if(!w.melee) out.push(['PEN', w.pen != null ? w.pen : 0, false], ['SPREAD', Math.round((w.bloom || 0) / DEG * 10) / 10, true]);
@@ -15264,7 +15299,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '10 Nov \u00B7 THE KEEPER';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '10 Nov \u00B7 THE WARDEN';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15895,7 +15930,7 @@ function shopOpenNow(){ const sh = shopOf(); return !!(sh && !sh.keeperDead && o
 // a SHOP: its lock key, its rooms as anchors, the shelves it displays on. A ROUTINE: a day in steps, each a verb from a small vocabulary.
 const SHOPS = {
   tarn: {keeper: 'Tarn', lock: 'tarn', shelves: [4, 5, 6, 7], label: 'Tarn\u2019s Arms', his: 'his', benchLabel: 'AT THE BENCH',
-    deliveryKeys: () => ['pistol', ['rifle', 'carbine', 'sawnoff', 'revolver', 'vr12', 'vr28', 'vr40', 'vc8', 'vc16', 'vc32'][Math.floor(Math.random() * 10)], 'stdautogun'],
+    deliveryKeys: () => ['pistol', ['rifle', 'carbine', 'sawnoff', 'revolver', 'vr12', 'vr28', 'vr40', 'vc8', 'vc16', 'vc32', 'va6', 'va18', 'va30'][Math.floor(Math.random() * 13)], 'stdautogun'],
     anchors: {door_out: {x: 0.19, y: 0.278}, door_in: {x: 0.19, y: 0.238}, counter: {x: 0.18, y: 0.14}, bench: {x: 0.105, y: 0.128},
       lockers: {x: 0.108, y: 0.215}, workshop: {x: 0.112, y: 0.14}, store: {x: 0.115, y: 0.215}, sign: {x: 0.218, y: 0.241}},
     front: {x0: 0.15, y0: 0.13, x1: 0.23, y1: 0.245}, rect: {x0: 0.08, y0: 0.09, x1: 0.24, y1: 0.26}},
@@ -20914,7 +20949,7 @@ function frame(now){
         x: sc.x, y: sc.y,
         vx: Math.cos(a)*s.burst.speed, vy: Math.sin(a)*s.burst.speed, a0: a,
         r: w.r, dmg: w.dmg, maxSpeed: w.speed, team: 'player', owner: sc, pen: (w.pen || 1) + (sc.perfectShot && s.burst.fired === 0 ? 1 : 0), sed: w.sed || 0, noise: w.noise || 0,
-        bodyPen: w.bodyPen || 1, volleyId: state.volleyId, critMul: w.critMul || 2,   // every round of a burst carries what the first does
+        bodyPen: w.bodyPen || 1, volleyId: state.volleyId, critMul: w.critMul || 2, suppress: w.suppress || 1,   // every round of a burst carries what the first does
         tracked: (state.aar && state.aar.rounds++, true),
         maxBounces: w.bounces, ex: s.burst.ex,
         flown: 0, fall: s.burst.fall,
@@ -20977,25 +21012,7 @@ function frame(now){
           }
           if(!struck) continue;   // the round is passing through an eroded gap
 
-          // rounds hammering the cover you're hugging: pinned (any shooter but you)
-          {
-            for(const c of [...state.squad, ...state.enemies]){
-              if(!c.alive || c.ko || c === b.owner) continue;
-              if(Math.hypot(c.x-b.x, c.y-b.y) > 80) continue;
-              if(!adjacentLowWalls(c).includes(w)) continue;
-              if(b.grazed && b.grazed.has(c)) continue;
-              (b.grazed || (b.grazed = new Set())).add(c);
-              const pAmt = pinStressOf(b, c.braced);
-              addStress(c, pAmt);
-              stressPop(c, pAmt);
-              const now = performance.now();
-              if(!c.pinPopAt || now - c.pinPopAt > 1400){
-                c.pinPopAt = now;
-                if(c.stats || c.visible) addPopup(c.x, c.y - c.r - 12, 'PINNED', '#e0a33e');
-                if(c.stats) explainState('pinned');
-              }
-            }
-          }
+          wallImpactRattle(b, w);   // rounds hammering the cover beside you: pinned
 
           const impact = impactDamage(b);
           const coverDmg = impact * (b.pen || 1);
@@ -21010,7 +21027,8 @@ function frame(now){
           break;
         }
 
-        // high walls: solid, ricochet or die as before
+        // high walls: solid, ricochet or die as before (and the man beside the wall feels it)
+        wallImpactRattle(b, w);
         const cx = w.x+w.w/2, cy = w.y+w.h/2;
         const px = (b.x-cx)/(w.w/2+b.r), py = (b.y-cy)/(w.h/2+b.r);
         if(Math.abs(px) > Math.abs(py)){
@@ -23249,7 +23267,7 @@ const WPN_NAMES = {
   unarmed:'Unarmed',
   stdautogun:'Standard Autogun', stdblade:'Standard Blade', stdknife:'Standard Knife',
   trainer: "MG-0 'Old Patience'",rifle:'Vidar Long-Rifle', vr12:'Vantek VR-12 \u201CAnchor\u201D', vr28:'Vantek VR-28 \u201CNeedle\u201D', vr40:'Vantek Pro VR-40', mg:'Ares-7 Autogun', sawnoff:'Sawn-off Shotgun', pistol:'Echo-2 Silenced Pistol', goad:'Neural Stunner',
-  carbine:'Wraith Carbine', vc8:'Vantek VC-8 \u201CKeeper\u201D', vc16:'Vantek VC-16 \u201CTracer\u201D', vc32:'Vantek VC-32 \u201CKeeper Pro\u201D', mg88:'MG-88 Cerberus', dart:'Neuro Dart Rifle', screamer:'Screamer', revolver:'Goliath-3 Hand Cannon',
+  carbine:'Wraith Carbine', va6:'Vantek VA-6 \u201CKeystone\u201D', va18:'Vantek VA-18 \u201CWarden\u201D', va30:'Vantek VA-30 Pro G', vc8:'Vantek VC-8 \u201CKeeper\u201D', vc16:'Vantek VC-16 \u201CTracer\u201D', vc32:'Vantek VC-32 \u201CKeeper Pro\u201D', mg88:'MG-88 Cerberus', dart:'Neuro Dart Rifle', screamer:'Screamer', revolver:'Goliath-3 Hand Cannon',
   blade:'Fenrir Blade', bloodprince:'The Blood Prince',
   dvalin:'Boxlock Scattergun', hydra:'ARSG Combat Shotgun "Hydra"',
   boardinghammer:'Boarding Hammer', reckoning:'The Reckoning'};
@@ -23274,6 +23292,7 @@ const WPN_FIELDS = [
   {k:'coneDwell', label:'Breathe dwell (hold wide)', min:1, max:4,  step:0.1},
   {k:'fallFrom',  label:'Bite: full until (fraction of flight)', min:0.2, max:1, step:0.05},
   {k:'fallFloor', label:'Bite: at the end (fraction of damage)', min:0.2, max:1, step:0.05},
+  {k:'suppress',  label:'Suppression (near-miss stress mult)', min:0.5, max:3, step:0.1},
 ];
 // per-archetype tuning: stats + the AI scoring weights that drive behaviour
 const SQUAD_FIELDS = [
