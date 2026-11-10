@@ -15251,7 +15251,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '10 Nov \u00B7 THE BITE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '10 Nov \u00B7 THE BITE, FIXED';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -22667,7 +22667,7 @@ function draw(){
       const cy2 = hitDist <= range ? hit.y : p.y + dy*range;
       // the line as far as the draw shows it; the stretch past the plateau, where the round loses its bite, is faded
       const fullRange = w.speed * w.life;
-      const fw = fallOf(w, c.loadout[c.slot]);
+      const fw = fallOf(w, p.loadout[p.slot]);   // p is the operator here
       const biteLen = fw ? fw.from * fullRange : fullRange;
       const shown = Math.min(range, hitDist);
       ctx.setLineDash([8,8]);
