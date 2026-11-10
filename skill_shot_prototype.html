@@ -3016,6 +3016,8 @@ function enterPort(distId, opts){
     if(!onDeck(c.x, c.y)){ c.x = anchor.x; c.y = anchor.y; }
     c.ap = 9; c.facing = -Math.PI / 2;
   });
+  // (Ben, 10 Nov) the test crate, a step from the first operator wherever the crew lands
+  if(DEV_CRATE && state.squad.length){ const c0 = state.squad[0]; const spots = [[44, 0], [0, 44], [-44, 0], [0, -44], [60, 30]]; let put = false; for(const [dx, dy] of spots){ const cx = c0.x + dx, cy = c0.y + dy; if(openGround(cx, cy, 12)){ devCratePlace(cx, cy); put = true; break; } } if(!put) devCratePlace(c0.x + 30, c0.y); }
   // the folk of the port: markers become people, standing where Ben stood them
   state.civs = [];
   for(const n2 of (lvl.npcs || [])){
@@ -3713,6 +3715,8 @@ function enterShipDeck(){
     if(!onDeck(c.x, c.y)){ c.x = anchor.x; c.y = anchor.y; }
     c.ap = 9; c.facing = -Math.PI / 2;
   });
+  // the test crate, a step from the first post
+  if(DEV_CRATE && state.squad.length){ const c0 = state.squad[0]; let cx = c0.x + 44, cy = c0.y; if(!onDeck(cx, cy) || state.walls.some(w => circleRect(cx, cy, 12, w))){ cx = c0.x; cy = c0.y + 44; } if(!onDeck(cx, cy)){ cx = c0.x - 44; cy = c0.y; } devCratePlace(cx, cy); }
   // the hold's cargo stands where you left it; the crate only if the facts put it aboard
   state.props = [];
   {
@@ -12038,7 +12042,7 @@ function charterLandNow(){
 function deckCargoSnap(){
   const fx = (x) => x / W, fy = (y) => y / H;   // on her own deck the deck is the world
   const cargo = {enemies: [], civs: [], props: [], squad: {}};
-  for(const e of (state.enemies || [])) if(!e.alive || e.cache || e.chest) cargo.enemies.push(Object.assign({}, e, {x: fx(e.x), y: fy(e.y), run: null, pierced: null}));
+  for(const e of (state.enemies || [])) if((!e.alive || e.cache || e.chest) && !e.devCrate) cargo.enemies.push(Object.assign({}, e, {x: fx(e.x), y: fy(e.y), run: null, pierced: null}));
   for(const cv of (state.civs || [])) if(cv.beast && cv.alive) cargo.civs.push(Object.assign({}, cv, {x: fx(cv.x), y: fy(cv.y), _nav: null, _lc: null}));
   for(const p of (state.props || [])) cargo.props.push(Object.assign({}, p, {x: fx(p.x), y: fy(p.y)}));
   for(const c of (state.squad || [])) if(c.alive) cargo.squad[c.name] = {x: fx(c.x), y: fy(c.y)};
@@ -12053,7 +12057,7 @@ function hullCargoSnap(g){
   for(const e of (state.enemies || [])){
     if(!inZ(e.x, e.y)) continue;
     if(e.type === 'qilin' && e.alive && e.tamed){ const p = inv(e.x, e.y); const qc = beastMake('qilin', p.x, p.y, 'The Qilin'); qc.beast.state = 'follow'; qc.beast.follow = (pc() || state.squad[0]).name; cargo.civs.push(qc); continue; }
-    if(!e.alive || e.cache || e.chest){ const p = inv(e.x, e.y); cargo.enemies.push(Object.assign({}, e, {x: p.x, y: p.y, run: null, pierced: null})); }
+    if((!e.alive || e.cache || e.chest) && !e.devCrate){ const p = inv(e.x, e.y); cargo.enemies.push(Object.assign({}, e, {x: p.x, y: p.y, run: null, pierced: null})); }
   }
   for(const cv of (state.civs || [])) if(cv.beast && cv.alive && inZ(cv.x, cv.y)){ const p = inv(cv.x, cv.y); cargo.civs.push(Object.assign({}, cv, {x: p.x, y: p.y, _nav: null, _lc: null})); }
   for(const p of (state.props || [])) if(inZ(p.holder ? (state.squad.find(c => c.name === p.holder) || p).x : p.x, p.holder ? (state.squad.find(c => c.name === p.holder) || p).y : p.y)){ const q = inv(p.x, p.y); cargo.props.push(Object.assign({}, p, {x: q.x, y: q.y})); }
@@ -14472,7 +14476,24 @@ const ARCH_SIDEARM = {soldier: 'stdautogun', runner: 'stdknife', valkyrie: 'pist
 const TRINKET_NAMES = ['Dented sigil ring', 'Vial of raw silk', 'Bureau scrip, unsigned',
   'Pocket icon, worn smooth', 'Cracked optic lens', 'Foil of stim tabs'];
 // what the fallen carried: rolled once, the first time anyone kneels
+// (Ben, 10 Nov) the test crate: a strongbox beside the crew's deck posts holding one of every weapon in the game, refilled as it is
+// emptied. DEV_CRATE off for a release build.
+let DEV_CRATE = true;
+function devCrateSet(on){ DEV_CRATE = !!on; if(!on) state.enemies = (state.enemies || []).filter(e => !e.devCrate); return DEV_CRATE; }
+function devCrateLoot(){
+  return Object.keys(WPN_NAMES).filter(k => k !== 'unarmed' && WEAPONS[k]).map(k => ({kind: 'weapon', key: k, own: 'the test crate'}));
+}
+function devCratePlace(x, y){
+  if(!DEV_CRATE) return null;
+  let ch = (state.enemies || []).find(e => e.devCrate);
+  if(!ch){
+    ch = {cache: true, chest: true, devCrate: true, alive: false, looted: false, everSeen: true, visible: true, x, y, r: 11, type: 'cache', name: 'Test crate \u00B7 every weapon', loot: devCrateLoot(), bob: 0};
+    state.enemies.push(ch);
+  }
+  return ch;
+}
 function lootOf(e){
+  if(e.devCrate && (!e.loot || !e.loot.length)) e.loot = devCrateLoot();   // the test crate never runs dry
   if(e.loot) return e.loot;
   const out = [];
   // provenance: gear remembers its dead; only currency is anonymous
@@ -14495,7 +14516,7 @@ function lootOf(e){
   e.loot = out;
   return out;
 }
-function lootSpent(e){ return !!(e.loot && e.loot.length === 0); }
+function lootSpent(e){ if(e.devCrate) return false; return !!(e.loot && e.loot.length === 0); }
 // taking: credits go to the stash the moment they're touched
 function lootStash(e, idx){
   const it = (e.loot || [])[idx];
@@ -15207,7 +15228,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '9 Nov \u00B7 VANTEK';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '10 Nov \u00B7 THE TEST CRATE';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
