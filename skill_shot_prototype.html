@@ -1696,6 +1696,14 @@ const ARCHETYPES = {
     idealRange: 0, melee: 9,
     weights: {los: 0.7, cover: 0, range: 0, close: 1.6, flank: 0.4},
   },
+  tatzelwurm: {
+    label: 'Tatzelwurm', color: '#8fb36a',
+    hp: 60, bravery: 99, fearless: 1,
+    burst: 0, burstGap: 0.1, pen: 0, vision: 160, awareness: 1.0, bodyR: 12,
+    moveRange: 240, dmg: 0, spread: 0, pellets: 0, shotSpeed: 0, shotLife: 0,
+    idealRange: 0, melee: 12,
+    weights: {los: 0.5, cover: 0, range: 0, close: 1.8, flank: 0.2},
+  },
   qilin: {
     label: 'Qilin', color: '#f0d070', quarry: true,
     hp: 40, bravery: 99, fearless: 1,
@@ -5097,7 +5105,7 @@ function updateHud(){
   refreshDropBtn();
   if(typeof foodBtnSync === 'function') foodBtnSync();
   document.getElementById('turnNum').textContent = state.turn;
-  document.getElementById('foes').textContent = state.enemies.filter(e=>e.alive).length;
+  document.getElementById('foes').textContent = state.enemies.filter(e=>e.alive && !e.lurk).length;   // what lies under the roots is not counted until it shows
   const sb = document.getElementById('scanbtn');
   sb.textContent = '⌖ Scanner ×' + state.scansLeft;
   sb.style.opacity = state.scansLeft > 0 ? 1 : 0.35;
@@ -8969,6 +8977,7 @@ function updateVisibility(){
       if(Math.hypot(e.x-sc.x, e.y-sc.y) <= sc.r && losHigh(sc.x, sc.y, e.x, e.y)){ vis = true; break; }
     }
     e.visible = vis || !TUNE.fog || !!currentLevel().noFog;
+    if(e.lurk) e.visible = false;   // under the roots: nothing to see until it strikes
     if(e.visible) e.lastSeen = {x: e.x, y: e.y};
   }
 }
@@ -9196,6 +9205,7 @@ function footfallAt(c, walking){
 
 function noiseAt(x, y, radius, quietVisual, snap){
   if(snap && typeof qilinHear === 'function') qilinHear(x, y, radius);
+  if(snap && state.roosts && state.roosts.length && currentLevel().qilin){ const byP = (state.phase === 'player'); for(const r of roostsNear(x, y, Math.min(radius, 260))) roostFlush(r, byP ? 'player' : 'hunter'); }
   if(state.aar && state.phase === 'player' && radius > state.aar.loudest) state.aar.loudest = radius;
   if(state.invoice && state.phase === 'player') state.invoice.noise += radius;
   if(!quietVisual) pushNoiseRing(x, y, radius);
@@ -10761,6 +10771,7 @@ function wpnCritMul(b){ return b.critMul || 2; }
 
 function hitEnemy(e, b){
   if(b && b.team === 'player' && e.duel) e.hitByCrew = true;   // the crew made the duel their fight
+  if(e.type === 'tatzelwurm' && e.lurk){ e.lurk = false; e.roused = 4; e.shown = true; showBanner('THE TATZELWURM \u00B7 OUT OF THE HOLLOW', '#8fb36a'); }   // shoot it and it comes out
   const pierceMul = Math.max(0, 1 - (TUNE.bodyPenFalloff || 0) * (b.pierced ? b.pierced.size : 0));
   // critical: did the round's path pass through the very heart of the circle?
   const spd = Math.hypot(b.vx, b.vy) || 1;
@@ -11946,6 +11957,10 @@ function buildQilinLevel(){
   const route = (pts) => pts.map(p => ({x: p.x, y: p.y}));
   return {
     gannet: g,
+    // (Ben, 11 Nov) the wood is a living place: birds that flush (for the hunters), hives that burst, and a Tatzelwurm in a hollow
+    roosts: [{x: 0.36, y: 0.30}, {x: 0.47, y: 0.68}, {x: 0.58, y: 0.42}, {x: 0.74, y: 0.28}, {x: 0.78, y: 0.72}, {x: 0.88, y: 0.44}],
+    hives: [{x: 0.52, y: 0.36}, {x: 0.70, y: 0.60}, {x: 0.86, y: 0.30}],
+    den: {x: 0.56, y: 0.60},
     name: 'The Qilin', fee: 900, par: 0, at: 'tallis', crew: 4, hidden: true, charter: true, qilin: true, payAt: 'erina', issuer: 'erina',
     world: {w: PW, h: PH}, biome: CAGES.forest.biome, glades,
     client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
@@ -12257,6 +12272,7 @@ function qilinSetup(){
   state.foods = [];
   if(!state.qilinFood){ showBannerLater('NOBODY BROUGHT THE FEED', 'ERINA\u2019S SATCHEL IS NOT IN ANY PACK', false, 5000); chronicle('combat', 'The crew came down the ramp without Erina\u2019s feed. Without it the Qilin cannot be tamed, only darted.'); }
   state.qilinTaken = false; state.poacherSpawned = 0; state.poacherCall = null;
+  woodSetup();
   // the friends: small things in the glades that see everything
   state.civs = state.civs || [];
   const names = ['A Jay', 'A Doe', 'A Wren', 'A Vole', 'A Fawn', 'A Thrush'];
@@ -12289,19 +12305,20 @@ function feedLand(b, hit){
   if(b.owner && b.owner.def && b.owner.mag){ const sl9 = b.owner.def.loadout.sidearm === 'feed' ? 'sidearm' : 'primary'; b.owner.def.feedLeft = b.owner.mag[sl9]; }
   const q = qilinFoe();
   const d = q && q.alive ? Math.hypot(q.x - b.x, q.y - b.y) : 1e9;
-  // the closer it lands, the likelier it is noticed: certain inside 60 px, nothing past FEED_NOTICE
-  const odds = d <= 60 ? 1 : d >= FEED_NOTICE ? 0 : 1 - (d - 60) / (FEED_NOTICE - 60);
-  const roll = (state.feedRoll != null ? state.feedRoll : Math.random());
-  const f = {x: b.x, y: b.y, seen: odds > 0 && roll < odds, d: Math.round(d)};
+  // inside the ring it is noticed, no dice; the ring is its calm
+  const ring = q ? feedRing(q) : 0;
+  const f = {x: b.x, y: b.y, seen: d <= ring, d: Math.round(d)};
   state.foods = state.foods || []; state.foods.push(f);
   if(hit){ qilinStress(q, QILIN_NERVE.hit, 'hit by a thrown handful'); f.seen = false; addPopup(f.x, f.y - 10, 'HIT IT \u00B7 IT DID NOT LIKE THAT', '#e07a5a'); }
-  else addPopup(f.x, f.y - 10, f.seen ? 'FEED \u00B7 IT NOTICED' : d >= FEED_NOTICE ? 'FEED \u00B7 TOO FAR FROM IT' : 'FEED \u00B7 IT DID NOT NOTICE', f.seen ? '#f0d070' : '#e0a33e');
+  else addPopup(f.x, f.y - 10, f.seen ? 'FEED \u00B7 IT NOTICED' : 'FEED \u00B7 OUTSIDE ITS RING (' + Math.round(d) + ' PX, RING ' + Math.round(ring) + ')', f.seen ? '#f0d070' : '#e0a33e');
   spawnBurst(f.x, f.y, 6, '#f0d070', 90);
   state.qilinFood = feedCount();
   if(!state._fedOnce){ state._fedOnce = true; chronicle('combat', (b.owner ? b.owner.name : 'The crew') + ' threw a handful of Erina\u2019s feed toward the Qilin and stood very still.'); }
   if(typeof updateHud === 'function') updateHud();
 }
-const FEED_NOTICE = 200;   // a throw that lands within this of the Qilin is noticed at once
+const FEED_NOTICE = 200;   // the notice ring when it is calm
+// (Ben, 11 Nov) the ring is its calm: 200 px at ease, shrinking to 50 at the bolt line. Inside it a handful is always eaten; outside, never.
+function feedRing(q){ const n = Math.max(0, Math.min(1, ((q && q.stressQ) || 0) / QILIN_NERVE.bolt)); return FEED_NOTICE - (FEED_NOTICE - 50) * n; }
 // the ship is the target area once the animal is in hand: tamed and following, or darted and carried
 function shipTargetOn(){
   if(!state.charterGround || !state.charterZone || state.over) return false;
@@ -12414,6 +12431,7 @@ function qilinDecide(e){
   const alarm = friendsAlarm();
   if(alarm) qilinStress(e, QILIN_NERVE.alarm, 'the wood called out');
   let threat = null;
+  if(inCloud(e.x, e.y)){ qilinStress(e, 30, 'insects'); threat = {x: e.x + 1, y: e.y}; }
   if(e.netted){ threat = e.netted; e.netted = null; }
   else if((e.stressQ || 0) >= QILIN_NERVE.bolt) threat = alarm ? {x: alarm.x, y: alarm.y} : seen ? {x: seen.x, y: seen.y} : (state.foods || []).length ? state.foods[state.foods.length - 1] : {x: e.x + 1, y: e.y};
   if(threat){
@@ -12439,6 +12457,10 @@ function qilinDecide(e){
     if(d < 46){
       state.foods = state.foods.filter(f2 => f2 !== f);
       e.trust = Math.min(3, (e.trust || 0) + 1);
+      qilinStress(e, -15, null);   // a mouthful calms it: the ring opens again
+      e.facing = Math.atan2((pc() || e).y - e.y, (pc() || e).x - e.x);
+      e.ateT = performance.now();
+      spawnBurst(f.x, f.y, 8, '#f0d070', 60);
       if(e.trust >= 3){
         e.tamed = true; e.alert = 'unaware'; e.stressQ = 0;
         foodBtnSync();
@@ -12448,8 +12470,10 @@ function qilinDecide(e){
         { const g = currentLevel().gannet; if(g){ const hx = g.hatch.x * W, hy = g.hatch.y * H; state.extract = null; camTour(hx, hy, 2600); } }   // the hull lights up as the target area (shipTargetOn) and BLAST OFF appears when it is in
         chronicle('combat', 'The Qilin took the third mouthful from the ground at ' + (pc() ? pc().name : 'the crew') + '\u2019s feet and did not go away afterwards. It will follow whoever is leading now.');
       }else{
-        trustPop('EATS \u00B7 TRUST ' + e.trust + '/3');
-        chronicle('combat', 'The Qilin came to the feed and ate. Trust ' + e.trust + ' of 3.');
+        trustPop(e.trust === 1 ? 'EATS \u00B7 LOOKS UP AT YOU \u00B7 TRUST 1/3' : 'EATS \u00B7 STEPS CLOSER \u00B7 TRUST 2/3');
+        chronicle('combat', e.trust === 1 ? 'The Qilin came to the handful, ate, and lifted its head to look at whoever threw it. It did not leave. Trust 1 of 3.'
+          : 'The Qilin ate the second handful and took a few steps toward the crew before it stopped. Trust 2 of 3.');
+        if(e.trust === 2){ const c2 = pc(); if(c2){ const ang = Math.atan2(c2.y - e.y, c2.x - e.x); const nx = e.x + Math.cos(ang) * 40, ny = e.y + Math.sin(ang) * 40; if(openGround(nx, ny, e.r)){ e.x = nx; e.y = ny; } } }
       }
       return {path: null, shots: 0, idle: true};
     }
@@ -12461,6 +12485,7 @@ function qilinDecide(e){
   e.patrolT = (e.patrolT || 0) + 1;
   if(e.patrolT % 2 === 0){
     const gl = glades[e.glade] || {x: e.x, y: e.y};
+    const wmQ = wurmFoe(); if(wmQ && Math.hypot(gl.x - wmQ.den.x, gl.y - wmQ.den.y) < 200){ e.glade = (e.glade + 1) % glades.length; }   // it does not graze by the hollow
     const a = Math.random() * Math.PI * 2, rr = 20 + Math.random() * 60;
     return {path: goTo({x: gl.x + Math.cos(a) * rr, y: gl.y + Math.sin(a) * rr}, arch.moveRange * 0.5), shots: 0, patrol: true};
   }
@@ -12469,6 +12494,18 @@ function qilinDecide(e){
 // a poacher who can see the Qilin wants the Qilin, not the crew: closes, and throws the net
 function hunterDecide(e){
   const q = qilinFoe();
+  // (11 Nov) a hive over the crew: shoot it down on them, if it is in reach and sight
+  if(e.alert === 'alerted' && (state.hives || []).length){
+    for(const h of state.hives){
+      if(!h.alive) continue;
+      const near = (state.squad || []).some(c => c.alive && c.visible !== false && Math.hypot(c.x - h.x, c.y - h.y) <= 90 && inVisionOf(e, enemyVisionRange(e), c.x, c.y));
+      if(!near || Math.hypot(h.x - e.x, h.y - e.y) > 420 || !segClearHigh(e.x, e.y, h.x, h.y)) continue;
+      e.facing = Math.atan2(h.y - e.y, h.x - e.x);
+      noiseAt(e.x, e.y, 500, false, true);
+      hiveBurst(h, e);
+      return {path: null, shots: 0, idle: true};
+    }
+  }
   const hunting = () => e.alert === 'alerted' ? null : hunterWalk(e);   // the crew in sight outranks the walk; otherwise, the glades
   if(!q || !q.alive || q.ko || q.tamed || state.qilinTaken) return hunting();
   const d = Math.hypot(q.x - e.x, q.y - e.y);
@@ -12517,6 +12554,112 @@ function partyEdge(){
   if(!cands.length) return {x: W * 0.95, y: H * 0.06, side: 0};
   return cands[Math.floor(Math.random() * cands.length)];
 }
+// ---- (Ben, 11 Nov) the living wood ----
+const WOOD = {roostR: 70, flushTurns: 3, markTurns: 4, hiveR: 12, cloudR0: 60, cloudGrow: 45, cloudTurns: 4, cloudDmg: 1, cloudPain: 12, denR: 64, wurmBite: 12};
+function woodSetup(){
+  const L = currentLevel();
+  state.roosts = (L.roosts || []).map(r => ({x: r.x * W, y: r.y * H, up: 0, specks: Array.from({length: 9}, () => ({a: Math.random() * Math.PI * 2, d: 10 + Math.random() * 28}))}));
+  state.hives = (L.hives || []).map(h => ({x: h.x * W, y: h.y * H, alive: true}));
+  state.clouds = [];
+  state.flushMark = null;
+  state.enemies = state.enemies.filter(e => e.type !== 'tatzelwurm');
+  if(L.den){
+    const e = foeAt('tatzelwurm', L.den.x * W, L.den.y * H);
+    e.lurk = true; e.roused = 0; e.den = {x: e.x, y: e.y}; e.name = 'The Tatzelwurm'; e.race = 'TATZELWURM'; e.faction = 'THE WOOD';
+    e.bio = 'Cat-headed, serpent-bodied, and the length of two men. It lives in the root hollow and strikes at whatever steps over its ground, then goes back under. Shoot it and it comes out.';
+    e.story = 'The hunters know roughly where it is; it is why they set their snares on this side of the wood and not the other. Nothing sings within sixty paces of the hollow.';
+    state.enemies.push(e);
+  }
+}
+function wurmFoe(){ return (state.enemies || []).find(e => e.type === 'tatzelwurm' && e.alive) || null; }
+// birds go up: a cloud over the glade for three turns, and a mark on the hunters' map if the crew or the Qilin put them up
+function roostFlush(r, by){
+  if(r.up > 0) return false;
+  r.up = WOOD.flushTurns; r.upAt = performance.now();
+  if(by === 'player' || by === 'qilin'){ state.flushMark = {x: r.x, y: r.y, turn: state.turn || 0, by}; showBanner('BIRDS UP \u00B7 THE HUNTERS WILL COME TO LOOK', '#e0a33e'); }
+  else addPopup(r.x, r.y - 20, 'BIRDS UP', '#e0a33e');
+  chronicle('combat', 'Birds went up over the ' + (by === 'player' ? 'crew' : by === 'qilin' ? 'Qilin' : 'hunters') + ' in a cloud that the whole wood could see.');
+  return true;
+}
+function roostsNear(x, y, rad){ return (state.roosts || []).filter(r => Math.hypot(r.x - x, r.y - y) <= (rad || WOOD.roostR)); }
+// a hive bursts: a cloud that spreads every turn until it is gone
+function hiveBurst(h, by){
+  if(!h.alive) return false;
+  h.alive = false;
+  state.clouds = state.clouds || [];
+  state.clouds.push({x: h.x, y: h.y, r: WOOD.cloudR0, turns: WOOD.cloudTurns, by: by || null});
+  spawnBurst(h.x, h.y, 24, '#e8d070', 220);
+  addPopup(h.x, h.y - 16, 'THE HIVE BURSTS', '#e8d070');
+  chronicle('combat', 'A hive came down in a burst of insects' + (by && by.name ? ' (' + by.name + '\u2019s round)' : '') + '. The cloud spread through the glade.');
+  return true;
+}
+function inCloud(x, y){ return (state.clouds || []).some(cl => Math.hypot(cl.x - x, cl.y - y) <= cl.r); }
+// once a round: the clouds bite whoever stands in them and spread; the birds settle; the wurm goes back under
+function woodTurn(){
+  for(const cl of (state.clouds || [])){
+    const bite = (u) => {
+      if(!u.alive || u.ko) return;
+      if(u.stats){ const sp = applyDamage(u, WOOD.cloudDmg); u.hitFlash = 1; addStress(u, WOOD.cloudPain * (sp.armor > sp.flesh ? 0.5 : 1)); addPopup(u.x, u.y - u.r - 8, 'STUNG', '#e8d070'); if(u.hp <= 0) charDown(u); }
+      else if(u.type){ applyDamage(u, WOOD.cloudDmg); u.hitFlash = 1; addStress(u, WOOD.cloudPain); if(u.type === 'qilin') qilinStress(u, 30, 'insects'); if(u.hp <= 0) kill(u, null); }
+      else civStruck(u, WOOD.cloudDmg, 'none', null, 0, null);
+    };
+    for(const c of (state.squad || [])) if(Math.hypot(c.x - cl.x, c.y - cl.y) <= cl.r) bite(c);
+    for(const e of (state.enemies || [])) if(e.alive && !e.cache && !e.lurk && Math.hypot(e.x - cl.x, e.y - cl.y) <= cl.r) bite(e);
+    for(const cv of (state.civs || [])) if(cv.alive && Math.hypot(cv.x - cl.x, cv.y - cl.y) <= cl.r) bite(cv);
+    cl.r += WOOD.cloudGrow; cl.turns--;
+  }
+  state.clouds = (state.clouds || []).filter(cl => cl.turns > 0);
+  for(const r of (state.roosts || [])) if(r.up > 0) r.up--;
+  const wm = wurmFoe();
+  if(wm && wm.roused > 0){ wm.roused--; if(wm.roused <= 0){ wm.lurk = true; wm.x = wm.den.x; wm.y = wm.den.y; wm.visible = false; addPopup(wm.x, wm.y - 16, 'GONE UNDER', '#8fb36a'); } }
+}
+// the strike: whoever steps over its ground while it lurks
+function wurmStrike(u){
+  const wm = wurmFoe(); if(!wm || !wm.lurk || !u || u === wm) return false;
+  wm.lurk = false; wm.roused = 3; wm.shown = true; wm.alert = 'alerted'; wm.everSeen = true;
+  wm.lastKnown = {x: u.x, y: u.y};
+  const dmg = WOOD.wurmBite;
+  if(u.stats){ const sp = applyDamage(u, dmg); u.hitFlash = 1; addPopup(u.x, u.y - u.r - 8, sp.flesh.toFixed(1) + ' \u00B7 THE WURM', '#8fb36a'); addStress(u, dmg * 2); if(u.hp <= 0) charDown(u); else updateHud(); }
+  else if(u.type === 'qilin'){ qilinStress(u, 60, 'the wurm'); addPopup(u.x, u.y - u.r - 8, 'THE WURM', '#8fb36a'); }
+  else if(u.type){ applyDamage(u, dmg); u.hitFlash = 1; addPopup(u.x, u.y - u.r - 8, dmg + ' \u00B7 THE WURM', '#8fb36a'); if(u.hp <= 0) kill(u, null); }
+  else civStruck(u, dmg, 'none', null, 0, null);
+  spawnBurst(wm.x, wm.y, 18, '#8fb36a', 260);
+  state.shake = Math.max(state.shake, 10);
+  showBanner('THE TATZELWURM \u00B7 OUT OF THE HOLLOW', '#8fb36a');
+  chronicle('combat', 'Something cat-faced and far too long came out of the root hollow and struck ' + (u.name || 'whoever was closest') + '. The hunters set their snares on the other side of the wood for a reason.');
+  return true;
+}
+// each frame on the Qilin level: movers under a roost put the birds up; movers over the hollow get bitten
+function woodTick(){
+  if(!currentLevel().qilin || state.shipDeck) return;
+  const wm = wurmFoe();
+  const q = qilinFoe();
+  const movers = [];
+  for(const c of (state.squad || [])) if(c.alive && c.run) movers.push({u: c, by: 'player'});
+  for(const e of (state.enemies || [])) if(e.alive && e.run && e !== wm) movers.push({u: e, by: e.type === 'qilin' ? 'qilin' : 'hunter'});
+  for(const m of movers){
+    for(const r of roostsNear(m.u.x, m.u.y)) roostFlush(r, m.by);
+    if(wm && wm.lurk && Math.hypot(wm.den.x - m.u.x, wm.den.y - m.u.y) <= WOOD.denR) wurmStrike(m.u);
+  }
+  void q;
+}
+// the wurm's own turn: roused, it lunges at the nearest body in reach; otherwise it lies in its hollow
+function wurmDecide(e){
+  if(e.lurk || !(e.roused > 0)) return {path: null, shots: 0, idle: true};
+  let best = null, bd = 1e9;
+  for(const c of (state.squad || [])) if(c.alive && !c.downed){ const d = Math.hypot(c.x - e.x, c.y - e.y); if(d < bd){ bd = d; best = c; } }
+  for(const o of (state.enemies || [])) if(o !== e && o.alive && !o.ko && !o.cache && o.type !== 'qilin'){ const d = Math.hypot(o.x - e.x, o.y - e.y); if(d < bd){ bd = d; best = o; } }
+  if(!best || bd > 280) return {path: null, shots: 0, idle: true};
+  if(bd <= e.r + best.r + 16){
+    if(best.stats) enemyMelee(e, best);
+    else { applyDamage(best, ARCHETYPES.tatzelwurm.melee); best.hitFlash = 1; addPopup(best.x, best.y - best.r - 8, ARCHETYPES.tatzelwurm.melee + ' \u00B7 THE WURM', '#8fb36a'); if(best.hp <= 0) kill(best, null); }
+    return {path: null, shots: 0, idle: true};
+  }
+  const g = buildMoveGraph(e);
+  const t = clampTargetPoint(best.x, best.y, g.rects, e.r);
+  const path = findPath({x: e.x, y: e.y}, t, g);
+  return {path: path && path.length ? truncatePath(path, ARCHETYPES.tatzelwurm.moveRange) : null, shots: 0, idle: !path};
+}
 function partyArrive(){
   const names = [QILIN_NAMES.leader].concat(QILIN_NAMES.party.slice(0, 4));
   const gl = gladePts();
@@ -12539,7 +12682,19 @@ function partyArrive(){
 // a hunter who cannot see the Qilin walks the glades looking for it, one after another, at a hunter's pace
 function hunterWalk(e){
   const gl = gladePts(); if(!gl.length) return null;
-  if(e.huntGlade == null) e.huntGlade = Math.floor(Math.random() * gl.length);
+  // a cloud of insects: out of it first
+  const cl0 = (state.clouds || []).find(cl => Math.hypot(cl.x - e.x, cl.y - e.y) <= cl.r);
+  if(cl0){ const ang = Math.atan2(e.y - cl0.y, e.x - cl0.x); const g0 = buildMoveGraph(e); const t0 = clampTargetPoint(cl0.x + Math.cos(ang) * (cl0.r + 60), cl0.y + Math.sin(ang) * (cl0.r + 60), g0.rects, e.r); const p0 = findPath({x: e.x, y: e.y}, t0, g0); if(p0 && p0.length) return {path: truncatePath(p0, ARCHETYPES.poacher.moveRange), shots: 0}; }
+  // birds went up over somebody: go and look, and search the spot for a few turns
+  const mk = state.flushMark;
+  if(mk && (state.turn || 0) - mk.turn <= WOOD.markTurns && e.markSeen !== mk.turn){
+    const dm = Math.hypot(mk.x - e.x, mk.y - e.y);
+    if(dm < 120){ e.searchT = (e.searchT == null ? 3 : e.searchT) - 1; if(e.searchT <= 0){ e.markSeen = mk.turn; e.searchT = null; } const a = Math.random() * Math.PI * 2, rr = 40 + Math.random() * 110; const g1 = buildMoveGraph(e); const t1 = clampTargetPoint(mk.x + Math.cos(a) * rr, mk.y + Math.sin(a) * rr, g1.rects, e.r); const p1 = findPath({x: e.x, y: e.y}, t1, g1); return {path: p1 && p1.length ? truncatePath(p1, ARCHETYPES.poacher.moveRange * 0.6) : null, shots: 0, idle: !p1}; }
+    const g2 = buildMoveGraph(e); const t2 = clampTargetPoint(mk.x, mk.y, g2.rects, e.r); const p2 = findPath({x: e.x, y: e.y}, t2, g2);
+    if(p2 && p2.length) return {path: truncatePath(p2, ARCHETYPES.poacher.moveRange), shots: 0};
+  }
+  const wmH = wurmFoe(); const denOk = (i) => !wmH || Math.hypot(gl[i].x - wmH.den.x, gl[i].y - wmH.den.y) > 220;   // they know where the hollow is
+  if(e.huntGlade == null || !denOk(e.huntGlade)){ const ok = gl.map((p, i) => i).filter(denOk); e.huntGlade = ok.length ? ok[Math.floor(Math.random() * ok.length)] : 0; }
   let tgt = gl[e.huntGlade];
   if(Math.hypot(tgt.x - e.x, tgt.y - e.y) < 110){
     e.seenGlades = (e.seenGlades || []).concat([e.huntGlade]).slice(-4);
@@ -12555,6 +12710,7 @@ function hunterWalk(e){
 }
 function qilinTurnStart(){
   if(!currentLevel().qilin) return;
+  woodTurn();
   if(!state.partyIn && (state.turn || 0) >= (state.partyAt || 2)) partyArrive();
   const dead = state.enemies.filter(e => e.type === 'poacher' && !e.alive && !e.counted);
   if(dead.length){ for(const e of dead) e.counted = true; if(state.poacherCall == null && (state.poacherSpawned || 0) < 9){ state.poacherCall = (state.turn || 0) + 2; showBanner('THE PARTY IS CALLING FOR MORE', '#c98b3e'); } }
@@ -14572,6 +14728,47 @@ function waypointHere(){
   }
   return out;
 }
+// (Ben, 11 Nov) the living wood, drawn in the world: roosts, hives, the hollow, the clouds
+function drawWoodLife(){
+  if(!currentLevel().qilin || state.shipDeck) return;
+  const t = performance.now() / 1000;
+  ctx.save();
+  for(const r of (state.roosts || [])){
+    const up = r.up > 0;
+    const age = up && r.upAt ? (performance.now() - r.upAt) / 1000 : 0;
+    for(let i = 0; i < r.specks.length; i++){
+      const sp = r.specks[i];
+      let x = r.x + Math.cos(sp.a) * sp.d, y = r.y + Math.sin(sp.a) * sp.d * 0.6;
+      if(up){ const k = Math.min(1, age / 2.2); x = r.x + Math.cos(sp.a + i) * (sp.d + 160 * k); y = r.y - 40 * k - 90 * k * k + Math.sin(t * 9 + i) * 3; ctx.fillStyle = 'rgba(30,24,18,' + (0.9 * (1 - k * 0.7)).toFixed(2) + ')'; }
+      else ctx.fillStyle = 'rgba(30,24,18,.85)';
+      ctx.beginPath(); ctx.ellipse(x, y, 3, 1.6, sp.a, 0, 7); ctx.fill();
+    }
+    if(!up){ ctx.strokeStyle = 'rgba(224,163,62,.25)'; ctx.lineWidth = 1; ctx.setLineDash([3, 6]); ctx.beginPath(); ctx.arc(r.x, r.y, WOOD.roostR, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(224,163,62,.5)'; ctx.font = "600 8px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center'; ctx.fillText('ROOST', r.x, r.y - WOOD.roostR - 4); }
+  }
+  for(const h of (state.hives || [])){
+    if(!h.alive) continue;
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(h.x + 3, h.y + 5, 10, 13, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#d8c070'; ctx.beginPath(); ctx.moveTo(h.x, h.y - 16); ctx.quadraticCurveTo(h.x + 12, h.y - 4, h.x + 8, h.y + 10); ctx.quadraticCurveTo(h.x, h.y + 16, h.x - 8, h.y + 10); ctx.quadraticCurveTo(h.x - 12, h.y - 4, h.x, h.y - 16); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,70,20,.6)'; ctx.lineWidth = 1; for(let k = -8; k <= 8; k += 5){ ctx.beginPath(); ctx.moveTo(h.x - 9, h.y + k); ctx.lineTo(h.x + 9, h.y + k); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(216,192,112,.7)'; ctx.font = "600 8px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center'; ctx.fillText('HIVE', h.x, h.y - 20);
+  }
+  const wm = wurmFoe();
+  if(wm){
+    const d = wm.den;
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(d.x, d.y, 30, 18, 0.3, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(232,224,204,.6)'; for(const [bx, by] of [[-14, 6], [-4, 11], [9, 8], [16, -2], [-10, -7]]){ ctx.beginPath(); ctx.ellipse(d.x + bx, d.y + by, 3.5, 1.2, bx * 0.1, 0, 7); ctx.fill(); }
+    const nearOp = (state.squad || []).some(c => c.alive && Math.hypot(c.x - d.x, c.y - d.y) < 200);
+    if(nearOp || wm.shown){ ctx.strokeStyle = 'rgba(143,179,106,.4)'; ctx.setLineDash([4, 6]); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(d.x, d.y, WOOD.denR, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(143,179,106,.8)'; ctx.font = "600 8px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center'; ctx.fillText(wm.shown ? 'THE HOLLOW \u00B7 TATZELWURM' : 'A HOLLOW \u00B7 BONES \u00B7 NOTHING SINGS HERE', d.x, d.y - WOOD.denR - 4); }
+  }
+  for(const cl of (state.clouds || [])){
+    ctx.fillStyle = 'rgba(216,192,112,.12)'; ctx.beginPath(); ctx.arc(cl.x, cl.y, cl.r, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(216,192,112,.5)'; ctx.setLineDash([3, 5]); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cl.x, cl.y, cl.r, t * 0.3, t * 0.3 + 7); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(40,30,10,.8)';
+    for(let i = 0; i < 40; i++){ const a = i * 2.399 + t * (1.5 + (i % 5) * 0.3), rr = (i * 37 % 100) / 100 * cl.r; ctx.fillRect(cl.x + Math.cos(a) * rr, cl.y + Math.sin(a * 1.3) * rr, 2, 2); }
+    ctx.fillStyle = 'rgba(216,192,112,.85)'; ctx.font = "700 9px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center'; ctx.fillText('INSECTS \u00B7 ' + cl.turns + ' MORE TURN' + (cl.turns === 1 ? '' : 'S') + ' \u00B7 SPREADING', cl.x, cl.y - cl.r - 6);
+  }
+  ctx.restore();
+}
 function drawWaypoints(){
   if(!state.portDock) return;
   const t = performance.now() / 1000;
@@ -15413,7 +15610,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '11 Nov \u00B7 HOUSEKEEPING';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '11 Nov \u00B7 THE LIVING WOOD';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -20002,6 +20199,7 @@ function scorePosition(e, arch, cx, cy, target, wts){
 function enemyDecide(e){
   const arch = ARCHETYPES[e.type];
   if(e.type === 'qilin') return qilinDecide(e);
+  if(e.type === 'tatzelwurm') return wurmDecide(e);
   if(e.hunter && e.morale !== 'broken'){ const hd = hunterDecide(e); if(hd) return hd; }   // the Qilin before the crew, always
   // broken: hits the floor, wishing for it all to be over
   if(e.morale === 'broken') return {path:null, shots:0, cower:true};
@@ -21175,6 +21373,7 @@ function frame(now){
       }
 
       if(!dead && b.feed){ const q9 = qilinFoe(); if(q9 && q9.alive && !q9.tamed && Math.hypot(q9.x - b.x, q9.y - b.y) < q9.r + b.r){ feedLand(b, true); dead = true; } }
+      if(!dead && !b.feed && s.hives && s.hives.length){ const hv = s.hives.find(h => h.alive && Math.hypot(h.x - b.x, h.y - b.y) < WOOD.hiveR + b.r); if(hv){ hiveBurst(hv, b.owner); dead = true; } }
       if(!dead && !b.feed){
         // a projectile is a projectile: it hits anyone but its shooter (a handful of feed is not a projectile; it lands)
         for(const c of s.squad){
@@ -21231,7 +21430,7 @@ function frame(now){
   if(s.phase === 'player' && s.pq && !s.over){
     processPanicQueue(realDt);
   }
-  if(currentLevel().qilin && !s.shipDeck) foodBtnSync();
+  if(currentLevel().qilin && !s.shipDeck){ foodBtnSync(); woodTick(); }
   if(s.charterGround) blastBtnSync();
 
   // player phase end check: every living character has spent their actions
@@ -22488,6 +22687,7 @@ function draw(){
   }
 
   // the fog itself, then ghosts of enemies at their last seen positions
+  drawWoodLife();
   drawFog();
   drawNight();
   drawWaypoints();
@@ -22874,22 +23074,25 @@ function draw(){
     const q = qilinFoe();
     if(q && q.alive && !q.ko && !q.tamed && q.visible && (s.qilinFood || 0) > 0){
       const spinQ = performance.now() / 1800;
+      const ring = feedRing(q);
+      const nv = Math.min(1, (q.stressQ || 0) / QILIN_NERVE.bolt);
       ctx.save();
-      ctx.setLineDash([6, 6]);
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(240,208,112,.28)';
-      ctx.beginPath(); ctx.arc(q.x, q.y, FEED_NOTICE, -spinQ, -spinQ + Math.PI * 2); ctx.stroke();
       ctx.setLineDash([10, 6]);
       ctx.lineWidth = 1.8;
-      ctx.strokeStyle = 'rgba(240,208,112,.75)';
-      ctx.beginPath(); ctx.arc(q.x, q.y, 60, spinQ, spinQ + Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + Math.round(240) + ',' + Math.round(208 - 120 * nv) + ',' + Math.round(112 - 60 * nv) + ',.75)';
+      ctx.beginPath(); ctx.arc(q.x, q.y, ring, spinQ, spinQ + Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
+      // trust: three pieces of a ring on the animal itself
+      for(let k = 0; k < 3; k++){
+        ctx.strokeStyle = k < (q.trust || 0) ? 'rgba(159,224,142,.95)' : 'rgba(159,224,142,.2)';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(q.x, q.y, q.r + 8, -Math.PI / 2 + k * (Math.PI * 2 / 3) + 0.15, -Math.PI / 2 + (k + 1) * (Math.PI * 2 / 3) - 0.15); ctx.stroke();
+      }
       ctx.font = "700 9px 'Space Grotesk',sans-serif";
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(240,208,112,.85)';
-      ctx.fillText('THROW THE FEED IN HERE', q.x, q.y - 60 - 8);
-      ctx.fillStyle = 'rgba(240,208,112,.4)';
-      ctx.fillText('MIGHT NOTICE', q.x, q.y - FEED_NOTICE - 6);
+      ctx.fillText('THROW THE FEED IN HERE \u00B7 ' + (nv < 0.5 ? 'CALM' : 'WARY'), q.x, q.y - ring - 8);
+      if(q.ateT && performance.now() - q.ateT < 2500){ ctx.fillStyle = 'rgba(159,224,142,.9)'; ctx.fillText('IT ATE', q.x, q.y - q.r - 16); }
       ctx.restore();
     }
   }
