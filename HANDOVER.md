@@ -188,6 +188,15 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Caveats: the beat makes him a constable for four hours, so he will collar thieves and could be shot as the law; the `deal` on a night the crew is elsewhere still happens (the abstract off-screen day is only the clock, not simulated events); Sable has one line.
 - Test `LV1` (pressures, the badge offer with Marek walking up, the deputy's day and beat, the courier's offer, the deal night watched by the crew and a badge, the report, the arrest, the shift respecting the cells, save/load/reset). 415 tests.
 
+### Housekeeping (11 Nov) · six from play
+- Test-crate items carry no `own` (unmarked: `itemMarked` false, so a frisk leaves them).
+- `lootGive(c, e, idx, name)`: a loot tile dropped on the other operator's hand-off card (`.csGive`) goes straight into their pack if they are within hand-off reach and have room; the card lights up `willing` while a packable tile is dragged. Locker theft still counts (to the receiver).
+- `CAST_TRADE` and `roleWord(name)`: the role word is the person's own trade (Tarn GUNSMITH, Erina EXOTICS DEALER, Juni SHOP HELP, Hesper SHIPPER, Kestrel QUARTERMASTER, others TRADER), with the deputy/fence suffixes; `ROLE_WORD` kept for the lockup word. Three sites (hover card, journal, moods debug) use it.
+- Waypoints draw as a pin: diamond and two-line label (mission, then place) floating 74 px above the spot, a dotted stem down to a dot on the point; off-screen, an arrow at the screen edge with the mission name and distance. The arrival rings are unchanged.
+- The character sheet's `render` is wrapped to call `syncWeaponButtons()` and `updateHud()` after every change, so the HUD weapon card follows equips made from loot.
+- `WPN_NAMES.feed` = Erina's Feed.
+- Test: `HK1`. 441 tests, two clean runs.
+
 ### The Scarecrow (10 Nov) · Vantek's scatterguns
 - `vs5` Scarecrow (180 cr, 2.2 × 12 pellets, clip 6, pen 0.3, 720 noise, range ~390, crit 1.3, cone 9° to 20° at 2.5, r 2); `vs13` Peacemaker (420 cr, 0.25 × 24, `impact 2`, clip 4, pen 0.1, 680 noise, range ~260, crit 1.0, cone 16° to 22° at 2, `suppress 2.5`, ammo 'Rubber', tag `blunt`); `vsduplex` Duplex (760 cr, 2.5 × 4 pellets × 4 shells, clip 8, pen 0.6, 950 noise, range ~390, crit 1.5, cone 6° to 24° at 5, bloom 2° per shell, r 3, `burstGaps: [0.06, 0.35, 0.06]`). Scatterguns group (all but the Witch). Tarn's locker seeds a Scarecrow (in place of his second revolver); deliveries can bring any of the three (the Duplex only arrives that way).
 - **Burst loop**: `burstGaps[fired - 1]` overrides `burstGap` per shell (the Duplex: pair, breath, pair). **Fix for every burst gun**: a shell of a burst now scatters all its `pellets` across the bloomed cone (the Hydra had fired one pellet per shell; it now fires 12 per attack as designed).

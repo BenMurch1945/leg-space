@@ -4069,9 +4069,12 @@ function openCharSheet(c, mode, corpse){
         const it = sheetDrag.item;
         const slotEl = drop && drop.closest ? drop.closest('.csSlot') : null;
         const pkEl = drop && drop.closest ? drop.closest('#csPack') : null;
+        const giveL = drop && drop.closest ? drop.closest('.csGive') : null;
         if(it.kind === 'weapon' && slotEl && slotEl.dataset.slot === slotForKey(it.key)){
           if(lootEquip(sheetCtx.c, sheetCtx.corpse, sheetDrag.lootIdx, slotEl.dataset.slot)) sheetCtx.render();
         }else if(pkEl && lootTake(sheetCtx.c, sheetCtx.corpse, sheetDrag.lootIdx)){
+          sheetCtx.render();
+        }else if(giveL && lootGive(sheetCtx.c, sheetCtx.corpse, sheetDrag.lootIdx, giveL.dataset.name)){   // (11 Nov) straight from the crate to the other operator
           sheetCtx.render();
         }
       }else if(sheetDrag.packIdx !== undefined){
@@ -4440,6 +4443,7 @@ function openCharSheet(c, mode, corpse){
         if(PACKABLE[it.kind]){
           const pk = ov.querySelector('#csPack');
           if(pk && (d.pack || []).length < 4) pk.classList.add('willing');
+          for(const gv of ov.querySelectorAll('.csGive')){ const o2 = (state.squad || []).find(o3 => o3.name === gv.dataset.name); if(o2 && o2.def && (o2.def.pack || []).length < 4) gv.classList.add('willing'); }
         }
         e.preventDefault();
       });
@@ -4536,8 +4540,10 @@ function openCharSheet(c, mode, corpse){
       info(first || null);
     }
   };
-  sheetCtx = {c, render, corpse};
-  render();
+  const render0 = render;
+  const renderAll = () => { render0(); if(typeof syncWeaponButtons === 'function') syncWeaponButtons(); if(typeof updateHud === 'function') updateHud(); };   // (11 Nov) the weapon card follows what the sheet changed
+  sheetCtx = {c, render: renderAll, corpse};
+  renderAll();
   ov.style.display = 'flex';
   return true;
 }
@@ -14504,7 +14510,7 @@ function openJournal(){
         (Object.keys(ship.lives || {}).length ? '<div class="jnHead">PEOPLE</div>' + Object.keys(ship.lives).map(nm => {
           const lf = lifeOf(nm), ln = moodLine(nm);
           return '<div class="chRow jnRow jnDone" style="border-left-color:#d4a843">' +
-            '<div class="chEyebrow">' + (ROLE_WORD[lf.role] || lf.role).toUpperCase() + ' \u00B7 SINCE DAY ' + (lf.since || 0) + ' \u00B7 FEELS <span style="color:' + ln.tint + '">' + ln.word + '</span></div>' +
+            '<div class="chEyebrow">' + roleWord(nm).toUpperCase() + ' \u00B7 SINCE DAY ' + (lf.since || 0) + ' \u00B7 FEELS <span style="color:' + ln.tint + '">' + ln.word + '</span></div>' +
             '<div class="jnName">' + nm.toUpperCase() + '</div>' +
             '<div class="chText">' + ((lf.record || []).slice(-3).reverse().map(r => 'Day ' + r.day + ', ' + r.at + ': ' + r.text).join('<br>') || 'Nothing in the record yet.') + '</div>' +
           '</div>';
@@ -14589,19 +14595,46 @@ function drawWaypoints(){
         ctx.beginPath(); ctx.arc(wp.x, wp.y, 34 + 90 * kp, 0, Math.PI * 2); ctx.stroke();
       }
     }
-    ctx.strokeStyle = 'rgba(212,168,67,' + pulse.toFixed(2) + ')';
-    ctx.fillStyle = 'rgba(212,168,67,.18)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(wp.x, wp.y - 16); ctx.lineTo(wp.x + 12, wp.y); ctx.lineTo(wp.x, wp.y + 16); ctx.lineTo(wp.x - 12, wp.y); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-    ctx.setLineDash([5, 7]);
-    ctx.beginPath(); ctx.arc(wp.x, wp.y, 34 + 4 * Math.sin(t * 2.4), 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(212,168,67,.9)';
-    ctx.font = "700 11px 'Space Grotesk',sans-serif";
-    ctx.textAlign = 'center';
-    ctx.fillText('WAYPOINT \u00B7 ' + MISSIONS[wp.id].name.toUpperCase() + ' \u00B7 ' + wp.label, wp.x, wp.y - 26);
+    // (11 Nov) a pin, not a blot: the marker and its label float above the spot on a stem, so the thing itself stays readable
+    const hw = (W / 2) / Math.max(0.05, cam.zoom), hh = (H / 2) / Math.max(0.05, cam.zoom);
+    const onScreen = Math.abs(wp.x - cam.cx) < hw - 40 && Math.abs(wp.y - cam.cy) < hh - 40;
+    const col = 'rgba(212,168,67,';
+    if(onScreen){
+      const bob = 4 * Math.sin(t * 2.4);
+      const py = wp.y - 74 + bob;
+      ctx.strokeStyle = col + (0.35 + 0.3 * pulse).toFixed(2) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.moveTo(wp.x, py + 16); ctx.lineTo(wp.x, wp.y - 6); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = col + '.9)';
+      ctx.beginPath(); ctx.arc(wp.x, wp.y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = col + pulse.toFixed(2) + ')';
+      ctx.fillStyle = col + '.22)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(wp.x, py - 16); ctx.lineTo(wp.x + 12, py); ctx.lineTo(wp.x, py + 16); ctx.lineTo(wp.x - 12, py); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = col + '.95)';
+      ctx.font = "700 11px 'Space Grotesk',sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillText('WAYPOINT \u00B7 ' + MISSIONS[wp.id].name.toUpperCase(), wp.x, py - 36);
+      ctx.font = "600 10px 'Space Grotesk',sans-serif";
+      ctx.fillText(wp.label, wp.x, py - 23);
+    }else{
+      // off the screen: an arrow at the edge, pointing the way
+      const dx = wp.x - cam.cx, dy = wp.y - cam.cy;
+      const k = Math.min((hw - 60) / Math.max(1, Math.abs(dx)), (hh - 60) / Math.max(1, Math.abs(dy)));
+      const ex = cam.cx + dx * k, ey = cam.cy + dy * k, ang = Math.atan2(dy, dx);
+      ctx.translate(ex, ey); ctx.rotate(ang);
+      ctx.fillStyle = col + (0.5 + 0.4 * pulse).toFixed(2) + ')';
+      ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(-10, -11); ctx.lineTo(-4, 0); ctx.lineTo(-10, 11); ctx.closePath(); ctx.fill();
+      ctx.rotate(-ang);
+      ctx.fillStyle = col + '.95)';
+      ctx.font = "700 10px 'Space Grotesk',sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillText(MISSIONS[wp.id].name.toUpperCase() + ' \u00B7 ' + Math.round(Math.hypot(dx, dy)) + ' PX', 0, dy > 0 ? -18 : 28);
+    }
     ctx.restore();
   }
 }
@@ -14614,7 +14647,7 @@ const TRINKET_NAMES = ['Dented sigil ring', 'Vial of raw silk', 'Bureau scrip, u
 let DEV_CRATE = true;
 function devCrateSet(on){ DEV_CRATE = !!on; if(!on) state.enemies = (state.enemies || []).filter(e => !e.devCrate); return DEV_CRATE; }
 function devCrateLoot(){
-  return Object.keys(WPN_NAMES).filter(k => k !== 'unarmed' && WEAPONS[k]).map(k => ({kind: 'weapon', key: k, own: 'the test crate'}));
+  return Object.keys(WPN_NAMES).filter(k => k !== 'unarmed' && WEAPONS[k]).map(k => ({kind: 'weapon', key: k}));   // (11 Nov) unmarked: nobody owns it, nobody confiscates it
 }
 function devCratePlace(x, y){
   if(!DEV_CRATE) return null;
@@ -14708,6 +14741,22 @@ function lootLeave(c, e, pi){
 function nearOperators(c){
   return (state.squad || []).filter(o => o !== c && o.alive && !o.downed && !o.ko &&
     Math.hypot(o.x - c.x, o.y - c.y) <= c.r + o.r + ADJACENT_REACH * 5);
+}
+// (11 Nov) from a body or a crate straight into the other operator's pack, if they are near enough to hand to and have room
+function lootGive(c, e, idx, name){
+  const o = (state.squad || []).find(o2 => o2.name === name);
+  if(!o || !nearOperators(c).includes(o)) return false;
+  const it = (e.loot || [])[idx];
+  if(!it || !PACKABLE[it.kind]) return false;
+  if(!Array.isArray(o.def.pack)) o.def.pack = [];
+  if(o.def.pack.length >= 4) return false;
+  o.def.pack.push(it);
+  e.loot.splice(idx, 1);
+  if(e.locker) lockerTheft(o, e);
+  if(lootSpent(e)) e.looted = true;
+  addPopup(o.x, o.y - o.r - 16, lootLabelOf(it).toUpperCase() + ' \u00B7 TO ' + o.name.toUpperCase(), '#9fe08e');
+  shipSave();
+  return true;
 }
 function packGive(c, pi, name){
   const o = (state.squad || []).find(o2 => o2.name === name);
@@ -15364,7 +15413,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '10 Nov \u00B7 THE SCARECROW';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '11 Nov \u00B7 HOUSEKEEPING';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -15786,7 +15835,7 @@ function moodDbgRender(box){
       '<span class="mdLast">' + (ln.last ? ln.last : 'nothing yet') + '</span>';
     if(DRIVES[nm]){
       const dp = drivePressure(nm), tr = traitsOf(nm), lf = lifeOf(nm);
-      h += '<span class="mdLast" style="color:#d4a843">' + (ROLE_WORD[lf.role] || lf.role) + ' \u00B7 heat ' + (lf.heat || 0) + (lf.lastOffer ? ' \u00B7 last offer ' + lf.lastOffer.id + ' ' + lf.lastOffer.score + (lf.lastOffer.yes ? ' yes' : ' no') : '') + '</span>';
+      h += '<span class="mdLast" style="color:#d4a843">' + roleWord(nm) + ' \u00B7 heat ' + (lf.heat || 0) + (lf.lastOffer ? ' \u00B7 last offer ' + lf.lastOffer.id + ' ' + lf.lastOffer.score + (lf.lastOffer.yes ? ' yes' : ' no') : '') + '</span>';
       h += '<span class="mdLast">PRESSURE \u00B7 ' + Object.keys(dp).map(k => k + ' ' + dp[k]).join(' \u00B7 ') + '</span>';
       h += '<span class="mdLast">TRAITS \u00B7 ' + Object.keys(tr).filter(k => tr[k]).join(', ') + '</span>';
     }
@@ -16377,6 +16426,16 @@ const TRAITS = {
   'Kestrel':        {quickDraw: false, proud: true, talkative: false, greedy: true, loyal: true, patient: false},
 };
 const ROLE_WORD = {shopkeeper: 'GUNSMITH', deputy: 'GUNSMITH \u00B7 WALKS THE BEAT', fence: 'GUNSMITH \u00B7 QUIET SIDELINE', lockup: 'IN THE CELLS'};
+// (11 Nov) each face has its own trade; the role table above was written for Tarn
+const CAST_TRADE = {'Tarn': 'GUNSMITH', 'Erina Jones': 'EXOTICS DEALER', 'Juni': 'SHOP HELP', 'Hesper Dunmore': 'SHIPPER', 'Kestrel': 'QUARTERMASTER', 'Varric': 'TRADER', 'Fenn': 'TRADER', 'Hask': 'TRADER', 'June': 'TRADER'};
+function roleWord(name){
+  const role = roleOf(name);
+  const trade = CAST_TRADE[name] || 'TRADER';
+  if(role === 'shopkeeper') return trade;
+  if(role === 'deputy') return trade + ' \u00B7 WALKS THE BEAT';
+  if(role === 'fence') return trade + ' \u00B7 QUIET SIDELINE';
+  return ROLE_WORD[role] || role.toUpperCase();
+}
 function lifeOf(name){
   ship.lives = ship.lives || {};
   let l = ship.lives[name];
@@ -18459,7 +18518,7 @@ function showNpcTip(cv, cx, cy){
     '<i>DISPOSITION \u00B7 <em style="color:' + att.tint + '">' + att.word + '</em></i>' +
     (ml ? '<i>FEELS \u00B7 <em style="color:' + ml.tint + '">' + ml.word + '</em>' + (ml.last ? ' \u00B7 ' + ml.last.toUpperCase() : '') + '</i>' : '') +
     (ml && pc() && moodFor(cv.name, pc()).slant ? (() => { const v = moodFor(cv.name, pc()); const nmv = moodName(v); return '<i>TO ' + pc().name.toUpperCase() + ' \u00B7 <em style="color:' + (nmv.top ? MOOD_TINT[nmv.top] : 'rgba(232,224,204,.7)') + '">' + nmv.word.toUpperCase() + '</em> \u00B7 ' + (v.slant.d < 0 ? 'DOES NOT CARE FOR ' : 'WARMS TO ') + speakerRace(pc()) + 'S' + (v.slant.why ? ' \u00B7 ' + v.slant.why.toUpperCase() : '') + '</i>'; })() : '') +
-    (DRIVES[cv.name] ? '<i>IS \u00B7 <em style="color:#d4a843">' + (ROLE_WORD[roleOf(cv.name)] || roleOf(cv.name).toUpperCase()) + '</em>' + ((lifeOf(cv.name).record || []).length ? ' \u00B7 ' + lifeOf(cv.name).record[lifeOf(cv.name).record.length - 1].text.toUpperCase() : '') + '</i>' : '');
+    (DRIVES[cv.name] ? '<i>IS \u00B7 <em style="color:#d4a843">' + roleWord(cv.name) + '</em>' + ((lifeOf(cv.name).record || []).length ? ' \u00B7 ' + lifeOf(cv.name).record[lifeOf(cv.name).record.length - 1].text.toUpperCase() : '') + '</i>' : '');
   tip.style.left = (cx + 18) + 'px';
   tip.style.top = (cy - 10) + 'px';
   tip.style.display = 'block';
@@ -23340,7 +23399,7 @@ const WPN_NAMES = {
   unarmed:'Unarmed',
   stdautogun:'Standard Autogun', stdblade:'Standard Blade', stdknife:'Standard Knife',
   trainer: "MG-0 'Old Patience'",rifle:'Vidar Long-Rifle', vr12:'Vantek VR-12 \u201CAnchor\u201D', vr28:'Vantek VR-28 \u201CNeedle\u201D', vr40:'Vantek Pro VR-40', mg:'Ares-7 Autogun', sawnoff:'Sawn-off Shotgun', pistol:'Echo-2 Silenced Pistol', goad:'Neural Stunner',
-  carbine:'Wraith Carbine', va6:'Vantek VA-6 \u201CKeystone\u201D', va18:'Vantek VA-18 \u201CWarden\u201D', va30:'Vantek VA-30 Pro G', vc8:'Vantek VC-8 \u201CKeeper\u201D', vc16:'Vantek VC-16 \u201CTracer\u201D', vc32:'Vantek VC-32 \u201CKeeper Pro\u201D', mg88:'MG-88 Cerberus', dart:'Neuro Dart Rifle', screamer:'Screamer', revolver:'Goliath-3 Hand Cannon',
+  carbine:'Wraith Carbine', feed:'Erina\u2019s Feed', va6:'Vantek VA-6 \u201CKeystone\u201D', va18:'Vantek VA-18 \u201CWarden\u201D', va30:'Vantek VA-30 Pro G', vc8:'Vantek VC-8 \u201CKeeper\u201D', vc16:'Vantek VC-16 \u201CTracer\u201D', vc32:'Vantek VC-32 \u201CKeeper Pro\u201D', mg88:'MG-88 Cerberus', dart:'Neuro Dart Rifle', screamer:'Screamer', revolver:'Goliath-3 Hand Cannon',
   blade:'Fenrir Blade', bloodprince:'The Blood Prince',
   dvalin:'Boxlock Scattergun', hydra:'ARSG Combat Shotgun "Hydra"', vs5:'Vantek VS-5 \u201CScarecrow\u201D', vs13:'Vantek VS-13 \u201CPeacemaker\u201D', vsduplex:'Vantek VS Duplex',
   boardinghammer:'Boarding Hammer', reckoning:'The Reckoning'};
