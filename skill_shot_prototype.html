@@ -1634,8 +1634,10 @@ const TUNE = {
   scanRange: 308,       // scanner sight radius, % of screen
   coverHp: 10,         // integrity of each low-cover chunk
   penKeep: 0.55,       // speed a round keeps after punching through a chunk
+  moveMul: 1.5,        // (Ben, 13 Nov) everyone moves half again as far: more motion, more tactics
 };
 const WEAPON_DEFAULTS = JSON.parse(JSON.stringify(WEAPONS));
+// the archetypes get the same stride (applied once, below their table)
 const TUNE_DEFAULTS = JSON.parse(JSON.stringify(TUNE));
 
 // ---------- enemy archetypes ----------
@@ -1696,11 +1698,36 @@ const ARCHETYPES = {
     idealRange: 0, melee: 9,
     weights: {los: 0.7, cover: 0, range: 0, close: 1.6, flank: 0.4},
   },
+  // (Ben, 13 Nov) the Blackhooks are their own people, not soldiers in a coat
+  wrecker: {   // salvage muscle: a cutting torch and a sawn-off, closes the distance, hard to shift
+    label: 'Wrecker', hp: 24, bravery: 14, fearless: 0, burst: 1, burstGap: 0.1, pen: 0.5, vision: 280, awareness: 1.0, color: '#c96b3e', bodyR: 11,
+    moveRange: 130, dmg: 4.2, spread: 14, pellets: 6, shotSpeed: 780, shotLife: 0.4,
+    idealRange: 120, melee: 9,
+    weights: {los: 2.0, cover: 0.6, range: 1.0, close: 2.2, flank: 0.6},
+  },
+  scrapper: {   // the quick ones who strip a wreck before the fire is out: a pistol, a knife, no patience
+    label: 'Scrapper', hp: 9, bravery: 5, fearless: 0, burst: 2, burstGap: 0.08, pen: 0.6, vision: 300, awareness: 1.4, color: '#e0a33e', bodyR: 9,
+    moveRange: 190, dmg: 2.4, spread: 8, pellets: 1, shotSpeed: 850, shotLife: 0.6,
+    idealRange: 180, melee: 5,
+    weights: {los: 2.6, cover: 0.8, range: 1.0, close: 0.8, flank: 2.8},
+  },
+  gunhand: {   // the ones who guard the yard: a carbine and a grudge, holds a corner, shoots straight
+    label: 'Gunhand', hp: 15, bravery: 10, fearless: 0, burst: 3, burstGap: 0.08, pen: 1.2, vision: 360, awareness: 1.0, color: '#b8503e', bodyR: 10,
+    moveRange: 120, dmg: 2.8, spread: 4, pellets: 1, shotSpeed: 1000, shotLife: 0.9,
+    idealRange: 330, melee: 0,
+    weights: {los: 3.2, cover: 2.4, range: 1.6, close: 0.6, flank: 0.3},
+  },
+  lookout: {   // up on the wreck with a long gun: cautious, far, first to run
+    label: 'Lookout', hp: 10, bravery: 6, fearless: 0, burst: 1, burstGap: 0.1, pen: 2.0, vision: 440, awareness: 1.5, color: '#9a7bc8', bodyR: 9,
+    moveRange: 140, dmg: 7, spread: 2, pellets: 1, shotSpeed: 1200, shotLife: 0.9,
+    idealRange: 480, melee: 0,
+    weights: {los: 3.4, cover: 2.6, range: 2.2, close: 0.1, flank: 0.2},
+  },
   manticore: {
     label: 'Manticore', color: '#d9823e', quarry: true,
     hp: 120, bravery: 99, fearless: 1,
-    burst: 0, burstGap: 0.1, pen: 0, vision: 440, awareness: 1.3, bodyR: 20,
-    moveRange: 300, dmg: 0, spread: 0, pellets: 0, shotSpeed: 0, shotLife: 0,
+    burst: 1, burstGap: 0.1, pen: 0.5, vision: 440, awareness: 1.3, bodyR: 20,
+    moveRange: 300, dmg: 6, spread: 14, pellets: 3, shotSpeed: 760, shotLife: 0.45,   // the tail: three spines, a fan, short reach
     idealRange: 0, melee: 18,
     weights: {los: 0.6, cover: 0, range: 0, close: 2.0, flank: 0.3},
   },
@@ -4016,6 +4043,11 @@ const ARCH_DOSSIERS = {
   arachne: 'Tunnel-bred and patient. Favours the ground you forgot to watch. The burrows are hers before you land.',
   queen: 'The colony answers to her. Hurt her and the ground itself takes offence.',
   breaker: 'Close-work specialist in salvaged plate. Doors, walls, and reasons: all three open the same way.',
+  wrecker: 'Blackhook salvage muscle. Cutting torch in one hand, sawn-off in the other, and a lifetime of pulling wrecks apart. Comes at you.',
+  scrapper: 'A Blackhook stripper: in and out of a wreck before the fire is out. Pistol, knife, quick legs, and no stomach for a fair fight.',
+  gunhand: 'A Blackhook yard guard with a carbine. Holds a corner and shoots straight. The nearest thing the gang has to a soldier.',
+  lookout: 'A Blackhook on the high ground with a long gun. Sees first, shoots far, runs early.',
+  manticore: 'Erina\u2019s lost animal: a lion-sized thing with a tail that throws spines. It hunts the nearest meat, charges across open ground, goes through doors, and lies up when it is fed or spent. Dart it; do not fight it.',
 };
 let sheetDrag = null;
 let sheetCtx = null;   // {c, render}: the ov-level listeners read the live context
@@ -5264,7 +5296,7 @@ function renderCharStats(){
   const st = c.stats;
   const stateCol = c.morale === 'steady' ? '#6fd6ff' : c.morale === 'shaken' ? '#e0a33e' : '#e0483e';
   el.innerHTML =
-    statRow('MOVE', st.move, STAT_TIPS.MOVE) +
+    statRow('MOVE', Math.round(maxMoveDist(c)), STAT_TIPS.MOVE) +   // (13 Nov) the honest number: stride, suit, cargo and nerve all in
     statRow('STR', st.strength, STAT_TIPS.STRENGTH) +
     statRow('AIM', st.aim, STAT_TIPS.AIM) +
     statRow('BRV', st.bravery, STAT_TIPS.BRAVERY) +
@@ -5892,7 +5924,7 @@ function renderContractPicker(){
 // ---------- roster, lore, dossier (recovered) ----------
 const STAT_TIPS = {
   HEALTH:   'How much damage this body absorbs before going down.',
-  MOVE:     'Movement range per action, in field pixels.',
+  MOVE:     'Movement range per action, in field pixels, as it stands right now: base stride, plus the 13 Nov half-again, less plate, cargo and shaken nerve.',
   STRENGTH: 'Ramming power when sprinting through someone.',
   AIM:      'Steadier hands: higher aim settles the breathing cone tighter.',
   BRAVERY:  'Nerve. Raises stress thresholds and speeds recovery.',
@@ -8074,7 +8106,7 @@ function maxMoveDist(c){
   c = c || pc();
   if((state.shipDeck && !state.deckCombat) || state.missionFree)
     return Math.max(W, H);    // no clock aboard your own ship, nor on a field already won
-  const base = c.stats.move * sedMoveMul(c) * outfitOf(c.def).moveMul *
+  const base = c.stats.move * TUNE.moveMul * sedMoveMul(c) * outfitOf(c.def).moveMul *
     (carriedThing(c) ? 0.8 : 1);   // honest pixels, suit included; cargo drags
   return c.morale === 'shaken' ? base * 0.75 : base;
 }
@@ -8691,7 +8723,7 @@ function commitMove(){
   c.run = {
     path: mp.cutPath, seg: 0,
     traveled: 0, dist: mp.dist,
-    topSpeed: Math.min(LW,LH) * (walking ? 0.3 : 0.42) * TUNE.runSpeedMul *
+    topSpeed: Math.min(LW,LH) * (walking ? 0.3 : 0.42) * TUNE.runSpeedMul * TUNE.moveMul *   // (13 Nov) the longer stride runs faster too, so a move takes the time it did
       ((state.shipDeck && !state.deckCombat) || state.missionFree ? 2 : 1) *   // off the clock, the crew hustles
       (carriedThing(c) ? 0.8 : 1) *            // cargo drags the stride
       (c.def ? outfitOf(c.def).moveMul : 1),   // absolute: worlds grow, strides don't; plate drags
@@ -11904,19 +11936,25 @@ const REACH_TEST = {
     {x: 0.56, y: 0.908, w: 0.24, h: 0.012, high: true}, {x: 0.56, y: 0.72, w: 0.012, h: 0.08, high: true, door: true},
     // a shack, east
     {x: 0.84, y: 0.30, w: 0.12, h: 0.012, high: true}, {x: 0.84, y: 0.30, w: 0.012, h: 0.20, high: true}, {x: 0.948, y: 0.30, w: 0.012, h: 0.20, high: true},
-    {x: 0.84, y: 0.488, w: 0.05, h: 0.012, high: true}, {x: 0.91, y: 0.488, w: 0.05, h: 0.012, high: true}, {x: 0.89, y: 0.488, w: 0.02, h: 0.012, high: true, door: true},
+    {x: 0.84, y: 0.488, w: 0.03, h: 0.012, high: true}, {x: 0.93, y: 0.488, w: 0.03, h: 0.012, high: true}, {x: 0.87, y: 0.488, w: 0.06, h: 0.012, high: true, door: true},
     // crates and wreck on the street: low cover
     {x: 0.18, y: 0.40, w: 0.04, h: 0.02}, {x: 0.26, y: 0.58, w: 0.05, h: 0.02}, {x: 0.40, y: 0.50, w: 0.04, h: 0.02}, {x: 0.52, y: 0.42, w: 0.05, h: 0.02},
     {x: 0.64, y: 0.30, w: 0.04, h: 0.02}, {x: 0.72, y: 0.48, w: 0.05, h: 0.02}, {x: 0.60, y: 0.55, w: 0.04, h: 0.02}, {x: 0.80, y: 0.20, w: 0.05, h: 0.02},
   ],
   enemies: [
     {x: 0.70, y: 0.40, type: 'manticore'},
-    {x: 0.40, y: 0.22, type: 'soldier', side: 'gang', job: 'hide', name: 'Pell Marrow'},
-    {x: 0.46, y: 0.26, type: 'runner', side: 'gang', job: 'hide', name: 'Twitch'},
-    {x: 0.66, y: 0.78, type: 'soldier', side: 'gang', job: 'hunt', name: 'Dask'},
-    {x: 0.74, y: 0.84, type: 'soldier', side: 'gang', job: 'hunt', name: 'Olen Vask'},
-    {x: 0.88, y: 0.40, type: 'runner', side: 'gang', job: 'flee', name: 'Mouse'},
-    {x: 0.30, y: 0.80, type: 'runner', side: 'gang', job: 'flee', name: 'Ferris Quade'},
+    {x: 0.40, y: 0.22, type: 'gunhand', side: 'gang', job: 'hide', name: 'Pell Marrow'},
+    {x: 0.46, y: 0.26, type: 'scrapper', side: 'gang', job: 'hide', name: 'Twitch'},
+    {x: 0.66, y: 0.78, type: 'wrecker', side: 'gang', job: 'hunt', name: 'Dask'},
+    {x: 0.74, y: 0.84, type: 'gunhand', side: 'gang', job: 'hunt', name: 'Olen Vask'},
+    {x: 0.88, y: 0.40, type: 'scrapper', side: 'gang', job: 'flee', name: 'Mouse'},
+    {x: 0.30, y: 0.80, type: 'scrapper', side: 'gang', job: 'flee', name: 'Ferris Quade'},
+    {x: 0.22, y: 0.30, type: 'wrecker', side: 'gang', job: 'hunt', name: 'Hob Tanner'},
+    {x: 0.56, y: 0.52, type: 'gunhand', side: 'gang', job: 'hunt', name: 'Sal Pike'},
+    {x: 0.62, y: 0.16, type: 'lookout', side: 'gang', job: 'hunt', name: 'Needle Vey'},
+    {x: 0.84, y: 0.62, type: 'scrapper', side: 'gang', job: 'flee', name: 'Little Orrin'},
+    {x: 0.48, y: 0.60, type: 'wrecker', side: 'gang', job: 'hunt', name: 'Mags Dorrel'},
+    {x: 0.90, y: 0.86, type: 'lookout', side: 'gang', job: 'hide', name: 'Cutter'},
   ],
   civilians: 0,
 };
@@ -12743,7 +12781,8 @@ function woodTick(){
 // ---- (Ben, 12 Nov) the Manticore: an animal with needs. Hunger, fatigue and fear pick between hunting, eating, resting and running.
 // It eats whoever is nearest and hostile (gangers, the crew), breaks doors to get at them, feeds on what it kills, rests when spent,
 // and runs when it is badly hurt. Darts put it under, two a turn at most. ----
-const MANTICORE = {hungerStart: 60, hungerPerTurn: 4, feedTurns: 3, feedHunger: 30, fatiguePerMove: 9, fatigueRest: 85, restTurns: 2, fleeHp: 0.35, doorBite: 16, smell: 700, dartsPerTurn: 2};
+const MANTICORE = {hungerStart: 60, hungerPerTurn: 4, feedTurns: 3, feedHunger: 30, fatiguePerMove: 9, fatigueRest: 85, restTurns: 2, fleeHp: 0.35, doorBite: 16, smell: 700, dartsPerTurn: 2,
+  chargeMin: 140, chargeMax: 330, chargeMul: 1.3, chargeCd: 2, spineMin: 90, spineMax: 320, spineCd: 3};
 function manticoreFoe(){ return (state.enemies || []).find(e => e.type === 'manticore' && e.alive) || null; }
 function manticoreInit(e){
   e.side = 'beast'; e.bigBeast = true; e.name = 'The Manticore'; e.race = 'MANTICORE'; e.faction = 'THE WILD';
@@ -12768,12 +12807,14 @@ function manticoreDecide(e){
   const arch = ARCHETYPES.manticore;
   e.needs = e.needs || {hunger: MANTICORE.hungerStart, fatigue: 0};
   e.needs.hunger = Math.min(100, e.needs.hunger + MANTICORE.hungerPerTurn);
+  e.chargeCd = Math.max(0, (e.chargeCd || 0) - 1); e.spineCd = Math.max(0, (e.spineCd || 0) - 1);
   const idle = {path: null, shots: 0, idle: true};
+  const doing = (txt) => { e.doing = txt; return txt; };
   // feeding: it stays on the kill
-  if(e.feedT > 0){ e.feedT--; e.needs.hunger = Math.max(0, e.needs.hunger - MANTICORE.feedHunger); if(e.visible) addPopup(e.x, e.y - e.r - 14, 'FEEDING', '#d9823e'); return idle; }
+  if(e.feedT > 0){ e.feedT--; e.needs.hunger = Math.max(0, e.needs.hunger - MANTICORE.feedHunger); doing('FEEDING \u00B7 ' + (e.feedT + 1) + ' MORE'); return idle; }
   // resting: spent, it lies up where it is
-  if(e.restT > 0){ e.restT--; e.needs.fatigue = Math.max(0, e.needs.fatigue - 40); if(e.visible) addPopup(e.x, e.y - e.r - 14, 'RESTING', '#d9823e'); return idle; }
-  if(e.needs.fatigue >= MANTICORE.fatigueRest){ e.restT = MANTICORE.restTurns; return idle; }
+  if(e.restT > 0){ e.restT--; e.needs.fatigue = Math.max(0, e.needs.fatigue - 40); doing('RESTING \u00B7 ' + (e.restT + 1) + ' MORE'); return idle; }
+  if(e.needs.fatigue >= MANTICORE.fatigueRest){ e.restT = MANTICORE.restTurns; doing('SPENT \u00B7 LYING UP'); return idle; }
   const g = buildMoveGraph(e);
   const goTo = (pt, budget) => { const t = clampTargetPoint(pt.x, pt.y, g.rects, e.r); const path = findPath({x: e.x, y: e.y}, t, g); return path && path.length ? truncatePath(path, budget) : null; };
   // hurt badly: away from whoever hurt it, to the far corner of the place
@@ -12784,16 +12825,36 @@ function manticoreDecide(e){
     let best = corners[0], bd = -1; for(const c of corners){ const d = Math.hypot(c.x - ax, c.y - ay); if(d < bd || bd < 0){ bd = d; best = c; } }
     const p = goTo(best, arch.moveRange * 1.3);
     e.needs.fatigue += MANTICORE.fatiguePerMove;
-    if(p) return {path: p, shots: 0, flee: true};
+    if(p){ doing('HURT \u00B7 RUNNING'); return {path: p, shots: 0, flee: true}; }
     e.cornered = true;   // nowhere to go: it fights
+    doing('CORNERED');
   }
   const prey = manticorePrey(e);
-  if(!prey) return idle;
+  if(!prey){ doing('HUNTING \u00B7 NOTHING NEAR'); return idle; }
+  const pname = (prey.name || (prey.stats ? prey.name : 'PREY')).toUpperCase();
   const d = Math.hypot(prey.x - e.x, prey.y - e.y);
-  if(d <= e.r + prey.r + 16) return {path: null, shots: 0, melee: true, target: prey};
+  if(d <= e.r + prey.r + 16){ doing('TEARING AT ' + pname); return {path: null, shots: 0, melee: true, target: prey}; }
+  const clear = segClearHigh(e.x, e.y, prey.x, prey.y);
+  // the charge: a straight run at prey in the middle distance, and the bite at the end of it lands harder
+  if(clear && e.chargeCd <= 0 && d >= MANTICORE.chargeMin && d <= MANTICORE.chargeMax){
+    const ang = Math.atan2(prey.y - e.y, prey.x - e.x);
+    const stop = {x: prey.x - Math.cos(ang) * (e.r + prey.r + 12), y: prey.y - Math.sin(ang) * (e.r + prey.r + 12)};
+    if(segClear(e.x, e.y, stop.x, stop.y, buildMoveGraph(e).rects)){
+      e.chargeCd = MANTICORE.chargeCd; e.charging = true; e.needs.fatigue += MANTICORE.fatiguePerMove * 1.5;
+      doing('CHARGING ' + pname);
+      return {path: [{x: e.x, y: e.y}, stop], shots: 0, melee: true, target: prey, charge: true};
+    }
+  }
+  // the tail: a fan of spines at prey it can see but not reach this turn
+  if(clear && e.spineCd <= 0 && d >= MANTICORE.spineMin && d <= MANTICORE.spineMax && canShootFrom(e.x, e.y, e.r, prey.x, prey.y)){
+    e.spineCd = MANTICORE.spineCd;
+    doing('SPINES AT ' + pname);
+    return {path: null, shots: 1, target: prey, spines: true};
+  }
+  doing('HUNTING ' + pname);
   // a door in the way: smash it
   const dr = doorsNear(e.x, e.y, e.r + 44);
-  if(dr.length && !segClearHigh(e.x, e.y, prey.x, prey.y)){ const w = dr[0]; e.facing = Math.atan2(w.y + w.h / 2 - e.y, w.x + w.w / 2 - e.x); doorDamage(w, MANTICORE.doorBite, w.x + w.w / 2, w.y + w.h / 2, false); addPopup(e.x, e.y - e.r - 14, 'SMASHING THE DOOR', '#d9823e'); return idle; }
+  if(dr.length && !segClearHigh(e.x, e.y, prey.x, prey.y)){ const w = dr[0]; e.facing = Math.atan2(w.y + w.h / 2 - e.y, w.x + w.w / 2 - e.x); doorDamage(w, MANTICORE.doorBite, w.x + w.w / 2, w.y + w.h / 2, false); doing('SMASHING THE DOOR'); return idle; }
   let p = goTo(prey, arch.moveRange);
   if(!p || (p.length && Math.hypot(p[p.length - 1].x - e.x, p[p.length - 1].y - e.y) < 12)){
     // no way through: the nearest door on the line to the prey is the way
@@ -13798,6 +13859,8 @@ const FACE_CAST = [
 ];
 const FACE_NAMES = FACE_CAST;   // the old handle, kept for anything that still reaches for it
 // a person fielded as a foe: an archetype built from their sheet, registered once, so every enemy system reads it
+// (Ben, 13 Nov) the stride: every archetype moves half again as far
+for(const k in ARCHETYPES){ if(ARCHETYPES[k] && ARCHETYPES[k].moveRange && !ARCHETYPES[k]._strode){ ARCHETYPES[k].moveRange = Math.round(ARCHETYPES[k].moveRange * TUNE.moveMul); ARCHETYPES[k]._strode = true; } }
 function namedArchetype(def){
   const key = 'named_' + def.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
   if(ARCHETYPES[key]) return key;
@@ -13808,7 +13871,7 @@ function namedArchetype(def){
   const wpn = carried ? WEAPONS[carried] : null;
   const a = Object.assign({}, base, {
     label: def.title ? def.name + ', ' + def.title : def.name, hp: st.health || base.hp, bravery: st.bravery || base.bravery, fearless: st.fearless || 0,
-    vision: st.vision || base.vision, moveRange: st.move || base.moveRange, color: def.color || base.color, bodyR: 10,
+    vision: st.vision || base.vision, moveRange: st.move ? Math.round(st.move * TUNE.moveMul) : base.moveRange, color: def.color || base.color, bodyR: 10,   // a named foe strides like everyone else
     weights: Object.assign({}, base.weights), named: def,
   });
   if(wpn && wpn.melee){
@@ -14934,6 +14997,19 @@ function waypointHere(){
   return out;
 }
 // (Ben, 11 Nov) the living wood, drawn in the world: roosts, hives, the hollow, the clouds
+// (Ben, 13 Nov) a big animal says what it is doing: a line over its head whenever it can be seen
+function drawBeastDoing(){
+  for(const e of (state.enemies || [])){
+    if(!e.alive || !e.visible || !e.doing || e.type !== 'manticore') continue;
+    ctx.save();
+    ctx.font = "800 10px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+    const txt = e.doing + (e.needs ? '  \u00B7  HUNGER ' + Math.round(e.needs.hunger) + '  \u00B7  TIRED ' + Math.round(e.needs.fatigue) : '');
+    const wTxt = ctx.measureText(txt).width + 14;
+    ctx.fillStyle = 'rgba(10,8,6,.75)'; ctx.fillRect(e.x - wTxt / 2, e.y - e.r - 34, wTxt, 16);
+    ctx.fillStyle = '#f0a860'; ctx.fillText(txt, e.x, e.y - e.r - 22);
+    ctx.restore();
+  }
+}
 function drawWoodLife(){
   if(!currentLevel().qilin || state.shipDeck) return;
   const t = performance.now() / 1000;
@@ -15815,7 +15891,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '12 Nov \u00B7 THE REACH, STAGE ONE';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '13 Nov \u00B7 THE REACH, STAGE ONE B';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -20178,12 +20254,13 @@ function followRun(ent, dt, isPlayer){
   }
   // ramps are fixed lengths of deck, not fractions of the journey:
   // a long walk spends its middle at full stride instead of forever arriving
-  const rampIn  = Math.min(60, run.dist * 0.3);
-  const rampOut = Math.min(90, run.dist * 0.4);
+  // (13 Nov) shorter ramps and a higher floor: the old tail crawled the last ninety pixels at a fifth of pace
+  const rampIn  = Math.min(40, run.dist * 0.25);
+  const rampOut = Math.min(60, run.dist * 0.3);
   const left = run.dist - run.traveled;
   const easeIn  = rampIn  > 0 ? Math.min(1, run.traveled / rampIn) : 1;
   const easeOut = rampOut > 0 ? Math.min(1, left / rampOut) : 1;
-  const speed = run.topSpeed * Math.max(0.2, Math.min(easeIn, easeOut));
+  const speed = run.topSpeed * Math.max(0.45, Math.min(easeIn, easeOut));
   let step = speed * dt;
   let stopped = false;
 
@@ -20838,7 +20915,7 @@ function enemyMelee(e, target){
     if(!p.alive || Math.hypot(p.x - e.x, p.y - e.y) > e.r + p.r + 16) return false;
     const arch0 = ARCHETYPES[e.type];
     e.facing = Math.atan2(p.y - e.y, p.x - e.x);
-    const dmg0 = arch0.melee;
+    const dmg0 = arch0.melee * (e.charging ? MANTICORE.chargeMul : 1); if(e.charging){ e.charging = false; addPopup(e.x, e.y - e.r - 14, 'CHARGE', '#d9823e'); }
     applyDamage(p, dmg0); p.hitFlash = 1;
     addPopup(p.x, p.y - p.r - 8, dmg0.toFixed(0), '#e0483e');
     spawnBurst((p.x + e.x) / 2, (p.y + e.y) / 2, 14, '#e0483e', 260);
@@ -20858,7 +20935,7 @@ function enemyMelee(e, target){
   e.noShotTurns = 0;
   const arch = ARCHETYPES[e.type];
   e.facing = Math.atan2(p.y - e.y, p.x - e.x);
-  let dmg = arch.melee * TUNE.enemyDmgMul;
+  let dmg = arch.melee * TUNE.enemyDmgMul * (e.charging ? MANTICORE.chargeMul : 1); if(e.charging){ e.charging = false; addPopup(e.x, e.y - e.r - 14, 'CHARGE', '#d9823e'); }
   const bearing = Math.atan2(e.y - p.y, e.x - p.x);
   const rear = Math.abs(angleDiff(bearing, p.facing)) > 2.36;
   if(rear) dmg *= TUNE.rearMult;
@@ -20874,6 +20951,8 @@ function enemyMelee(e, target){
   return true;
 }
 
+// (Ben, 13 Nov) an enemy nobody can see takes no screen time: its timers collapse
+function etWait(e, sec){ return (e && e.visible) ? sec : Math.min(sec, 0.04); }
 function processEnemyTurn(realDt){
   const s = state;
   const et = s.et;
@@ -20901,7 +20980,7 @@ function processEnemyTurn(realDt){
           et.plan = {target: fd, shots: 1, path: null};
           et.shotsLeft = 1;
           e.facing = Math.atan2(fd.y - e.y, fd.x - e.x);
-          et.stage = 'aim'; et.timer = 0.5;
+          et.stage = 'aim'; et.timer = etWait(e, 0.5);
           return;
         } }
       if(e.alert === 'alerted') applyPressure(e, s.squad);
@@ -20910,22 +20989,22 @@ function processEnemyTurn(realDt){
       const tgt = et.plan.target;
       if(!et.plan.path && et.plan.melee && tgt && tgt.alive && Math.hypot(tgt.x - e.x, tgt.y - e.y) < e.r + tgt.r + 16 && ARCHETYPES[e.type].melee){
         enemyMelee(e, tgt);
-        et.stage = 'post'; et.timer = 0.5;
+        et.stage = 'post'; et.timer = etWait(et.e, 0.5);
         return;
       }
       if(et.plan.path){
         e.run = {
           path: et.plan.path, seg: 0, traveled: 0,
           dist: pathLen(et.plan.path),
-          topSpeed: Math.min(LW,LH) * 0.55 * TUNE.runSpeedMul *
-                    (et.plan.patrol && !e.visible ? 6 : et.plan.patrol ? 0.6 : 1),
+          topSpeed: Math.min(LW,LH) * 0.55 * TUNE.runSpeedMul * TUNE.moveMul *
+                    (!e.visible ? 8 : et.plan.patrol ? 0.6 : 1),   // (13 Nov) out of sight, out of the clock: unseen movers run at six times
           stride: 0, dustAt: 0
         };
         e.moving = true;
         et.stage = 'moving';
       }else if(et.plan.panic){
         wildFire(e);
-        et.stage = 'post'; et.timer = 0.45;
+        et.stage = 'post'; et.timer = etWait(et.e, 0.45);
       }else if(et.plan.cower){
         if(e.visible) addPopup(e.x, e.y - e.r - 12, '...', '#e0a33e');
         et.stage = 'post'; et.timer = 0.35;
@@ -20941,7 +21020,7 @@ function processEnemyTurn(realDt){
           if(!mt || !mt.alive) mt = nearestChar(e.x, e.y);
           if(mt && Math.hypot(mt.x - e.x, mt.y - e.y) < e.r + mt.r + 12){
             enemyMelee(e, mt);
-            et.stage = 'post'; et.timer = 0.5;
+            et.stage = 'post'; et.timer = etWait(et.e, 0.5);
             return;
           }
         }
@@ -20956,7 +21035,7 @@ function processEnemyTurn(realDt){
       if(e.moving) return;
       if(et.plan.panic){
         wildFire(e);
-        et.stage = 'post'; et.timer = 0.45;
+        et.stage = 'post'; et.timer = etWait(et.e, 0.45);
         return;
       }
       if(et.plan.investigate || et.plan.patrol){
@@ -20974,7 +21053,7 @@ function processEnemyTurn(realDt){
       if(et.plan.melee && arch.melee && dist < e.r + p.r + 16 && !s.over){
         const landed = enemyMelee(e, p);
         if(!landed && p.told) e.lastKnown = null;   // the trail went cold right here
-        et.stage = 'post'; et.timer = 0.5;
+        et.stage = 'post'; et.timer = etWait(et.e, 0.5);
         return;
       }
       // a ghost reached and found empty dissolves: they searched, you were gone
@@ -21036,14 +21115,14 @@ function processEnemyTurn(realDt){
       if(et.shotsLeft > 0){
         et.stage = 'aim'; et.timer = 0.55;
       }else{
-        et.stage = 'post'; et.timer = 0.45;
+        et.stage = 'post'; et.timer = etWait(et.e, 0.45);
       }
       return;
     }
     case 'post': {
       et.timer -= realDt;
       if(et.timer > 0) return;
-      et.stage = 'next'; et.timer = 0.15; et.wait = 0;
+      et.stage = 'next'; et.timer = etWait(et.e, 0.15); et.wait = 0;
       return;
     }
   }
@@ -21994,15 +22073,23 @@ function drawWall(r, high, selColor){
     return;
   }
   if(high && r.door){
+    // (Ben, 13 Nov) a door must read as a door from across the street: bright panel, hazard stripes, a frame, a glow
     const k = r.maxHp ? Math.max(0, r.hp / r.maxHp) : 1;
-    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(r.x + 3, r.y + 4, r.w, r.h);
-    ctx.fillStyle = '#6a5230'; ctx.fillRect(r.x, r.y, r.w, r.h);
-    ctx.fillStyle = '#8a6c3e'; ctx.fillRect(r.x, r.y, r.w, Math.min(4, r.h * 0.4));
-    ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1;
-    if(k < 0.99){ ctx.beginPath(); for(let i = 0; i < Math.ceil((1 - k) * 6); i++){ const sx = r.x + ((i * 37) % Math.max(1, r.w)), sy = r.y + ((i * 53) % Math.max(1, r.h)); ctx.moveTo(sx, sy); ctx.lineTo(sx + 6 - (i % 3) * 4, sy + 8); } ctx.stroke(); }
-    ctx.strokeStyle = selColor || 'rgba(212,168,67,.6)'; ctx.lineWidth = selColor ? 2.5 : 1; ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
-    ctx.fillStyle = 'rgba(212,168,67,.8)'; ctx.font = "600 7px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
-    ctx.fillText('DOOR ' + Math.round(k * 100) + '%', r.x + r.w / 2, r.y - 3);
+    const horiz = r.w >= r.h;
+    ctx.save();
+    ctx.shadowColor = 'rgba(224,163,62,.9)'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#d9a24a'; ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(20,14,6,.85)';
+    const step = 12;
+    if(horiz){ for(let sx = r.x + 4; sx < r.x + r.w - 4; sx += step) ctx.fillRect(sx, r.y, 5, r.h); }
+    else { for(let sy = r.y + 4; sy < r.y + r.h - 4; sy += step) ctx.fillRect(r.x, sy, r.w, 5); }
+    if(k < 0.99){ ctx.strokeStyle = 'rgba(20,14,6,.9)'; ctx.lineWidth = 1.5; ctx.beginPath(); for(let i = 0; i < Math.ceil((1 - k) * 7); i++){ const sx = r.x + ((i * 37) % Math.max(1, r.w)), sy = r.y + ((i * 53) % Math.max(1, r.h)); ctx.moveTo(sx, sy); ctx.lineTo(sx + 8 - (i % 3) * 5, sy + 9); } ctx.stroke(); }
+    ctx.strokeStyle = selColor || '#f0d070'; ctx.lineWidth = selColor ? 2.5 : 2; ctx.strokeRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+    ctx.fillStyle = '#f0d070'; ctx.font = "800 9px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+    const lx = r.x + r.w / 2, ly = horiz ? r.y - 6 : r.y + r.h / 2 + 3;
+    ctx.fillText('DOOR \u00B7 ' + Math.round(k * 100) + '%', horiz ? lx : r.x + r.w + 28, ly);
+    ctx.restore();
     return;
   }
   if(high){
@@ -22932,6 +23019,7 @@ function draw(){
   drawWoodLife();
   drawFog();
   drawNight();
+  drawBeastDoing();
   drawWaypoints();
 
   // an armed mode announces itself: a wash over the world and quiet instructions
