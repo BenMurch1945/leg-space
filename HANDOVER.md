@@ -188,6 +188,13 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Caveats: the beat makes him a constable for four hours, so he will collar thieves and could be shot as the law; the `deal` on a night the crew is elsewhere still happens (the abstract off-screen day is only the clock, not simulated events); Sable has one line.
 - Test `LV1` (pressures, the badge offer with Marek walking up, the deputy's day and beat, the courier's offer, the deal night watched by the crew and a badge, the report, the arrest, the shift respecting the cells, save/load/reset). 415 tests.
 
+### The Reach, stage one C (13 Nov, late) · feeding under fire, healing, the run speed, the label
+- **Feeding heals**: `MANTICORE.feedHeal 14` per feeding turn (`+n · FED` popup; label says `FEEDING · n MORE · HEALING`). Three turns on a kill is 42 hp back.
+- **Shot off its meal**: `hitEnemy` on a feeding Manticore (a real round, not a dart) sets `feedT 0`, `e.provoked = b.owner`, label `SHOT OFF ITS MEAL · AFTER X`. Next `manticoreDecide` takes the provoker as prey if alive and within smell, and resets `chargeCd` so the charge is ready. Darts do not rouse it (they still sedate as before).
+- **Run speed**: the stride multiplier no longer touches run speed. `TUNE.runStrideMul 1.2` applies on the clock only (player and enemy `topSpeed`); off the clock the crew hustles at exactly the old ×2. Ben saw free-move at ×3 after stage one B; that is gone.
+- **The label**: font and padding scale with `1/cam.zoom` so it reads the same at any zoom (it was 10 world px, so 7.8 screen px at the default 0.78); set at init (`LOOSE · NOT YET MOVED`) so there is never a blank turn. The inspect card has DOING / HUNGER / TIRED rows.
+- Tests: RT1 extended (heal while feeding, roused by a round, goes after the shooter).
+
 ### The Reach, stage one B (13 Nov) · gang classes, doors you can see, the charge and the spines, the stride, unseen hostiles
 Ben's eight points on the test street, one build.
 - **Gang classes** (`ARCHETYPES`): `wrecker` (hp 24, sawn-off pellets 6, melee 9, closes), `scrapper` (hp 9, pistol, fastest, flanks, runs), `gunhand` (hp 15, carbine, holds corners, straight shooter), `lookout` (hp 10, long gun dmg 7, vision 440, idealRange 480, runs early). Dossiers in `ARCH_DOSSIERS` (plus `manticore`). `REACH_TEST` now fields twelve Blackhooks of these classes (six new names: Hob Tanner, Sal Pike, Needle Vey, Little Orrin, Mags Dorrel, Cutter). Nothing else uses them yet.

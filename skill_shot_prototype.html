@@ -1635,6 +1635,7 @@ const TUNE = {
   coverHp: 10,         // integrity of each low-cover chunk
   penKeep: 0.55,       // speed a round keeps after punching through a chunk
   moveMul: 1.5,        // (Ben, 13 Nov) everyone moves half again as far: more motion, more tactics
+  runStrideMul: 1.2,   // how much quicker a body runs on the clock to cover that stride (free-move is untouched)
 };
 const WEAPON_DEFAULTS = JSON.parse(JSON.stringify(WEAPONS));
 // the archetypes get the same stride (applied once, below their table)
@@ -5338,6 +5339,7 @@ function openInspect(e){
       (e.type === 'qilin' ? '' : isFearless(e) ? 'stress washes off them entirely' : (MORALE_DESC[e.morale] || '')) +
       (sedState(e) !== 'alert' ? '<br>' + sedState(e) + ': ' + SED_DESC[sedState(e)] : '') +
     '</div>' +
+    (e.type === 'manticore' ? statRow('DOING', '<span style="color:#f0a860">' + (e.doing || '-') + '</span>') + statRow('HUNGER', Math.round((e.needs || {}).hunger || 0)) + statRow('TIRED', Math.round((e.needs || {}).fatigue || 0)) : '') +
     (e.type === 'qilin' && !e.tamed ? statRow('TRUST', (e.trust || 0) + ' / 3') +
       statRow('NERVE', '<span style="color:' + ((e.stressQ || 0) >= QILIN_NERVE.bolt ? '#e0483e' : (e.stressQ || 0) >= QILIN_NERVE.wary ? '#e0a33e' : '#9fe08e') + '">' + Math.round(e.stressQ || 0) + ' / 100</span>') +
       '<div class="csstate" style="color:' + ((e.stressQ || 0) >= QILIN_NERVE.bolt ? '#e0483e' : (e.stressQ || 0) >= QILIN_NERVE.wary ? '#e0a33e' : '#9fe08e') + '">' + ((e.stressQ || 0) >= QILIN_NERVE.bolt ? 'bolting' : (e.stressQ || 0) >= QILIN_NERVE.wary ? 'wary: will not come to the feed' : 'calm') + '</div>' +
@@ -8723,8 +8725,8 @@ function commitMove(){
   c.run = {
     path: mp.cutPath, seg: 0,
     traveled: 0, dist: mp.dist,
-    topSpeed: Math.min(LW,LH) * (walking ? 0.3 : 0.42) * TUNE.runSpeedMul * TUNE.moveMul *   // (13 Nov) the longer stride runs faster too, so a move takes the time it did
-      ((state.shipDeck && !state.deckCombat) || state.missionFree ? 2 : 1) *   // off the clock, the crew hustles
+    topSpeed: Math.min(LW,LH) * (walking ? 0.3 : 0.42) * TUNE.runSpeedMul *
+      ((state.shipDeck && !state.deckCombat) || state.missionFree ? 2 : TUNE.runStrideMul) *   // off the clock, the crew hustles as they always did; on it, a touch quicker for the longer stride (13 Nov)
       (carriedThing(c) ? 0.8 : 1) *            // cargo drags the stride
       (c.def ? outfitOf(c.def).moveMul : 1),   // absolute: worlds grow, strides don't; plate drags
     stride: 0, dustAt: 0,
@@ -10873,6 +10875,11 @@ function hitEnemy(e, b){
     return;
   }
   let dmg = impactDamage(b) * pierceMul;
+  if(e.type === 'manticore' && e.feedT > 0 && b.owner && b.owner.alive){   // (Ben, 13 Nov) a round in the hide ends the meal; it remembers who
+    e.feedT = 0; e.provoked = b.owner;
+    e.doing = 'SHOT OFF ITS MEAL \u00B7 AFTER ' + String(b.owner.name || ARCHETYPES[b.owner.type] && ARCHETYPES[b.owner.type].label || 'THE SHOOTER').toUpperCase();
+    if(e.visible) addPopup(e.x, e.y - e.r - 14, 'OFF ITS MEAL', '#d9823e');
+  }
   if(crit && !b.sed) dmg *= (wpnCritMul(b) || 2);
   // rear arc: where did the shot come from, relative to where they're looking?
   const bearing = Math.atan2(-b.vy, -b.vx);
@@ -12782,11 +12789,12 @@ function woodTick(){
 // It eats whoever is nearest and hostile (gangers, the crew), breaks doors to get at them, feeds on what it kills, rests when spent,
 // and runs when it is badly hurt. Darts put it under, two a turn at most. ----
 const MANTICORE = {hungerStart: 60, hungerPerTurn: 4, feedTurns: 3, feedHunger: 30, fatiguePerMove: 9, fatigueRest: 85, restTurns: 2, fleeHp: 0.35, doorBite: 16, smell: 700, dartsPerTurn: 2,
-  chargeMin: 140, chargeMax: 330, chargeMul: 1.3, chargeCd: 2, spineMin: 90, spineMax: 320, spineCd: 3};
+  chargeMin: 140, chargeMax: 330, chargeMul: 1.3, chargeCd: 2, spineMin: 90, spineMax: 320, spineCd: 3,
+  feedHeal: 14};   // (Ben, 13 Nov) a meal knits it back together: hp per feeding turn
 function manticoreFoe(){ return (state.enemies || []).find(e => e.type === 'manticore' && e.alive) || null; }
 function manticoreInit(e){
   e.side = 'beast'; e.bigBeast = true; e.name = 'The Manticore'; e.race = 'MANTICORE'; e.faction = 'THE WILD';
-  e.needs = {hunger: MANTICORE.hungerStart, fatigue: 0}; e.feedT = 0; e.restT = 0; e.alert = 'alerted';
+  e.needs = {hunger: MANTICORE.hungerStart, fatigue: 0}; e.feedT = 0; e.restT = 0; e.alert = 'alerted'; e.doing = 'LOOSE \u00B7 NOT YET MOVED';
   e.bio = 'A lion the size of a cart, a mouth that goes back too far, and a tail that ends in spines. It came out of a smuggler\u2019s hold when the Blackhooks shot the ship down, and it has been eating Blackhooks since.';
   e.story = 'Erina wants it breathing. It does not want anything from you except, possibly, you. It is hungry, it tires, it runs when it is hurt badly enough, and it goes through doors.';
   return e;
@@ -12811,7 +12819,11 @@ function manticoreDecide(e){
   const idle = {path: null, shots: 0, idle: true};
   const doing = (txt) => { e.doing = txt; return txt; };
   // feeding: it stays on the kill
-  if(e.feedT > 0){ e.feedT--; e.needs.hunger = Math.max(0, e.needs.hunger - MANTICORE.feedHunger); doing('FEEDING \u00B7 ' + (e.feedT + 1) + ' MORE'); return idle; }
+  if(e.feedT > 0){
+    e.feedT--; e.needs.hunger = Math.max(0, e.needs.hunger - MANTICORE.feedHunger);
+    const healed = Math.min(MANTICORE.feedHeal, e.maxHp - e.hp); if(healed > 0){ e.hp += healed; if(e.visible) addPopup(e.x, e.y - e.r - 14, '+' + Math.round(healed) + ' \u00B7 FED', '#9fe08e'); }
+    doing('FEEDING \u00B7 ' + (e.feedT + 1) + ' MORE' + (healed > 0 ? ' \u00B7 HEALING' : '')); return idle;
+  }
   // resting: spent, it lies up where it is
   if(e.restT > 0){ e.restT--; e.needs.fatigue = Math.max(0, e.needs.fatigue - 40); doing('RESTING \u00B7 ' + (e.restT + 1) + ' MORE'); return idle; }
   if(e.needs.fatigue >= MANTICORE.fatigueRest){ e.restT = MANTICORE.restTurns; doing('SPENT \u00B7 LYING UP'); return idle; }
@@ -12829,7 +12841,11 @@ function manticoreDecide(e){
     e.cornered = true;   // nowhere to go: it fights
     doing('CORNERED');
   }
-  const prey = manticorePrey(e);
+  // (Ben, 13 Nov) shot off its meal: it goes for the one who shot it, and the charge is ready
+  let prey = null;
+  if(e.provoked && e.provoked.alive && !e.provoked.downed && !e.provoked.ko && Math.hypot(e.provoked.x - e.x, e.provoked.y - e.y) <= MANTICORE.smell){ prey = e.provoked; e.chargeCd = 0; }
+  e.provoked = null;
+  prey = prey || manticorePrey(e);
   if(!prey){ doing('HUNTING \u00B7 NOTHING NEAR'); return idle; }
   const pname = (prey.name || (prey.stats ? prey.name : 'PREY')).toUpperCase();
   const d = Math.hypot(prey.x - e.x, prey.y - e.y);
@@ -15002,11 +15018,12 @@ function drawBeastDoing(){
   for(const e of (state.enemies || [])){
     if(!e.alive || !e.visible || !e.doing || e.type !== 'manticore') continue;
     ctx.save();
-    ctx.font = "800 10px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+    const z = Math.max(0.5, Math.min(2, cam.zoom || 1)), fs = 11 / z, pad = 8 / z;   // the same size on screen whatever the zoom
+    ctx.font = "800 " + fs.toFixed(1) + "px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
     const txt = e.doing + (e.needs ? '  \u00B7  HUNGER ' + Math.round(e.needs.hunger) + '  \u00B7  TIRED ' + Math.round(e.needs.fatigue) : '');
-    const wTxt = ctx.measureText(txt).width + 14;
-    ctx.fillStyle = 'rgba(10,8,6,.75)'; ctx.fillRect(e.x - wTxt / 2, e.y - e.r - 34, wTxt, 16);
-    ctx.fillStyle = '#f0a860'; ctx.fillText(txt, e.x, e.y - e.r - 22);
+    const wTxt = ctx.measureText(txt).width + pad * 2;
+    ctx.fillStyle = 'rgba(10,8,6,.8)'; ctx.fillRect(e.x - wTxt / 2, e.y - e.r - 20 / z - fs * 1.6, wTxt, fs * 1.6);
+    ctx.fillStyle = '#f0a860'; ctx.fillText(txt, e.x, e.y - e.r - 20 / z - fs * 0.45);
     ctx.restore();
   }
 }
@@ -15891,7 +15908,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '13 Nov \u00B7 THE REACH, STAGE ONE B';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '13 Nov \u00B7 THE REACH, STAGE ONE C';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -20996,7 +21013,7 @@ function processEnemyTurn(realDt){
         e.run = {
           path: et.plan.path, seg: 0, traveled: 0,
           dist: pathLen(et.plan.path),
-          topSpeed: Math.min(LW,LH) * 0.55 * TUNE.runSpeedMul * TUNE.moveMul *
+          topSpeed: Math.min(LW,LH) * 0.55 * TUNE.runSpeedMul * TUNE.runStrideMul *
                     (!e.visible ? 8 : et.plan.patrol ? 0.6 : 1),   // (13 Nov) out of sight, out of the clock: unseen movers run at six times
           stride: 0, dustAt: 0
         };
