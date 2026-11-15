@@ -1728,7 +1728,7 @@ const ARCHETYPES = {
     label: 'Manticore', color: '#d9823e', quarry: true,
     hp: 120, bravery: 99, fearless: 1,
     burst: 1, burstGap: 0.1, pen: 0.5, vision: 440, awareness: 1.3, bodyR: 20,
-    moveRange: 300, dmg: 6, spread: 14, pellets: 3, shotSpeed: 760, shotLife: 0.45,   // the tail: three spines, a fan, short reach
+    moveRange: 300, dmg: 5, spread: 180, pellets: 12, shotSpeed: 760, shotLife: 0.45,   // the tail: twelve spines, all round, short reach (fired by manticoreSpines, not enemyFireAt)
     idealRange: 0, melee: 18,
     weights: {los: 0.6, cover: 0, range: 0, close: 2.0, flank: 0.3},
   },
@@ -10992,6 +10992,10 @@ function charDown(c){
   c.stress = 0; c.morale = 'steady';
   c.moving = false; c.run = null;
   c.watch = null; c.braced = false;
+  if(state.squad[state.sel] === c){   // (Ben, 15 Nov) the selection moves to someone standing
+    const j = state.squad.findIndex(w => w !== c && w.alive && !w.downed);
+    if(j >= 0){ state.sel = j; state.movePreview = null; state.moveGraph = null; if(state.mode === 'shoot') state.mode = 'move'; syncWeaponButtons(); }
+  }
   c.pendingInjury = (Math.random() < INJURY_CHANCE)
     ? Object.keys(INJURIES)[Math.floor(Math.random() * Object.keys(INJURIES).length)]
     : null;
@@ -12788,9 +12792,9 @@ function woodTick(){
 // ---- (Ben, 12 Nov) the Manticore: an animal with needs. Hunger, fatigue and fear pick between hunting, eating, resting and running.
 // It eats whoever is nearest and hostile (gangers, the crew), breaks doors to get at them, feeds on what it kills, rests when spent,
 // and runs when it is badly hurt. Darts put it under, two a turn at most. ----
-const MANTICORE = {hungerStart: 60, hungerPerTurn: 4, feedTurns: 3, feedHunger: 30, fatiguePerMove: 9, fatigueRest: 85, restTurns: 2, fleeHp: 0.35, doorBite: 16, smell: 700, dartsPerTurn: 2,
+const MANTICORE = {hungerStart: 60, hungerPerTurn: 4, feedTurns: 1, feedHunger: 50, fatiguePerMove: 9, fatigueRest: 85, restTurns: 2, fleeHp: 0.35, doorBite: 30, smell: 700, dartsPerTurn: 2,
   chargeMin: 140, chargeMax: 330, chargeMul: 1.3, chargeCd: 2, spineMin: 90, spineMax: 320, spineCd: 3,
-  feedHeal: 14};   // (Ben, 13 Nov) a meal knits it back together: hp per feeding turn
+  feedHealFrac: 0.5, spineCount: 12};   // (Ben, 15 Nov) one turn on a body heals half its health; the tail throws twelve spines all round
 function manticoreFoe(){ return (state.enemies || []).find(e => e.type === 'manticore' && e.alive) || null; }
 function manticoreInit(e){
   e.side = 'beast'; e.bigBeast = true; e.name = 'The Manticore'; e.race = 'MANTICORE'; e.faction = 'THE WILD';
@@ -12811,6 +12815,25 @@ function manticorePrey(e){
   for(const c of (state.squad || [])){ if(!c.alive || c.downed) continue; const d = Math.hypot(c.x - e.x, c.y - e.y); if(d < bd){ bd = d; best = c; } }
   return best;
 }
+// (Ben, 15 Nov) the tail: a ring of spines in every direction, hostile or not. Short reach, no aim, no brother-care.
+function manticoreSpines(e){
+  const arch = ARCHETYPES.manticore, n = MANTICORE.spineCount;
+  const a0 = Math.random() * Math.PI * 2;
+  for(let i = 0; i < n; i++){
+    const a = a0 + (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.12;
+    state.bullets.push({
+      x: e.x + Math.cos(a) * (e.r + 2), y: e.y + Math.sin(a) * (e.r + 2),
+      vx: Math.cos(a) * arch.shotSpeed, vy: Math.sin(a) * arch.shotSpeed,
+      r: 3, dmg: arch.dmg * TUNE.enemyDmgMul, impact: arch.dmg * TUNE.enemyDmgMul, maxSpeed: arch.shotSpeed, team: 'enemy', owner: e, pen: arch.pen,
+      maxBounces: 0, ex: shooterExemptions(e.x, e.y, e.r),
+      flown: 0, fall: {from: 0.7, floor: 0.6, range: arch.shotSpeed * arch.shotLife},
+      bounces: 0, life: arch.shotLife, trail: []
+    });
+  }
+  spawnBurst(e.x, e.y, 14, arch.color, 200);
+  if(e.visible) pushNoiseRing(e.x, e.y, NOISE_GUN * 0.6, true);   // the label over its head already says SPINES
+  return n;
+}
 function manticoreDecide(e){
   const arch = ARCHETYPES.manticore;
   e.needs = e.needs || {hunger: MANTICORE.hungerStart, fatigue: 0};
@@ -12821,7 +12844,7 @@ function manticoreDecide(e){
   // feeding: it stays on the kill
   if(e.feedT > 0){
     e.feedT--; e.needs.hunger = Math.max(0, e.needs.hunger - MANTICORE.feedHunger);
-    const healed = Math.min(MANTICORE.feedHeal, e.maxHp - e.hp); if(healed > 0){ e.hp += healed; if(e.visible) addPopup(e.x, e.y - e.r - 14, '+' + Math.round(healed) + ' \u00B7 FED', '#9fe08e'); }
+    const healed = Math.min(Math.round(e.maxHp * MANTICORE.feedHealFrac), e.maxHp - e.hp); if(healed > 0){ e.hp += healed; if(e.visible) addPopup(e.x, e.y - e.r - 14, '+' + Math.round(healed) + ' \u00B7 FED', '#9fe08e'); }
     doing('FEEDING \u00B7 ' + (e.feedT + 1) + ' MORE' + (healed > 0 ? ' \u00B7 HEALING' : '')); return idle;
   }
   // resting: spent, it lies up where it is
@@ -12861,16 +12884,17 @@ function manticoreDecide(e){
       return {path: [{x: e.x, y: e.y}, stop], shots: 0, melee: true, target: prey, charge: true};
     }
   }
-  // the tail: a fan of spines at prey it can see but not reach this turn
+  // the tail: a ring of spines when something it wants is near but not in reach this turn
   if(clear && e.spineCd <= 0 && d >= MANTICORE.spineMin && d <= MANTICORE.spineMax && canShootFrom(e.x, e.y, e.r, prey.x, prey.y)){
     e.spineCd = MANTICORE.spineCd;
-    doing('SPINES AT ' + pname);
-    return {path: null, shots: 1, target: prey, spines: true};
+    doing('SPINES \u00B7 ALL ROUND');
+    manticoreSpines(e);
+    return {path: null, shots: 0, target: prey, spines: true};
   }
   doing('HUNTING ' + pname);
   // a door in the way: smash it
   const dr = doorsNear(e.x, e.y, e.r + 44);
-  if(dr.length && !segClearHigh(e.x, e.y, prey.x, prey.y)){ const w = dr[0]; e.facing = Math.atan2(w.y + w.h / 2 - e.y, w.x + w.w / 2 - e.x); doorDamage(w, MANTICORE.doorBite, w.x + w.w / 2, w.y + w.h / 2, false); doing('SMASHING THE DOOR'); return idle; }
+  if(dr.length && !segClearHigh(e.x, e.y, prey.x, prey.y)){ const w = dr[0]; e.facing = Math.atan2(w.y + w.h / 2 - e.y, w.x + w.w / 2 - e.x); const gone = doorDamage(w, MANTICORE.doorBite, w.x + w.w / 2, w.y + w.h / 2, false); doing(gone ? 'THROUGH THE DOOR' : 'SMASHING THE DOOR'); return idle; }
   let p = goTo(prey, arch.moveRange);
   if(!p || (p.length && Math.hypot(p[p.length - 1].x - e.x, p[p.length - 1].y - e.y) < 12)){
     // no way through: the nearest door on the line to the prey is the way
@@ -12882,6 +12906,13 @@ function manticoreDecide(e){
       const horiz = bestW.w >= bestW.h;
       const off = e.r + 26;
       const tx = horiz ? cx : cx + Math.sign(e.x - cx || 1) * off, ty = horiz ? cy + Math.sign(e.y - cy || 1) * off : cy;
+      // (Ben, 15 Nov) the door charge: a straight run at the panel and through it in the same turn
+      const dD = Math.hypot(tx - e.x, ty - e.y);
+      if(e.chargeCd <= 0 && dD >= 40 && dD <= MANTICORE.chargeMax && segClear(e.x, e.y, tx, ty, g.rects)){
+        e.chargeCd = MANTICORE.chargeCd; e.needs.fatigue += MANTICORE.fatiguePerMove * 1.5;
+        doing('CHARGING THE DOOR');
+        return {path: [{x: e.x, y: e.y}, {x: tx, y: ty}], shots: 0, melee: true, target: prey, charge: true, doorCharge: bestW};
+      }
       p = goTo({x: tx, y: ty}, arch.moveRange);
       if(!p){ const tx2 = horiz ? cx : cx - Math.sign(e.x - cx || 1) * off, ty2 = horiz ? cy - Math.sign(e.y - cy || 1) * off : cy; p = goTo({x: tx2, y: ty2}, arch.moveRange); }
     }
@@ -15018,7 +15049,7 @@ function drawBeastDoing(){
   for(const e of (state.enemies || [])){
     if(!e.alive || !e.visible || !e.doing || e.type !== 'manticore') continue;
     ctx.save();
-    const z = Math.max(0.5, Math.min(2, cam.zoom || 1)), fs = 11 / z, pad = 8 / z;   // the same size on screen whatever the zoom
+    const z = Math.max(0.5, Math.min(2, cam.zoom || 1)), fs = 15 / z, pad = 9 / z;   // the same size on screen whatever the zoom (Ben, 15 Nov: bigger)
     ctx.font = "800 " + fs.toFixed(1) + "px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
     const txt = e.doing + (e.needs ? '  \u00B7  HUNGER ' + Math.round(e.needs.hunger) + '  \u00B7  TIRED ' + Math.round(e.needs.fatigue) : '');
     const wTxt = ctx.measureText(txt).width + pad * 2;
@@ -15908,7 +15939,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '13 Nov \u00B7 THE REACH, STAGE ONE C';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '15 Nov \u00B7 THE REACH, STAGE ONE D';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -21061,6 +21092,8 @@ function processEnemyTurn(realDt){
         et.stage = 'post'; et.timer = e.visible ? 0.3 : 0.05;
         return;
       }
+      // (15 Nov) a door charge ends with the door in pieces
+      if(et.plan.doorCharge){ const w = et.plan.doorCharge; et.plan.doorCharge = null; if(w.hp > 0 && state.walls.includes(w)){ e.facing = Math.atan2(w.y + w.h / 2 - e.y, w.x + w.w / 2 - e.x); doorDamage(w, w.hp + 1, w.x + w.w / 2, w.y + w.h / 2, false); e.doing = 'THROUGH THE DOOR'; e.charging = false; } }
       // arrived, melee if in reach, else shoot if the line is there
       let p = et.plan.target;
       if(!p || !p.alive) p = et.plan.target = (e.side ? (crossTarget(e) || nearestChar(e.x, e.y)) : nearestChar(e.x, e.y));
@@ -21149,6 +21182,7 @@ function endEnemyTurn(){
   const s = state;
   copCuffPass();   // an officer standing over the fallen cuffs before anything else
   s.phase = 'player';
+  if(s.squad[s.sel] && (s.squad[s.sel].downed || !s.squad[s.sel].alive)){ const j = s.squad.findIndex(w => w.alive && !w.downed); if(j >= 0){ s.sel = j; s.movePreview = null; s.moveGraph = null; syncWeaponButtons(); } }
   s.turn++;
   for(const c of s.squad){
     if(!c.alive || !c.downed) continue;

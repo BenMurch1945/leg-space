@@ -188,6 +188,14 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Caveats: the beat makes him a constable for four hours, so he will collar thieves and could be shot as the law; the `deal` on a night the crew is elsewhere still happens (the abstract off-screen day is only the clock, not simulated events); Sable has one line.
 - Test `LV1` (pressures, the badge offer with Marek walking up, the deputy's day and beat, the courier's offer, the deal night watched by the crew and a badge, the report, the arrest, the shift respecting the cells, save/load/reset). 415 tests.
 
+### The Reach, stage one D (15 Nov) · the spine ring, one-turn feeds, the door charge, the downed selection
+- **Label** 15 screen px (was 11), still zoom-independent.
+- **Spines** are a ring: `manticoreSpines(e)` pushes `MANTICORE.spineCount 12` rounds evenly all round (jitter 0.12 rad), dmg 5, speed 760, life 0.45, pen 0.5, team 'enemy', owner the animal. They hit anything but it, gangers included (enemy rounds already hit any non-owner). Fired from inside `manticoreDecide` (same trigger as before: something it wants 90 to 320 px away, cooldown 3), plan `{shots: 0, spines: true}`; label `SPINES · ALL ROUND`. Archetype card values: dmg 5, pellets 12.
+- **Feeding**: `feedTurns 1`, `feedHunger 50`, `feedHealFrac 0.5` (half of max per feed, so one turn on a body is 60 hp). The roused-by-a-round rule still applies within that turn.
+- **Doors**: `doorBite 30`: one bite at the panel and it is through. And the **door charge**: in the no-path fallback, if the stand-off point in front of the door is 40 to `chargeMax` away with a clear straight run (`segClear` on the move rects) and the charge is off cooldown, the plan is `{path: [here, standoff], charge, doorCharge: w}`; on arrival the moving stage breaks the door outright (`doorDamage(w, w.hp + 1)`), label `THROUGH THE DOOR`. Reach, break: one turn. Bite the prey the next.
+- **Bug**: a downed operator stayed selected. `charDown` now moves `state.sel` to someone standing (and drops shoot mode); `endEnemyTurn` re-checks the selection too.
+- Tests: RT1 (one-turn feed heals half, the ring of twelve with no gap over 0.7 rad, the door charge through the enemy-turn machine, the reselection); the old two-bite door assertion is now one bite.
+
 ### The Reach, stage one C (13 Nov, late) · feeding under fire, healing, the run speed, the label
 - **Feeding heals**: `MANTICORE.feedHeal 14` per feeding turn (`+n · FED` popup; label says `FEEDING · n MORE · HEALING`). Three turns on a kill is 42 hp back.
 - **Shot off its meal**: `hitEnemy` on a feeding Manticore (a real round, not a dart) sets `feedT 0`, `e.provoked = b.owner`, label `SHOT OFF ITS MEAL · AFTER X`. Next `manticoreDecide` takes the provoker as prey if alive and within smell, and resets `chargeCd` so the charge is ready. Darts do not rouse it (they still sedate as before).
