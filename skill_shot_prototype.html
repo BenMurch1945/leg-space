@@ -74,6 +74,11 @@
   #wcard{width:272px;background:rgba(11,14,22,.94);border:1.5px solid rgba(212,168,67,.4);
     padding:11px 14px;position:relative;overflow:hidden;transition:transform .16s, opacity .16s;}
   #wcard.swapping{transform:translateX(-24px);opacity:0;}
+  #wcmin{position:absolute;top:6px;right:8px;background:none;border:1px solid rgba(212,168,67,.35);color:rgba(212,168,67,.8);font-size:10px;line-height:1;padding:3px 6px;cursor:pointer;border-radius:3px;}
+  #wcmin:hover{background:rgba(212,168,67,.15);}
+  #wcard.min{padding:8px 14px;}
+  #wcard.min .wcstats,#wcard.min .wcrow,#wcard.min .wcmaker{display:none;}
+  #wcard.min .wcname{margin-bottom:2px;font-size:15px;}
   .wcslot{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:rgba(212,168,67,.75);}
   .wcname{font-family:'Cinzel',serif;font-size:17.5px;letter-spacing:.06em;color:var(--ink);margin:2px 0 8px;}
   .wcmag{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
@@ -1400,6 +1405,9 @@
       </div>
       <div class="hud-block" style="text-align:right">
         <div class="hud-label">Hostiles <span id="foes">3</span></div>
+      </div>
+      <div class="hud-block" id="quarryHud" style="display:none;text-align:center" title="The quarry. Sedation is the number that matters: it goes down when the dose passes the cap. Two darts a turn is all it will take.">
+        <div class="hud-label" id="quarryLine"></div>
       </div>
     </div>
     <div id="banner"></div>
@@ -4048,7 +4056,7 @@ const ARCH_DOSSIERS = {
   scrapper: 'A Blackhook stripper: in and out of a wreck before the fire is out. Pistol, knife, quick legs, and no stomach for a fair fight.',
   gunhand: 'A Blackhook yard guard with a carbine. Holds a corner and shoots straight. The nearest thing the gang has to a soldier.',
   lookout: 'A Blackhook on the high ground with a long gun. Sees first, shoots far, runs early.',
-  manticore: 'Erina\u2019s lost animal: a lion-sized thing with a tail that throws spines. It hunts the nearest meat, charges across open ground, goes through doors, and lies up when it is fed or spent. Dart it; do not fight it.',
+  manticore: 'Erina\u2019s lost animal: a lion-sized thing with a tail that throws spines when it is crowded. It hunts what it can see, follows blood, gunfire and the last place it saw you, charges across open ground, goes through doors, slows as it tires and slinks out of sight to lie up. Dart it; do not fight it.',
 };
 let sheetDrag = null;
 let sheetCtx = null;   // {c, render}: the ov-level listeners read the live context
@@ -5150,6 +5158,7 @@ function updateWcardMag(){
   el.innerHTML = wcMagHtml(c);
 }
 function updateHud(){
+  if(state.wcMin === undefined){ try{ state.wcMin = localStorage.getItem('ls_wcmin') === '1'; }catch(e){ state.wcMin = false; } }
   updateWcardMag();
   refreshSpecialBtn();
   refreshDropBtn();
@@ -5421,7 +5430,8 @@ function weaponCardHtml(c){
     ['COST', (w.apCost || 1) + ' AP', null],
   ];
   const other = c.slot === 'primary' ? 'sidearm' : 'primary';
-  return '<div class="wcslot">' + (c.slot === 'primary' ? '① PRIMARY' : '② SIDEARM') +
+  return '<button id="wcmin" title="' + (state.wcMin ? 'Open the weapon card' : 'Fold the weapon card down to a strip') + '">' + (state.wcMin ? '\u25B4 OPEN' : '\u25BE FOLD') + '</button>' +
+    '<div class="wcslot">' + (c.slot === 'primary' ? '① PRIMARY' : '② SIDEARM') +
       (w.flashless ? ' · <span style="color:#6fd6ff">STEALTH</span>' : ' · <span style="color:#e0a33e">LOUD</span>') + '</div>' +
     '<div class="wcname">' + WPN_NAMES[key] + '</div>' +
     (makerOf(key) ? '<div class="wcmaker" data-maker="' + makerOf(key) + '" title="' + MAKERS[makerOf(key)].slogan + ' Click for the maker\u2019s dossier.">' + MAKERS[makerOf(key)].name.toUpperCase() + '</div>' : '') +
@@ -5488,6 +5498,9 @@ function syncWeaponButtons(){
   }
   card.innerHTML = weaponCardHtml(c);
   card.title = WPN_DESC[c.loadout[c.slot]] || '';
+  card.classList.toggle('min', !!state.wcMin);
+  const mn = document.getElementById('wcmin');
+  if(mn) mn.addEventListener('click', (ev) => { ev.stopPropagation(); state.wcMin = !state.wcMin; try{ localStorage.setItem('ls_wcmin', state.wcMin ? '1' : '0'); }catch(e){} syncWeaponButtons(); });
   const sw = document.getElementById('wcswitch');
   if(sw) sw.addEventListener('click', () => {
     if(busy()) return;
@@ -9294,6 +9307,7 @@ function footfallAt(c, walking){
 
 function noiseAt(x, y, radius, quietVisual, snap){
   if(snap && typeof qilinHear === 'function') qilinHear(x, y, radius);
+  if(snap && typeof manticoreHear === 'function') manticoreHear(x, y, radius);
   if(snap && state.roosts && state.roosts.length && currentLevel().qilin){ const byP = (state.phase === 'player'); for(const r of roostsNear(x, y, Math.min(radius, 260))) roostFlush(r, byP ? 'player' : 'hunter'); }
   if(state.aar && state.phase === 'player' && radius > state.aar.loudest) state.aar.loudest = radius;
   if(state.invoice && state.phase === 'player') state.invoice.noise += radius;
@@ -12794,7 +12808,8 @@ function woodTick(){
 // and runs when it is badly hurt. Darts put it under, two a turn at most. ----
 const MANTICORE = {hungerStart: 60, hungerPerTurn: 4, feedTurns: 1, feedHunger: 50, fatiguePerMove: 9, fatigueRest: 85, restTurns: 2, fleeHp: 0.35, doorBite: 30, smell: 700, dartsPerTurn: 2,
   chargeMin: 140, chargeMax: 330, chargeMul: 1.3, chargeCd: 2, spineMin: 90, spineMax: 320, spineCd: 3,
-  feedHealFrac: 0.5, spineCount: 12};   // (Ben, 15 Nov) one turn on a body heals half its health; the tail throws twelve spines all round
+  feedHealFrac: 0.5, spineCount: 12, spineMinFoes: 2,   // (Ben, 15 Nov) one turn on a body heals half its health; the tail throws twelve spines all round, and only when two or more are close
+  smellSeen: 300, scentTurns: 3, tiredFrom: 40, tiredFloor: 0.33, chargeTired: 60, restUntil: 25, restRecover: 35};   // (Ben, 19 Nov) senses and tiredness
 function manticoreFoe(){ return (state.enemies || []).find(e => e.type === 'manticore' && e.alive) || null; }
 function manticoreInit(e){
   e.side = 'beast'; e.bigBeast = true; e.name = 'The Manticore'; e.race = 'MANTICORE'; e.faction = 'THE WILD';
@@ -12809,12 +12824,45 @@ function manticoreAte(e, prey){
   chronicle('combat', 'The Manticore brought ' + (prey.name || 'a Blackhook') + ' down and started to eat. It will not move for a while.');
 }
 // prey: the nearest living hostile it can reach, gangers and crew alike; it smells them further than it sees them
+// (Ben, 19 Nov) an animal, not a radar. Sight: full circle, line of sight through high walls and doors. Scent: a trail to
+// something it cannot see (blood within smell range, gunfire it heard, the spot it last saw someone). Nothing through walls by itself.
+function manticoreHostiles(e){
+  const out = [];
+  for(const o of (state.enemies || [])){ if(o === e || !o.alive || o.ko || o.cache || o.lurk || !hostileTo(e, o)) continue; out.push(o); }
+  for(const c of (state.squad || [])){ if(!c.alive || c.downed) continue; out.push(c); }
+  return out;
+}
+function manticoreSees(e, o){
+  const d = Math.hypot(o.x - e.x, o.y - e.y);
+  if(d > enemyVisionRange(e)) return false;
+  return losHigh(e.x, e.y, o.x, o.y);
+}
 function manticorePrey(e){
-  let best = null, bd = MANTICORE.smell;
-  for(const o of (state.enemies || [])){ if(o === e || !o.alive || o.ko || o.cache || o.lurk || !hostileTo(e, o)) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if(d < bd){ bd = d; best = o; } }
-  for(const c of (state.squad || [])){ if(!c.alive || c.downed) continue; const d = Math.hypot(c.x - e.x, c.y - e.y); if(d < bd){ bd = d; best = c; } }
+  let best = null, bd = 1e9;
+  for(const o of manticoreHostiles(e)){ const d = Math.hypot(o.x - e.x, o.y - e.y); if(d < bd && manticoreSees(e, o)){ bd = d; best = o; } }
+  if(best) e.lastSeen = {x: best.x, y: best.y, who: best.name || 'PREY', turn: state.turn || 0};
   return best;
 }
+// the strongest scent it cannot see: blood (a hurt ganger, a downed operator) within smell, shots it heard, the last place it saw someone
+function manticoreScent(e){
+  const turn = state.turn || 0;
+  let best = null, bd = 1e9;
+  const take = (x, y, kind, who, d) => { if(d < bd){ bd = d; best = {x, y, kind, who}; } };
+  for(const o of (state.enemies || [])){ if(o === e || !o.alive || o.ko || o.cache || o.lurk || !hostileTo(e, o) || !(o.maxHp && o.hp < o.maxHp)) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if(d <= MANTICORE.smell) take(o.x, o.y, 'BLOOD', o.name || 'A BLACKHOOK', d); }
+  for(const c of (state.squad || [])){ if(!c.alive) continue; if(!c.downed && !(c.maxHp && c.hp < c.maxHp)) continue; const d = Math.hypot(c.x - e.x, c.y - e.y); if(d <= MANTICORE.smell) take(c.x, c.y, 'BLOOD', c.name, d); }
+  if(e.heard && turn - e.heard.turn <= 1){ const d = Math.hypot(e.heard.x - e.x, e.heard.y - e.y); if(d <= MANTICORE.smell) take(e.heard.x, e.heard.y, 'SHOTS', null, d * 0.8); }
+  if(e.lastSeen && turn - e.lastSeen.turn <= MANTICORE.scentTurns){ const d = Math.hypot(e.lastSeen.x - e.x, e.lastSeen.y - e.y); if(d <= MANTICORE.smellSeen && d > 30) take(e.lastSeen.x, e.lastSeen.y, 'LAST SEEN', e.lastSeen.who, d); }
+  return best;
+}
+function manticoreHear(x, y, radius){
+  const m = manticoreFoe(); if(!m) return;
+  const d = Math.hypot(m.x - x, m.y - y);
+  if(d > Math.min(MANTICORE.smell, Math.max(radius, 300) * 1.4)) return;
+  if(!m.heard || d <= Math.hypot(m.heard.x - m.x, m.heard.y - m.y) || (state.turn || 0) > m.heard.turn) m.heard = {x, y, turn: state.turn || 0};
+}
+// tiredness is a stride, not a stop: past tiredFrom it slows toward the floor
+function manticoreTired(e){ const f = (e.needs && e.needs.fatigue) || 0; return f < MANTICORE.tiredFrom ? 1 : Math.max(MANTICORE.tiredFloor, 1 - (f - MANTICORE.tiredFrom) / 90); }
+function crewSeesPt(x, y){ for(const c of (state.squad || [])){ if(!c.alive || c.downed) continue; if(inVisionOf(c, charVisionRange(c), x, y)) return true; } return false; }
 // (Ben, 15 Nov) the tail: a ring of spines in every direction, hostile or not. Short reach, no aim, no brother-care.
 function manticoreSpines(e){
   const arch = ARCHETYPES.manticore, n = MANTICORE.spineCount;
@@ -12847,11 +12895,29 @@ function manticoreDecide(e){
     const healed = Math.min(Math.round(e.maxHp * MANTICORE.feedHealFrac), e.maxHp - e.hp); if(healed > 0){ e.hp += healed; if(e.visible) addPopup(e.x, e.y - e.r - 14, '+' + Math.round(healed) + ' \u00B7 FED', '#9fe08e'); }
     doing('FEEDING \u00B7 ' + (e.feedT + 1) + ' MORE' + (healed > 0 ? ' \u00B7 HEALING' : '')); return idle;
   }
-  // resting: spent, it lies up where it is
-  if(e.restT > 0){ e.restT--; e.needs.fatigue = Math.max(0, e.needs.fatigue - 40); doing('RESTING \u00B7 ' + (e.restT + 1) + ' MORE'); return idle; }
-  if(e.needs.fatigue >= MANTICORE.fatigueRest){ e.restT = MANTICORE.restTurns; doing('SPENT \u00B7 LYING UP'); return idle; }
   const g = buildMoveGraph(e);
-  const goTo = (pt, budget) => { const t = clampTargetPoint(pt.x, pt.y, g.rects, e.r); const path = findPath({x: e.x, y: e.y}, t, g); return path && path.length ? truncatePath(path, budget) : null; };
+  const tired = manticoreTired(e);
+  const goTo = (pt, budget) => { const t = clampTargetPoint(pt.x, pt.y, g.rects, e.r); const path = findPath({x: e.x, y: e.y}, t, g); return path && path.length ? truncatePath(path, (budget || arch.moveRange) * tired) : null; };
+  // (Ben, 19 Nov) spent: it does not stop where it stands. It gets itself out of the crew's sight, lies up there until it has its wind, and comes back hungry.
+  if(e.needs.fatigue >= MANTICORE.fatigueRest) e.lyingUp = true;
+  if(e.lyingUp){
+    const seen = crewSeesPt(e.x, e.y);
+    const near = manticoreHostiles(e).find(o => Math.hypot(o.x - e.x, o.y - e.y) <= e.r + o.r + 60 && manticoreSees(e, o));
+    if(near){ e.lyingUp = false; doing('ROUSED \u00B7 TOO CLOSE'); }
+    else if(!seen){
+      e.needs.fatigue = Math.max(0, e.needs.fatigue - MANTICORE.restRecover);
+      if(e.needs.fatigue <= MANTICORE.restUntil){ e.lyingUp = false; doing('UP AGAIN \u00B7 HUNGRY'); }
+      else { doing('LYING UP \u00B7 OUT OF SIGHT'); return idle; }
+    }else{
+      // slink to the nearest spot the crew cannot see, at half a tired stride
+      let spot = null, sd = 1e9;
+      for(let k = 0; k < 24; k++){ const a = (k / 24) * Math.PI * 2; for(const rr of [160, 260, 380]){ const px = e.x + Math.cos(a) * rr, py = e.y + Math.sin(a) * rr; if(px < e.r || py < e.r || px > W - e.r || py > H - e.r) continue; if(crewSeesPt(px, py)) continue; const d = rr; if(d < sd){ sd = d; spot = {x: px, y: py}; } } }
+      const p = spot ? goTo(spot, arch.moveRange * 0.6) : null;
+      if(p){ doing('SPENT \u00B7 SLINKING OUT OF SIGHT'); return {path: p, shots: 0, flee: true}; }
+      e.needs.fatigue = Math.max(0, e.needs.fatigue - MANTICORE.restRecover * 0.5);
+      doing('SPENT \u00B7 NOWHERE TO HIDE'); return idle;
+    }
+  }
   // hurt badly: away from whoever hurt it, to the far corner of the place
   if(e.hp < arch.hp * MANTICORE.fleeHp && !e.cornered){
     const prey0 = manticorePrey(e);
@@ -12864,61 +12930,83 @@ function manticoreDecide(e){
     e.cornered = true;   // nowhere to go: it fights
     doing('CORNERED');
   }
+  // (Ben, 19 Nov) the tail first, and only when crowded: two or more hostiles close with a clear line, whatever it is about to do
+  const crowd = manticoreHostiles(e).filter(o => { const dd = Math.hypot(o.x - e.x, o.y - e.y); return dd <= MANTICORE.spineMax && canShootFrom(e.x, e.y, e.r, o.x, o.y); });
+  let spined = false;
+  if(e.spineCd <= 0 && crowd.length >= MANTICORE.spineMinFoes){ e.spineCd = MANTICORE.spineCd; manticoreSpines(e); spined = true; }
   // (Ben, 13 Nov) shot off its meal: it goes for the one who shot it, and the charge is ready
   let prey = null;
-  if(e.provoked && e.provoked.alive && !e.provoked.downed && !e.provoked.ko && Math.hypot(e.provoked.x - e.x, e.provoked.y - e.y) <= MANTICORE.smell){ prey = e.provoked; e.chargeCd = 0; }
+  if(e.provoked && e.provoked.alive && !e.provoked.downed && !e.provoked.ko && Math.hypot(e.provoked.x - e.x, e.provoked.y - e.y) <= MANTICORE.smell){ prey = e.provoked; e.chargeCd = 0; e.lastSeen = {x: prey.x, y: prey.y, who: prey.name || 'PREY', turn: state.turn || 0}; }
   e.provoked = null;
   prey = prey || manticorePrey(e);
-  if(!prey){ doing('HUNTING \u00B7 NOTHING NEAR'); return idle; }
+  const sp = spined ? 'SPINES \u00B7 ' : '';
+  if(!prey){
+    // nothing in sight: follow a scent, or cast about where the last one ran out
+    if(e.castT > 0){ e.castT--; doing(sp + 'CASTING ABOUT'); return idle; }
+    const sc = manticoreScent(e);
+    if(!sc){ doing(sp + 'NOTHING IN SIGHT \u00B7 WAITING'); return idle; }
+    const dsc = Math.hypot(sc.x - e.x, sc.y - e.y);
+    if(dsc < 40){ e.castT = 1; e.lastSeen = null; e.heard = null; doing(sp + 'LOST THE SCENT \u00B7 CASTING ABOUT'); return idle; }
+    doing(sp + 'SCENT \u00B7 ' + sc.kind + (sc.who ? ' \u00B7 ' + String(sc.who).toUpperCase() : ''));
+    const drS = doorsNear(e.x, e.y, e.r + 44);
+    if(drS.length && !segClearHigh(e.x, e.y, sc.x, sc.y)){ const w = drS[0]; e.facing = Math.atan2(w.y + w.h / 2 - e.y, w.x + w.w / 2 - e.x); const gone = doorDamage(w, MANTICORE.doorBite, w.x + w.w / 2, w.y + w.h / 2, false); doing(gone ? 'THROUGH THE DOOR' : 'SMASHING THE DOOR'); return idle; }
+    let ps = goTo(sc, arch.moveRange);
+    if(!ps || (ps.length && Math.hypot(ps[ps.length - 1].x - e.x, ps[ps.length - 1].y - e.y) < 12)){
+      const dw = manticoreDoorTo(e, sc, g, goTo);
+      if(dw && dw.plan) return dw.plan;
+      ps = dw ? dw.path : null;
+    }
+    e.needs.fatigue += ps ? MANTICORE.fatiguePerMove : 0;
+    return {path: ps, shots: 0, idle: !ps};
+  }
   const pname = (prey.name || (prey.stats ? prey.name : 'PREY')).toUpperCase();
   const d = Math.hypot(prey.x - e.x, prey.y - e.y);
-  if(d <= e.r + prey.r + 16){ doing('TEARING AT ' + pname); return {path: null, shots: 0, melee: true, target: prey}; }
+  if(d <= e.r + prey.r + 16){ doing(sp + 'TEARING AT ' + pname); return {path: null, shots: 0, melee: true, target: prey}; }
   const clear = segClearHigh(e.x, e.y, prey.x, prey.y);
-  // the charge: a straight run at prey in the middle distance, and the bite at the end of it lands harder
-  if(clear && e.chargeCd <= 0 && d >= MANTICORE.chargeMin && d <= MANTICORE.chargeMax){
+  // the charge: a straight run at prey in the middle distance, and the bite at the end of it lands harder (not when it is tired)
+  if(clear && e.chargeCd <= 0 && e.needs.fatigue < MANTICORE.chargeTired && d >= MANTICORE.chargeMin && d <= MANTICORE.chargeMax){
     const ang = Math.atan2(prey.y - e.y, prey.x - e.x);
     const stop = {x: prey.x - Math.cos(ang) * (e.r + prey.r + 12), y: prey.y - Math.sin(ang) * (e.r + prey.r + 12)};
     if(segClear(e.x, e.y, stop.x, stop.y, buildMoveGraph(e).rects)){
       e.chargeCd = MANTICORE.chargeCd; e.charging = true; e.needs.fatigue += MANTICORE.fatiguePerMove * 1.5;
-      doing('CHARGING ' + pname);
+      doing(sp + 'CHARGING ' + pname);
       return {path: [{x: e.x, y: e.y}, stop], shots: 0, melee: true, target: prey, charge: true};
     }
   }
-  // the tail: a ring of spines when something it wants is near but not in reach this turn
-  if(clear && e.spineCd <= 0 && d >= MANTICORE.spineMin && d <= MANTICORE.spineMax && canShootFrom(e.x, e.y, e.r, prey.x, prey.y)){
-    e.spineCd = MANTICORE.spineCd;
-    doing('SPINES \u00B7 ALL ROUND');
-    manticoreSpines(e);
-    return {path: null, shots: 0, target: prey, spines: true};
-  }
-  doing('HUNTING ' + pname);
+  doing(sp + 'SEES ' + pname + (tired < 1 ? ' \u00B7 TIRED' : ''));
   // a door in the way: smash it
   const dr = doorsNear(e.x, e.y, e.r + 44);
   if(dr.length && !segClearHigh(e.x, e.y, prey.x, prey.y)){ const w = dr[0]; e.facing = Math.atan2(w.y + w.h / 2 - e.y, w.x + w.w / 2 - e.x); const gone = doorDamage(w, MANTICORE.doorBite, w.x + w.w / 2, w.y + w.h / 2, false); doing(gone ? 'THROUGH THE DOOR' : 'SMASHING THE DOOR'); return idle; }
   let p = goTo(prey, arch.moveRange);
   if(!p || (p.length && Math.hypot(p[p.length - 1].x - e.x, p[p.length - 1].y - e.y) < 12)){
-    // no way through: the nearest door on the line to the prey is the way
-    let bestW = null, bw = 1e9;
-    for(const w of (state.walls || [])){ if(!w.door || w.hp <= 0) continue; const cx = w.x + w.w / 2, cy = w.y + w.h / 2; const dd = Math.hypot(cx - e.x, cy - e.y) + Math.hypot(cx - prey.x, cy - prey.y); if(dd < bw){ bw = dd; bestW = w; } }
-    if(bestW){
-      // stand off the panel on its own side of the wall, square to it
-      const cx = bestW.x + bestW.w / 2, cy = bestW.y + bestW.h / 2;
-      const horiz = bestW.w >= bestW.h;
-      const off = e.r + 26;
-      const tx = horiz ? cx : cx + Math.sign(e.x - cx || 1) * off, ty = horiz ? cy + Math.sign(e.y - cy || 1) * off : cy;
-      // (Ben, 15 Nov) the door charge: a straight run at the panel and through it in the same turn
-      const dD = Math.hypot(tx - e.x, ty - e.y);
-      if(e.chargeCd <= 0 && dD >= 40 && dD <= MANTICORE.chargeMax && segClear(e.x, e.y, tx, ty, g.rects)){
-        e.chargeCd = MANTICORE.chargeCd; e.needs.fatigue += MANTICORE.fatiguePerMove * 1.5;
-        doing('CHARGING THE DOOR');
-        return {path: [{x: e.x, y: e.y}, {x: tx, y: ty}], shots: 0, melee: true, target: prey, charge: true, doorCharge: bestW};
-      }
-      p = goTo({x: tx, y: ty}, arch.moveRange);
-      if(!p){ const tx2 = horiz ? cx : cx - Math.sign(e.x - cx || 1) * off, ty2 = horiz ? cy - Math.sign(e.y - cy || 1) * off : cy; p = goTo({x: tx2, y: ty2}, arch.moveRange); }
-    }
+    const dw = manticoreDoorTo(e, prey, g, goTo);
+    if(dw && dw.plan) return dw.plan;
+    p = dw ? dw.path : null;
   }
   e.needs.fatigue += p ? MANTICORE.fatiguePerMove : 0;
   return {path: p, shots: 0, melee: true, target: prey, idle: !p};
+}
+// no way through to a point: the nearest door on the line to it is the way. A charge through it when the run is straight, a walk to it otherwise.
+function manticoreDoorTo(e, tgt, g, goTo){
+  const arch = ARCHETYPES.manticore;
+  let bestW = null, bw = 1e9;
+  for(const w of (state.walls || [])){ if(!w.door || w.hp <= 0) continue; const cx = w.x + w.w / 2, cy = w.y + w.h / 2; const dd = Math.hypot(cx - e.x, cy - e.y) + Math.hypot(cx - tgt.x, cy - tgt.y); if(dd < bw){ bw = dd; bestW = w; } }
+  if(!bestW) return null;
+  // stand off the panel on its own side of the wall, square to it
+  const cx = bestW.x + bestW.w / 2, cy = bestW.y + bestW.h / 2;
+  const horiz = bestW.w >= bestW.h;
+  const off = e.r + 26;
+  const tx = horiz ? cx : cx + Math.sign(e.x - cx || 1) * off, ty = horiz ? cy + Math.sign(e.y - cy || 1) * off : cy;
+  // (Ben, 15 Nov) the door charge: a straight run at the panel and through it in the same turn
+  const dD = Math.hypot(tx - e.x, ty - e.y);
+  if(e.chargeCd <= 0 && e.needs.fatigue < MANTICORE.chargeTired && dD >= 40 && dD <= MANTICORE.chargeMax && segClear(e.x, e.y, tx, ty, g.rects)){
+    e.chargeCd = MANTICORE.chargeCd; e.needs.fatigue += MANTICORE.fatiguePerMove * 1.5;
+    e.doing = 'CHARGING THE DOOR';
+    return {plan: {path: [{x: e.x, y: e.y}, {x: tx, y: ty}], shots: 0, melee: !!tgt.r, target: tgt.r ? tgt : null, charge: true, doorCharge: bestW}};
+  }
+  let p = goTo({x: tx, y: ty}, arch.moveRange);
+  if(!p){ const tx2 = horiz ? cx : cx - Math.sign(e.x - cx || 1) * off, ty2 = horiz ? cy - Math.sign(e.y - cy || 1) * off : cy; p = goTo({x: tx2, y: ty2}, arch.moveRange); }
+  return {path: p};
 }
 // the gang in a disaster: a job each (hunt the animal, hide, flee), the beast outranking the crew whenever it is the nearer threat
 function gangDecide(e){
@@ -15045,9 +15133,33 @@ function waypointHere(){
 }
 // (Ben, 11 Nov) the living wood, drawn in the world: roosts, hives, the hollow, the clouds
 // (Ben, 13 Nov) a big animal says what it is doing: a line over its head whenever it can be seen
+// (Ben, 19 Nov) the quarry panel, top centre: sedation first, darts this turn, then health
+function quarryHudSync(){
+  const el = document.getElementById('quarryHud'), ln = document.getElementById('quarryLine'); if(!el || !ln) return;
+  const m = (state.enemies || []).find(e => e.type === 'manticore' && !state.shipDeck);
+  if(!m || !state.enemies.includes(m)){ if(el.style.display !== 'none') el.style.display = 'none'; return; }
+  const darts = (m.sedTurn === (state.turn || 0)) ? (m.sedHits || 0) : 0;
+  const txt = (m.ko ? 'THE MANTICORE \u00B7 DOWN \u00B7 SEDATED' : m.alive ? 'THE MANTICORE \u00B7 SED <b style="color:#6fd6ff">' + Math.round(m.sed || 0) + ' / ' + Math.round(sedCap(m)) + '</b> \u00B7 DARTS ' + darts + '/' + MANTICORE.dartsPerTurn + ' THIS TURN \u00B7 HP ' + Math.round(m.hp) + '/' + Math.round(m.maxHp) : 'THE MANTICORE \u00B7 DEAD');
+  if(ln.innerHTML !== txt) ln.innerHTML = txt;
+  if(el.style.display !== 'block') el.style.display = 'block';
+}
 function drawBeastDoing(){
+  quarryHudSync();
   for(const e of (state.enemies || [])){
-    if(!e.alive || !e.visible || !e.doing || e.type !== 'manticore') continue;
+    if(!e.alive || e.type !== 'manticore') continue;
+    if(e.visible) e.seenAt = {x: e.x, y: e.y, turn: state.turn || 0};
+    if(!e.visible){   // the last place the crew saw it: a faint ring and the turn
+      if(!e.seenAt) continue;
+      ctx.save();
+      const z = Math.max(0.5, Math.min(2, cam.zoom || 1)), fs = 12 / z;
+      ctx.strokeStyle = 'rgba(240,168,96,.35)'; ctx.lineWidth = 1.5 / z; ctx.setLineDash([6 / z, 6 / z]);
+      ctx.beginPath(); ctx.arc(e.seenAt.x, e.seenAt.y, e.r + 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = "700 " + fs.toFixed(1) + "px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(240,168,96,.55)';
+      ctx.fillText('LAST SEEN \u00B7 TURN ' + e.seenAt.turn, e.seenAt.x, e.seenAt.y - e.r - 14 / z);
+      ctx.restore();
+      continue;
+    }
+    if(!e.doing) continue;
     ctx.save();
     const z = Math.max(0.5, Math.min(2, cam.zoom || 1)), fs = 15 / z, pad = 9 / z;   // the same size on screen whatever the zoom (Ben, 15 Nov: bigger)
     ctx.font = "800 " + fs.toFixed(1) + "px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
@@ -15055,6 +15167,15 @@ function drawBeastDoing(){
     const wTxt = ctx.measureText(txt).width + pad * 2;
     ctx.fillStyle = 'rgba(10,8,6,.8)'; ctx.fillRect(e.x - wTxt / 2, e.y - e.r - 20 / z - fs * 1.6, wTxt, fs * 1.6);
     ctx.fillStyle = '#f0a860'; ctx.fillText(txt, e.x, e.y - e.r - 20 / z - fs * 0.45);
+    // the second line: sedation, the number the contract is about
+    const darts = (e.sedTurn === (state.turn || 0)) ? (e.sedHits || 0) : 0;
+    const sedTxt = 'SED ' + Math.round(e.sed || 0) + ' / ' + Math.round(sedCap(e)) + '  \u00B7  DARTS ' + darts + '/' + MANTICORE.dartsPerTurn;
+    const fs2 = fs * 0.85, w2 = ctx.measureText(sedTxt).width * 0.85 + pad * 2;
+    ctx.font = "800 " + fs2.toFixed(1) + "px 'Space Grotesk',sans-serif";
+    ctx.fillStyle = 'rgba(10,8,6,.8)'; ctx.fillRect(e.x - w2 / 2, e.y - e.r - 20 / z - fs * 1.6 - fs2 * 1.5, w2, fs2 * 1.5);
+    const frac = Math.min(1, (e.sed || 0) / Math.max(1, sedCap(e)));
+    ctx.fillStyle = 'rgba(111,214,255,.25)'; ctx.fillRect(e.x - w2 / 2, e.y - e.r - 20 / z - fs * 1.6 - fs2 * 1.5, w2 * frac, fs2 * 1.5);
+    ctx.fillStyle = '#6fd6ff'; ctx.fillText(sedTxt, e.x, e.y - e.r - 20 / z - fs * 1.6 - fs2 * 0.42);
     ctx.restore();
   }
 }
@@ -15939,7 +16060,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '15 Nov \u00B7 THE REACH, STAGE ONE D';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '19 Nov \u00B7 THE REACH, STAGE ONE E';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
