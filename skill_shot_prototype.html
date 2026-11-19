@@ -6714,7 +6714,7 @@ function mapPick(ev){
   mapRender();
 }
 function contractsAt(nodeId){
-  if(typeof DEV_CRATE !== 'undefined' && DEV_CRATE && typeof reachTestIdx === 'function') reachTestIdx();   // the test street, on dev boards only
+  if(typeof DEV_CRATE !== 'undefined' && DEV_CRATE && typeof reachTestIdx === 'function'){ reachTestIdx(); reachIdx(); }   // the test street and the settlement, on dev boards only
   const out = [];
   for(let i = 0; i < LEVELS.length; i++){
     if(LEVELS[i].at !== nodeId || LEVELS[i].hidden) continue;   // Erina's work is behind a hatch, not on a board
@@ -8569,6 +8569,7 @@ function buildMoveGraph(mover){
   const rects = [];
   for(const w of state.walls){
     if(!w.high && wallAliveFrac(w) < 0.3) continue;   // rubble: walkable
+    if(w.door && w.hp > 0 && !mover.bigBeast) continue;   // (Ben, 19 Nov) a door opens for hands: people walk through; a big animal breaks it
     rects.push({x:w.x-pad, y:w.y-pad, w:w.w+pad*2, h:w.h+pad*2});
   }
   for(const e of state.enemies){
@@ -11983,6 +11984,171 @@ const REACH_TEST = {
   ],
   civilians: 0,
 };
+// ---- (Ben, 19 Nov) Rusk's Reach, stage two: the settlement. Ten buildings with doors, the wreck on the east edge where the crew arrive,
+// the yard, the market, narrow streets and low cover between. Eighteen Blackhooks with jobs; the Manticore loose in the middle of it.
+// Dev only until stage three wires it to Erina, Hesper and the Gannet. Rusk, Borr and Gorr are stage four. ----
+const REACH_LEVEL = {
+  name: 'Rusk\u2019s Reach \u00B7 the settlement', fee: 1500, par: 0, at: 'gateway', crew: 4, get hidden(){ return typeof DEV_CRATE === 'undefined' ? true : !DEV_CRATE; }, dev: true, payAt: 'erina', issuer: 'erina',
+  world: {w: 3200, h: 2200},
+  client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
+  location: 'Orven \u00B7 Rusk\u2019s Reach, formerly Deadweight', time: 'The afternoon after the crash',
+  brief: 'The transport came down on the east edge of Rusk\u2019s Reach with the Blackhooks\u2019 holes in it, and what was in the hold is in the town. The crew are set down beside the wreck.<br><br>The Manticore is loose somewhere in the streets. The Blackhooks are hunting it, hiding from it and running from it, and none of them want you here. It hunts what it can see, follows blood and gunfire, goes through doors, and lies up when it is spent.<br><br>Find it. Dart it (two a turn is all it will take). Pick it up. Carry it back to the wreck. Nothing here is scripted.',
+  objective: 'Find the Manticore \u00B7 sedate it \u00B7 carry it back to the wreck',
+  player: {x: 0.905, y: 0.47},
+  extract: {x: 0.905, y: 0.47, r: 0.045},
+  quarry: 'manticore',
+  walls: [
+    // the edge of the world
+    {x: 0, y: 0, w: 1, h: 0.02, high: true},
+    {x: 0, y: 0.98, w: 1, h: 0.02, high: true},
+    {x: 0, y: 0, w: 0.012, h: 1, high: true},
+    {x: 0.988, y: 0, w: 0.012, h: 1, high: true},
+    // the Hook and Eye: the bar, two doors
+    {x: 0.1, y: 0.08, w: 0.17, h: 0.009, high: true},
+    {x: 0.1, y: 0.271, w: 0.0741, h: 0.009, high: true},
+    {x: 0.1741, y: 0.271, w: 0.0219, h: 0.009, high: true, door: true},
+    {x: 0.1959, y: 0.271, w: 0.0741, h: 0.009, high: true},
+    {x: 0.1, y: 0.08, w: 0.006, h: 0.2, high: true},
+    {x: 0.264, y: 0.08, w: 0.006, h: 0.0841, high: true},
+    {x: 0.264, y: 0.1641, w: 0.006, h: 0.0318, high: true, door: true},
+    {x: 0.264, y: 0.1959, w: 0.006, h: 0.0841, high: true},
+    // a residence, north row
+    {x: 0.33, y: 0.06, w: 0.12, h: 0.009, high: true},
+    {x: 0.33, y: 0.191, w: 0.0311, h: 0.009, high: true},
+    {x: 0.3611, y: 0.191, w: 0.0219, h: 0.009, high: true, door: true},
+    {x: 0.3829, y: 0.191, w: 0.0671, h: 0.009, high: true},
+    {x: 0.33, y: 0.06, w: 0.006, h: 0.14, high: true},
+    {x: 0.444, y: 0.06, w: 0.006, h: 0.14, high: true},
+    // a residence, north row
+    {x: 0.48, y: 0.06, w: 0.12, h: 0.009, high: true},
+    {x: 0.48, y: 0.191, w: 0.0671, h: 0.009, high: true},
+    {x: 0.5471, y: 0.191, w: 0.0219, h: 0.009, high: true, door: true},
+    {x: 0.5689, y: 0.191, w: 0.0311, h: 0.009, high: true},
+    {x: 0.48, y: 0.06, w: 0.006, h: 0.14, high: true},
+    {x: 0.594, y: 0.06, w: 0.006, h: 0.14, high: true},
+    // the salvage workshop
+    {x: 0.66, y: 0.1, w: 0.18, h: 0.009, high: true},
+    {x: 0.66, y: 0.311, w: 0.0431, h: 0.009, high: true},
+    {x: 0.7031, y: 0.311, w: 0.0219, h: 0.009, high: true, door: true},
+    {x: 0.7249, y: 0.311, w: 0.1151, h: 0.009, high: true},
+    {x: 0.66, y: 0.1, w: 0.006, h: 0.0721, high: true},
+    {x: 0.66, y: 0.1721, w: 0.006, h: 0.0318, high: true, door: true},
+    {x: 0.66, y: 0.2039, w: 0.006, h: 0.1161, high: true},
+    {x: 0.834, y: 0.1, w: 0.006, h: 0.22, high: true},
+    // the storehouse
+    {x: 0.08, y: 0.4, w: 0.14, h: 0.009, high: true},
+    {x: 0.08, y: 0.631, w: 0.14, h: 0.009, high: true},
+    {x: 0.08, y: 0.4, w: 0.006, h: 0.24, high: true},
+    {x: 0.214, y: 0.4, w: 0.006, h: 0.0561, high: true},
+    {x: 0.214, y: 0.4561, w: 0.006, h: 0.0318, high: true, door: true},
+    {x: 0.214, y: 0.4879, w: 0.006, h: 0.1521, high: true},
+    // the market hall
+    {x: 0.3, y: 0.42, w: 0.0691, h: 0.009, high: true},
+    {x: 0.3691, y: 0.42, w: 0.0219, h: 0.009, high: true, door: true},
+    {x: 0.3909, y: 0.42, w: 0.0691, h: 0.009, high: true},
+    {x: 0.3, y: 0.571, w: 0.16, h: 0.009, high: true},
+    {x: 0.3, y: 0.42, w: 0.006, h: 0.16, high: true},
+    {x: 0.454, y: 0.42, w: 0.006, h: 0.0641, high: true},
+    {x: 0.454, y: 0.4841, w: 0.006, h: 0.0318, high: true, door: true},
+    {x: 0.454, y: 0.5159, w: 0.006, h: 0.0641, high: true},
+    // the animal holding: Erina will want to see this
+    {x: 0.56, y: 0.44, w: 0.13, h: 0.009, high: true},
+    {x: 0.56, y: 0.611, w: 0.13, h: 0.009, high: true},
+    {x: 0.56, y: 0.44, w: 0.006, h: 0.0741, high: true},
+    {x: 0.56, y: 0.5141, w: 0.006, h: 0.0318, high: true, door: true},
+    {x: 0.56, y: 0.5459, w: 0.006, h: 0.0741, high: true},
+    {x: 0.684, y: 0.44, w: 0.006, h: 0.18, high: true},
+    // a residence, south
+    {x: 0.14, y: 0.72, w: 0.0791, h: 0.009, high: true},
+    {x: 0.2191, y: 0.72, w: 0.0219, h: 0.009, high: true, door: true},
+    {x: 0.2409, y: 0.72, w: 0.0491, h: 0.009, high: true},
+    {x: 0.14, y: 0.891, w: 0.15, h: 0.009, high: true},
+    {x: 0.14, y: 0.72, w: 0.006, h: 0.18, high: true},
+    {x: 0.284, y: 0.72, w: 0.006, h: 0.18, high: true},
+    // the processing shed: the hooks
+    {x: 0.38, y: 0.72, w: 0.0491, h: 0.009, high: true},
+    {x: 0.4291, y: 0.72, w: 0.0219, h: 0.009, high: true, door: true},
+    {x: 0.4509, y: 0.72, w: 0.1291, h: 0.009, high: true},
+    {x: 0.38, y: 0.871, w: 0.2, h: 0.009, high: true},
+    {x: 0.38, y: 0.72, w: 0.006, h: 0.16, high: true},
+    {x: 0.574, y: 0.72, w: 0.006, h: 0.0801, high: true},
+    {x: 0.574, y: 0.8001, w: 0.006, h: 0.0318, high: true, door: true},
+    {x: 0.574, y: 0.8319, w: 0.006, h: 0.0481, high: true},
+    // Rusk\u2019s house, for later
+    {x: 0.7, y: 0.7, w: 0.0541, h: 0.009, high: true},
+    {x: 0.7541, y: 0.7, w: 0.0219, h: 0.009, high: true, door: true},
+    {x: 0.7759, y: 0.7, w: 0.0541, h: 0.009, high: true},
+    {x: 0.7, y: 0.871, w: 0.13, h: 0.009, high: true},
+    {x: 0.7, y: 0.7, w: 0.006, h: 0.0741, high: true},
+    {x: 0.7, y: 0.7741, w: 0.006, h: 0.0318, high: true, door: true},
+    {x: 0.7, y: 0.8059, w: 0.006, h: 0.0741, high: true},
+    {x: 0.824, y: 0.7, w: 0.006, h: 0.18, high: true},
+    // the wreck: the hull, cracked open, on the east edge
+    {x: 0.86, y: 0.36, w: 0.11, h: 0.012, high: true},
+    {x: 0.86, y: 0.58, w: 0.11, h: 0.012, high: true},
+    {x: 0.955, y: 0.36, w: 0.012, h: 0.09, high: true},
+    {x: 0.955, y: 0.52, w: 0.012, h: 0.07, high: true},
+    {x: 0.885, y: 0.42, w: 0.03, h: 0.02},
+    {x: 0.91, y: 0.5, w: 0.03, h: 0.02},
+    {x: 0.84, y: 0.3, w: 0.035, h: 0.02},
+    {x: 0.83, y: 0.62, w: 0.04, h: 0.02},
+    // the salvage yard: crane bases and hook cradles
+    {x: 0.88, y: 0.1, w: 0.03, h: 0.04, high: true},
+    {x: 0.93, y: 0.18, w: 0.03, h: 0.04, high: true},
+    {x: 0.86, y: 0.2, w: 0.04, h: 0.02},
+    {x: 0.91, y: 0.08, w: 0.04, h: 0.02},
+    // market stalls and street junk: low cover, never in a doorway
+    {x: 0.33, y: 0.3, w: 0.035, h: 0.018},
+    {x: 0.4, y: 0.33, w: 0.035, h: 0.018},
+    {x: 0.47, y: 0.3, w: 0.035, h: 0.018},
+    {x: 0.54, y: 0.34, w: 0.035, h: 0.018},
+    {x: 0.24, y: 0.5, w: 0.035, h: 0.018},
+    {x: 0.52, y: 0.66, w: 0.035, h: 0.018},
+    {x: 0.62, y: 0.34, w: 0.035, h: 0.018},
+    {x: 0.78, y: 0.46, w: 0.035, h: 0.018},
+    {x: 0.74, y: 0.58, w: 0.035, h: 0.018},
+    {x: 0.34, y: 0.64, w: 0.035, h: 0.018},
+    {x: 0.64, y: 0.84, w: 0.035, h: 0.018},
+    {x: 0.28, y: 0.86, w: 0.035, h: 0.018},
+    {x: 0.1, y: 0.3, w: 0.035, h: 0.018},
+    {x: 0.86, y: 0.78, w: 0.035, h: 0.018},
+    {x: 0.46, y: 0.92, w: 0.035, h: 0.018},
+    {x: 0.22, y: 0.66, w: 0.035, h: 0.018},
+    {x: 0.6, y: 0.26, w: 0.035, h: 0.018},
+    {x: 0.88, y: 0.66, w: 0.035, h: 0.018},
+    {x: 0.08, y: 0.92, w: 0.035, h: 0.018},
+    {x: 0.92, y: 0.9, w: 0.035, h: 0.018},
+  ],
+  enemies: [
+    {x: 0.50, y: 0.385, type: 'manticore'},
+    // the bar: drinking through it
+    {x: 0.16, y: 0.16, type: 'gunhand', side: 'gang', job: 'hide', name: 'Pell Marrow'},
+    {x: 0.22, y: 0.20, type: 'scrapper', side: 'gang', job: 'hide', name: 'Twitch'},
+    {x: 0.13, y: 0.24, type: 'wrecker', side: 'gang', job: 'hide', name: 'Brannock'},
+    // the north row and the market: the hunting party forming up
+    {x: 0.40, y: 0.26, type: 'wrecker', side: 'gang', job: 'hunt', name: 'Dask'},
+    {x: 0.50, y: 0.24, type: 'gunhand', side: 'gang', job: 'hunt', name: 'Olen Vask'},
+    {x: 0.56, y: 0.30, type: 'gunhand', side: 'gang', job: 'hunt', name: 'Sal Pike'},
+    {x: 0.44, y: 0.10, type: 'lookout', side: 'gang', job: 'hunt', name: 'Needle Vey'},
+    // the workshop: the ones who shot the ship down, counting the cost
+    {x: 0.74, y: 0.20, type: 'wrecker', side: 'gang', job: 'hunt', name: 'Hob Tanner'},
+    {x: 0.78, y: 0.26, type: 'gunhand', side: 'gang', job: 'hide', name: 'Ilse Kett'},
+    {x: 0.70, y: 0.14, type: 'scrapper', side: 'gang', job: 'flee', name: 'Mouse'},
+    // the storehouse and the south: hiding, running
+    {x: 0.14, y: 0.52, type: 'lookout', side: 'gang', job: 'hide', name: 'Cutter'},
+    {x: 0.20, y: 0.80, type: 'scrapper', side: 'gang', job: 'flee', name: 'Ferris Quade'},
+    {x: 0.26, y: 0.62, type: 'scrapper', side: 'gang', job: 'flee', name: 'Little Orrin'},
+    {x: 0.46, y: 0.80, type: 'wrecker', side: 'gang', job: 'hunt', name: 'Mags Dorrel'},
+    {x: 0.52, y: 0.84, type: 'gunhand', side: 'gang', job: 'hunt', name: 'Tomm Haddow'},
+    // the yard and the wreck: the salvage crew, between the crew and the town
+    {x: 0.92, y: 0.26, type: 'wrecker', side: 'gang', job: 'hunt', name: 'Vess'},
+    {x: 0.84, y: 0.66, type: 'lookout', side: 'gang', job: 'hide', name: 'Rook Calder'},
+    {x: 0.64, y: 0.93, type: 'scrapper', side: 'gang', job: 'flee', name: 'Nan Pike'},
+  ],
+  civilians: 0,
+};
+function reachIdx(){ let i = LEVELS.indexOf(REACH_LEVEL); if(i < 0 && DEV_CRATE){ LEVELS.push(REACH_LEVEL); i = LEVELS.length - 1; } return i; }
+function reachDrop(){ const i = LEVELS.indexOf(REACH_LEVEL); if(i >= 0) LEVELS.splice(i, 1); return i >= 0; }
 function reachTestIdx(){ let i = LEVELS.indexOf(REACH_TEST); if(i < 0 && DEV_CRATE){ LEVELS.push(REACH_TEST); i = LEVELS.length - 1; } return i; }
 function reachTestDrop(){ const i = LEVELS.indexOf(REACH_TEST); if(i >= 0) LEVELS.splice(i, 1); return i >= 0; }
 function erinaIdx(){ let i = LEVELS.indexOf(ERINA_LEVEL); if(i < 0){ LEVELS.push(ERINA_LEVEL); i = LEVELS.length - 1; } return i; }
@@ -16060,7 +16226,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '19 Nov \u00B7 THE REACH, STAGE ONE E';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '19 Nov \u00B7 THE REACH, STAGE TWO';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
