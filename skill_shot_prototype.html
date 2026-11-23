@@ -8813,7 +8813,7 @@ function doorDamage(w, dmg, bx, by, byPlayer){
   if(w.hp > 0) return false;
   w.hp = 0;
   state.walls = state.walls.filter(w2 => w2 !== w);
-  state.moveGraph = null;
+  state.moveGraph = null; fogDirty = true;
   if(typeof cnavDirty === 'function') cnavDirty();
   spawnBurst(w.x + w.w / 2, w.y + w.h / 2, 18, '#c9a24a', 240);
   addPopup(w.x + w.w / 2, w.y - 10, 'THE DOOR GOES', '#e0a33e');
@@ -8866,6 +8866,7 @@ function damageChunk(chunk, dmg, bx, by, byPlayer){
   if(byPlayer && state.aar && chunk.hp > 0 && dmg >= chunk.hp) state.aar.chunks++;
   if(chunk.hp <= 0) return false;
   if(typeof cnavDirty === 'function') cnavDirty();   // the floor plan just changed
+  fogDirty = true;
   chunk.hp -= dmg;
   if(chunk.hp <= 0.01){
     chunk.hp = 0;
@@ -10379,26 +10380,42 @@ function pushNoiseRing(x, y, max, hostile){
 // explored memory accumulates; the fog canvas is rebuilt each frame:
 // black, minus a dim punch for explored ground, minus a full punch for live sight
 let fogCanvas = null, fogCtx = null, expCanvas = null, expCtx = null;
+let fogScale = 1, fogViews = null, fogKey = '';
+const FOG_MAX_PX = 2400;
+const FOG_VIEW_DOWN = 3;   // the fog is blurred at a third of screen resolution
+let fogDirty = true;       // set by anything that changes sight without moving the crew (a wall falling, a door going, a scan, a level load)   // the fog layer is never wider than this; the blur hides the grain
+// (23 Nov) the part of the world the camera can see, with a margin, in world units: fog and cones are only drawn there
+function visWorldRect(margin){
+  const cw = canvas.width / DPR, ch = canvas.height / DPR, z = cam.zoom || 1, m = margin || 0;
+  const x0 = cam.cx + ((0 - viewOX) / viewScale - W / 2) / z - m, x1 = cam.cx + ((cw - viewOX) / viewScale - W / 2) / z + m;
+  const y0 = cam.cy + ((0 - viewOY) / viewScale - H / 2) / z - m, y1 = cam.cy + ((ch - viewOY) / viewScale - H / 2) / z + m;
+  const ax = Math.max(0, Math.min(W, x0)), ay = Math.max(0, Math.min(H, y0)), bx = Math.max(0, Math.min(W, x1)), by = Math.max(0, Math.min(H, y1));
+  return {x: ax, y: ay, w: Math.max(1, bx - ax), h: Math.max(1, by - ay)};
+}
 let coneCanvas = null, coneCtx = null;
 function initFog(){
   fogCanvas = document.createElement('canvas');
   expCanvas = document.createElement('canvas');
   coneCanvas = document.createElement('canvas');
-  // native resolution: logical field x view scale x DPR, so no compositing step ever upscales
-  const os = Math.max(0.5, viewScale) * DPR;
+  // native resolution: logical field x view scale x DPR, so no compositing step ever upscales;
+  // (23 Nov) capped: a big world (the Cross is 5600 wide) at retina scale was an 80-megapixel fog, cleared, filled and blurred twice a frame
+  const os = Math.max(0.2, Math.min(Math.max(0.5, viewScale) * DPR, FOG_MAX_PX / Math.max(W, H)));
+  fogScale = os;
   const PW = Math.max(1, Math.round(W * os)), PH = Math.max(1, Math.round(H * os));   // the world of this level, not the reference field
   for(const cv of [fogCanvas, expCanvas, coneCanvas]){ cv.width = PW; cv.height = PH; }
   fogCtx = fogCanvas.getContext('2d');
   expCtx = expCanvas.getContext('2d');
   coneCtx = coneCanvas.getContext('2d');
   for(const cx of [fogCtx, expCtx, coneCtx]) cx.setTransform(os, 0, 0, os, 0, 0);
+  fogDirty = true; fogKey = '';
 }
 
 // all enemy vision cones painted opaque into one layer, composited once —
 // overlapping cones merge into a single clean field instead of stacking
 function drawEnemyCones(){
   if(!TUNE.fog || !coneCtx) return;
-  coneCtx.clearRect(0, 0, W, H);
+  const vc = visWorldRect(60 / (cam.zoom || 1));
+  coneCtx.clearRect(vc.x, vc.y, vc.w, vc.h);
   let any = false;
   // calm steel, wary amber, hunting red, later passes win where they overlap
   const CONE_COLORS = {unaware: 'rgb(122,138,160)', suspicious: 'rgb(224,163,62)', alerted: 'rgb(224,72,62)'};
@@ -10438,7 +10455,7 @@ function drawEnemyCones(){
   if(!any) return;
   ctx.save();
   ctx.globalAlpha = 0.13;
-  ctx.drawImage(coneCanvas, 0, 0, W, H);
+  ctx.drawImage(coneCanvas, vc.x * fogScale, vc.y * fogScale, vc.w * fogScale, vc.h * fogScale, vc.x, vc.y, vc.w, vc.h);
   ctx.restore();
   // thin individual edges so each wedge stays readable inside the merged field
   ctx.lineWidth = 1;
@@ -10561,6 +10578,16 @@ function castSightRay(ox, oy, ang, maxR, rects, peeks){
 function drawFog(){
   if(currentLevel().noFog) return;
   if(!TUNE.fog || !fogCtx) return;
+  // (23 Nov) nothing moved, nothing to rebuild: the two blurred views from last frame are drawn again as they are
+  const vK = visWorldRect(40 / (cam.zoom || 1));
+  const key = [vK.x | 0, vK.y | 0, vK.w | 0, vK.h | 0, canvas.width, canvas.height, state.scans.length,
+    ...state.squad.map(c => (c.alive && !c.ko) ? ((c.x * 2) | 0) + ',' + ((c.y * 2) | 0) + ',' + ((c.facing * 20) | 0) + ',' + (c.watch ? 1 : 0) : '-'),
+    ...state.scans.map(sc => ((sc.x) | 0) + ',' + ((sc.y) | 0) + ',' + ((sc.r) | 0)), fogDirty ? 'd' : ''].join('|');
+  if(key === fogKey && fogViews && !fogDirty){
+    for(const fv of fogViews) ctx.drawImage(fv, 0, 0, fv.width, fv.height, vK.x, vK.y, vK.w, vK.h);
+    return;
+  }
+  fogKey = key; fogDirty = false;
   // stamp live sight into explored memory + build the punch list
   const polys = [];
   for(const c of state.squad){
@@ -10598,33 +10625,44 @@ function drawFog(){
     }
   };
 
+  // (23 Nov) only the part of the world on screen is cleared, filled, composited and blurred: the rest is never looked at
+  const v = visWorldRect(40 / (cam.zoom || 1)), fs = fogScale;
+  // the blur is the expensive part, so it happens on a small view-sized canvas (a third of the screen each way) and is scaled up:
+  // the upscale is itself a softening, and the cost is a ninth of blurring the screen
+  if(!fogViews){ fogViews = [document.createElement('canvas'), document.createElement('canvas')]; }
+  const vw = Math.max(8, Math.round(canvas.width / FOG_VIEW_DOWN)), vh = Math.max(8, Math.round(canvas.height / FOG_VIEW_DOWN));
+  for(const fv of fogViews) if(fv.width !== vw || fv.height !== vh){ fv.width = vw; fv.height = vh; }
+  const k = vw / v.w;   // view pixels per world unit
+  const blit = (src, blurWorld, pass) => {
+    const fv = fogViews[pass], fvc = fv.getContext('2d');
+    fvc.setTransform(1, 0, 0, 1, 0, 0); fvc.globalCompositeOperation = 'source-over';
+    fvc.clearRect(0, 0, vw, vh);
+    fvc.filter = 'blur(' + Math.max(0.5, blurWorld * k).toFixed(1) + 'px)';
+    fvc.drawImage(src, v.x * fs, v.y * fs, v.w * fs, v.h * fs, 0, 0, vw, vh);
+    fvc.filter = 'none';
+    ctx.drawImage(fv, 0, 0, vw, vh, v.x, v.y, v.w, v.h);
+  };
   // pass 1: teal memory veil (blurred for a soft sight edge)
   fogCtx.globalCompositeOperation = 'source-over';
-  fogCtx.clearRect(0, 0, W, H);
+  fogCtx.clearRect(v.x, v.y, v.w, v.h);
   fogCtx.fillStyle = 'rgba(28,74,84,0.48)';
-  fogCtx.fillRect(0, 0, W, H);
+  fogCtx.fillRect(v.x, v.y, v.w, v.h);
   punchLive();
-  ctx.save();
-  ctx.filter = 'blur(9px)';
-  ctx.drawImage(fogCanvas, 0, 0, W, H);
-  ctx.restore();
+  blit(fogCanvas, 9, 0);
 
   // pass 2: violet-black void over the unexplored
   fogCtx.globalCompositeOperation = 'source-over';
-  fogCtx.clearRect(0, 0, W, H);
+  fogCtx.clearRect(v.x, v.y, v.w, v.h);
   fogCtx.fillStyle = 'rgba(10,5,22,0.97)';
-  fogCtx.fillRect(0, 0, W, H);
+  fogCtx.fillRect(v.x, v.y, v.w, v.h);
   fogCtx.globalCompositeOperation = 'destination-out';
   fogCtx.globalAlpha = 1;
-  fogCtx.drawImage(expCanvas, 0, 0, expCanvas.width, expCanvas.height, 0, 0, W, H);
+  fogCtx.drawImage(expCanvas, v.x * fs, v.y * fs, v.w * fs, v.h * fs, v.x, v.y, v.w, v.h);
   punchLive();
   fogCtx.globalCompositeOperation = 'source-atop';
   fogCtx.fillStyle = 'rgba(96,58,160,0.30)';
-  fogCtx.fillRect(0, 0, W, H);
-  ctx.save();
-  ctx.filter = 'blur(12px)';
-  ctx.drawImage(fogCanvas, 0, 0, W, H);
-  ctx.restore();
+  fogCtx.fillRect(v.x, v.y, v.w, v.h);
+  blit(fogCanvas, 12, 1);
   // the gradient fade IS the boundary: no drawn line at the edge of sight
 }
 
@@ -16226,7 +16264,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '19 Nov \u00B7 THE REACH, STAGE TWO';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '23 Nov \u00B7 THE REACH, STAGE TWO C';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {

@@ -188,6 +188,14 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Caveats: the beat makes him a constable for four hours, so he will collar thieves and could be shot as the law; the `deal` on a night the crew is elsewhere still happens (the abstract off-screen day is only the clock, not simulated events); Sable has one line.
 - Test `LV1` (pressures, the badge offer with Marek walking up, the deputy's day and beat, the courier's offer, the deal night watched by the crew and a badge, the report, the arrest, the shift respecting the cells, save/load/reset). 415 tests.
 
+### The fog, made cheap (23 Nov) · the concourse frame rate
+Ben saw the Cross stutter. Profiled headless: 63% of the frame was `ctx.restore()` in `drawFog`, i.e. two `filter: blur()` draws of the whole fog canvas, which on the Cross (5600×3520) at retina scale was an 80-megapixel layer cleared, filled, composited and blurred twice a frame. Three changes, all in `drawFog`/`initFog`/`drawEnemyCones`:
+- **Resolution cap**: `FOG_MAX_PX 2400`: `fogScale` (`os`) is `min(viewScale*DPR, 2400/max(W,H))`, so fog, explored memory and cone canvases are never wider than 2400 px. The blur hides the grain.
+- **Viewport only**: `visWorldRect(margin)` (camera, `viewScale`, `viewOX/OY`, canvas size → world rect) bounds every clear, fill, composite and blit. Nothing off screen is touched.
+- **Blur small, then upscale**: the two blurred passes go through `fogViews[2]` canvases at a third of screen resolution (`FOG_VIEW_DOWN 3`; blur radius scaled by view px per world unit), then one `drawImage` each to the screen.
+- **Cache**: `fogKey` (view rect, canvas size, crew positions/facing/watch to half a pixel, scans) plus `fogDirty` (set by `doorDamage`, `damageChunk`, `initFog`): when nothing changed the two views are redrawn as they are, no rebuild.
+- Measured headless (software raster, so relative only): Cross idle 6.4 fps → 37 fps (59 with fog off). On a GPU the old cost was the same work, so expect the stutter gone.
+
 ### The board (23 Nov) · the settlement first, dev postings never lapse, the Cross board by the start
 - `contractsAt` pushes `REACH_LEVEL` before `REACH_TEST`, so the settlement card is first. Both dev levels are `always: true` (never lapse) and renamed `The Manticore Run · Rusk's Reach (stage two)` and `Rusk's Reach · test street (stage one)`. Ben took the first card and got the test street; that is why.
 - `CROSS_PORT.stations` board moved from (0.33, 0.80) to (0.462, 0.592), beside the crew's arrival point (0.50, 0.57).
