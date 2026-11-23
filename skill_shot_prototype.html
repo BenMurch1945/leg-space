@@ -6714,7 +6714,7 @@ function mapPick(ev){
   mapRender();
 }
 function contractsAt(nodeId){
-  if(typeof DEV_CRATE !== 'undefined' && DEV_CRATE && typeof reachTestIdx === 'function'){ reachTestIdx(); reachIdx(); }   // the test street and the settlement, on dev boards only
+  if(typeof DEV_CRATE !== 'undefined' && DEV_CRATE && typeof reachTestIdx === 'function'){ reachIdx(); reachTestIdx(); }   // the settlement, then the test street, on dev boards only
   const out = [];
   for(let i = 0; i < LEVELS.length; i++){
     if(LEVELS[i].at !== nodeId || LEVELS[i].hidden) continue;   // Erina's work is behind a hatch, not on a board
@@ -11942,7 +11942,7 @@ const ERINA_LEVEL = {
 // ---- (Ben, 12 Nov) Rusk's Reach, stage one: a test street. Three buildings with doors, six Blackhooks with jobs, the Manticore loose.
 // Dev only (listed while DEV_CRATE is on). The settlement proper comes later. ----
 const REACH_TEST = {
-  name: 'Rusk\u2019s Reach \u00B7 test street', fee: 0, par: 0, at: 'gateway', crew: 4, get hidden(){ return typeof DEV_CRATE === 'undefined' ? true : !DEV_CRATE; }, dev: true, payAt: 'erina', issuer: 'erina',
+  name: 'Rusk\u2019s Reach \u00B7 test street (stage one)', fee: 0, par: 0, at: 'gateway', crew: 4, get hidden(){ return typeof DEV_CRATE === 'undefined' ? true : !DEV_CRATE; }, dev: true, always: true, payAt: 'erina', issuer: 'erina',
   world: {w: 2200, h: 1400},
   client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
   location: 'Orven \u00B7 Rusk\u2019s Reach (a street of it)', time: 'Now',
@@ -11988,7 +11988,7 @@ const REACH_TEST = {
 // the yard, the market, narrow streets and low cover between. Eighteen Blackhooks with jobs; the Manticore loose in the middle of it.
 // Dev only until stage three wires it to Erina, Hesper and the Gannet. Rusk, Borr and Gorr are stage four. ----
 const REACH_LEVEL = {
-  name: 'Rusk\u2019s Reach \u00B7 the settlement', fee: 1500, par: 0, at: 'gateway', crew: 4, get hidden(){ return typeof DEV_CRATE === 'undefined' ? true : !DEV_CRATE; }, dev: true, payAt: 'erina', issuer: 'erina',
+  name: 'The Manticore Run \u00B7 Rusk\u2019s Reach (stage two)', fee: 1500, par: 0, at: 'gateway', crew: 4, get hidden(){ return typeof DEV_CRATE === 'undefined' ? true : !DEV_CRATE; }, dev: true, always: true, payAt: 'erina', issuer: 'erina',
   world: {w: 3200, h: 2200},
   client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
   location: 'Orven \u00B7 Rusk\u2019s Reach, formerly Deadweight', time: 'The afternoon after the crash',
@@ -24766,7 +24766,7 @@ const CROSS_PORT = {
     {x: 0.780, y: 0.8200, w: 0.035, h: 0.0240},
     {x: 0.140, y: 0.7800, w: 0.030, h: 0.0220},
   ],
-  stations: [{x: 0.33, y: 0.80, id: 'board'}],
+  stations: [{x: 0.462, y: 0.592, id: 'board'}],   // (Ben, 23 Nov) the board stands beside where the crew arrive, not across the plaza
   doors: [
     {x: 0.50, y: 0.066, to: 'lanes', label: 'MARKET LANES'},
     {x: 0.50, y: 0.934, to: null, label: 'TRANSIT CONCOURSE'},
