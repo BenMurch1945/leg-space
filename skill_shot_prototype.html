@@ -4876,6 +4876,11 @@ function layout(){
     s.pkg = null; s.pkgSites = null; s.pkgFound = false;
   }
   s.extract = L.extract ? {x: L.extract.x * W, y: L.extract.y * H, r: L.extract.r * Math.min(W, H)} : null;
+  // (Ben, 24 Nov) a pickup named later: the extraction is unknown until the animal is bagged
+  s.pickups = L.pickups ? L.pickups.map(p => ({x: p.x * W, y: p.y * H, r: p.r * Math.min(W, H), label: p.label})) : null;
+  if(s.pickups){ s.extract = null; s.pickupNamed = false; }
+  s.spawners = L.spawners ? L.spawners.map(p => ({x: p.x * W, y: p.y * H, label: p.label})) : null;
+  s.reinforced = 0; s.lastReinforce = 0;
   s.everAlerted = false;
   s.noiseRings = [];
   s.civs = [];
@@ -5698,7 +5703,7 @@ function renderObjectives(){
     const qLabel = s.pkg.quarry ? (ARCHETYPES[s.pkg.quarry] || {}).label || 'the quarry' : null;
     primary = s.pkg.delivered ? '<span class="ok">✓ ' + (qLabel ? qLabel + ' delivered, breathing' : 'Package delivered') + '</span>'
             : s.pkg.live      ? '◈ Bring the ' + qLabel + ' down alive (darts, goad, screamer, fists)'
-            : s.pkg.carried   ? (currentLevel().charter ? '◈ Carry Anselm aboard the Gannet, then press the console' : '◈ Carry the ' + (qLabel || 'package') + ' to the hatch')
+            : s.pkg.carried   ? (currentLevel().charter ? '◈ Carry Anselm aboard the Gannet, then press the console' : s.pickups && !s.pickupNamed ? '◈ Carry the ' + qLabel + '; the pilot is naming the pickup' : '◈ Carry the ' + (qLabel || 'package') + ' to ' + (s.extract && s.extract.label ? s.extract.label.toLowerCase().replace('pickup · ', 'the pickup at ') : 'the hatch') + (s.extract ? ' \u00B7 ' + s.squad.filter(c => c.alive && Math.hypot(c.x - s.extract.x, c.y - s.extract.y) < s.extract.r).length + '/' + s.squad.filter(c => c.alive).length + ' there' : ''))
             : qLabel          ? '◈ Pick up the ' + qLabel + ' before it wakes'
             : currentLevel().pkgName && s.pkgFound ? '◈ Pick up Anselm; he cannot walk'
             : currentLevel().pkgName ? '◈ Find Anselm in the caves, ' + (s.pkgSites ? s.pkgSites.filter(x => !x.cleared).length : 0) + ' possible sites'
@@ -12030,10 +12035,18 @@ const REACH_LEVEL = {
   world: {w: 3200, h: 2200},
   client: 'Erina Jones', faction: 'ERINA\u2019S EXOTICS',
   location: 'Orven \u00B7 Rusk\u2019s Reach, formerly Deadweight', time: 'The afternoon after the crash',
-  brief: 'The transport came down on the east edge of Rusk\u2019s Reach with the Blackhooks\u2019 holes in it, and what was in the hold is in the town. The crew are set down beside the wreck.<br><br>The Manticore is loose somewhere in the streets. The Blackhooks are hunting it, hiding from it and running from it, and none of them want you here. It hunts what it can see, follows blood and gunfire, goes through doors, and lies up when it is spent.<br><br>Find it. Dart it (two a turn is all it will take). Pick it up. Carry it back to the wreck. Nothing here is scripted.',
-  objective: 'Find the Manticore \u00B7 sedate it \u00B7 carry it back to the wreck',
+  brief: 'The transport came down on the east edge of Rusk\u2019s Reach with the Blackhooks\u2019 holes in it, and what was in the hold is in the town. The crew are set down beside the wreck.<br><br>The Manticore is loose somewhere in the streets. The Blackhooks are hunting it, hiding from it and running from it, and none of them want you here; more of them are out on the salvage runs and will come back to the noise. It hunts what it can see, follows blood and gunfire, goes through doors, and lies up when it is spent.<br><br>Find it. Dart it (two a turn is all it will take). Pick it up. The pilot will not set down at the wreck twice: once the animal is bagged she names the pickup, and both of you have to be standing on it. Nothing here is scripted.',
+  objective: 'Find the Manticore \u00B7 sedate it \u00B7 carry it to the pickup the pilot names \u00B7 both operators on it',
   player: {x: 0.905, y: 0.47},
   extract: {x: 0.905, y: 0.47, r: 0.045},
+  // (Ben, 24 Nov) the pickup is not the wreck: once the animal is bagged the pilot names one of these, at random
+  pickups: [
+    {x: 0.30, y: 0.05, r: 0.045, label: 'THE NORTH ROAD'}, {x: 0.045, y: 0.50, r: 0.045, label: 'THE WEST GATE'}, {x: 0.60, y: 0.95, r: 0.045, label: 'THE SOUTH LANE'},
+    {x: 0.93, y: 0.12, r: 0.045, label: 'THE SALVAGE YARD'}, {x: 0.06, y: 0.93, r: 0.045, label: 'THE SOUTH-WEST CORNER'},
+  ],
+  // the roads in: Blackhooks who were out on the salvage runs come back to the noise
+  spawners: [{x: 0.30, y: 0.05, label: 'the north road'}, {x: 0.045, y: 0.50, label: 'the west gate'}, {x: 0.60, y: 0.95, label: 'the south lane'}],
+  reinforce: {from: 3, every: 4, cap: 10, size: [2, 3]},
   quarry: 'manticore',
   walls: [
     // the edge of the world
@@ -12156,6 +12169,49 @@ const REACH_LEVEL = {
     {x: 0.88, y: 0.66, w: 0.035, h: 0.018},
     {x: 0.08, y: 0.92, w: 0.035, h: 0.018},
     {x: 0.92, y: 0.9, w: 0.035, h: 0.018},
+    // crate stacks against the buildings: low cover to move between, never in a doorway
+    {x: 0.1218, y: 0.063, w: 0.013, h: 0.017},
+    {x: 0.1785, y: 0.063, w: 0.013, h: 0.017},
+    {x: 0.2352, y: 0.063, w: 0.013, h: 0.017},
+    {x: 0.087, y: 0.1215, w: 0.013, h: 0.017},
+    {x: 0.3535, y: 0.043, w: 0.013, h: 0.017},
+    {x: 0.4135, y: 0.043, w: 0.013, h: 0.017},
+    {x: 0.4135, y: 0.2, w: 0.013, h: 0.017},
+    {x: 0.317, y: 0.1215, w: 0.013, h: 0.017},
+    {x: 0.45, y: 0.1215, w: 0.013, h: 0.017},
+    {x: 0.5035, y: 0.043, w: 0.013, h: 0.017},
+    {x: 0.5635, y: 0.043, w: 0.013, h: 0.017},
+    {x: 0.467, y: 0.1215, w: 0.013, h: 0.017},
+    {x: 0.6, y: 0.1215, w: 0.013, h: 0.017},
+    {x: 0.6835, y: 0.083, w: 0.013, h: 0.017},
+    {x: 0.7435, y: 0.083, w: 0.013, h: 0.017},
+    {x: 0.8035, y: 0.083, w: 0.013, h: 0.017},
+    {x: 0.84, y: 0.1465, w: 0.013, h: 0.017},
+    {x: 0.84, y: 0.2565, w: 0.013, h: 0.017},
+    {x: 0.1085, y: 0.383, w: 0.013, h: 0.017},
+    {x: 0.1785, y: 0.383, w: 0.013, h: 0.017},
+    {x: 0.1785, y: 0.64, w: 0.013, h: 0.017},
+    {x: 0.067, y: 0.4315, w: 0.013, h: 0.017},
+    {x: 0.067, y: 0.5915, w: 0.013, h: 0.017},
+    {x: 0.22, y: 0.5915, w: 0.013, h: 0.017},
+    {x: 0.4135, y: 0.58, w: 0.013, h: 0.017},
+    {x: 0.287, y: 0.4515, w: 0.013, h: 0.017},
+    {x: 0.586, y: 0.423, w: 0.013, h: 0.017},
+    {x: 0.651, y: 0.423, w: 0.013, h: 0.017},
+    {x: 0.651, y: 0.62, w: 0.013, h: 0.017},
+    {x: 0.69, y: 0.4765, w: 0.013, h: 0.017},
+    {x: 0.69, y: 0.5665, w: 0.013, h: 0.017},
+    {x: 0.171, y: 0.703, w: 0.013, h: 0.017},
+    {x: 0.246, y: 0.9, w: 0.013, h: 0.017},
+    {x: 0.127, y: 0.7565, w: 0.013, h: 0.017},
+    {x: 0.29, y: 0.7565, w: 0.013, h: 0.017},
+    {x: 0.29, y: 0.8465, w: 0.013, h: 0.017},
+    {x: 0.4735, y: 0.88, w: 0.013, h: 0.017},
+    {x: 0.5402, y: 0.703, w: 0.013, h: 0.017},
+    {x: 0.367, y: 0.7515, w: 0.013, h: 0.017},
+    {x: 0.791, y: 0.88, w: 0.013, h: 0.017},
+    {x: 0.83, y: 0.7365, w: 0.013, h: 0.017},
+    {x: 0.83, y: 0.8265, w: 0.013, h: 0.017},
   ],
   enemies: [
     {x: 0.50, y: 0.385, type: 'manticore'},
@@ -13239,6 +13295,17 @@ function gangDecide(e){
     if(e.job === 'hide') return {path: null, shots: 0, idle: true};
     const ang = Math.atan2(e.y - ct.y, e.x - ct.x);
     return {path: goTo({x: ct.x + Math.cos(ang) * 220, y: ct.y + Math.sin(ang) * 220}, arch.moveRange), shots: 1, target: ct};
+  }
+  if(e.rally && !crewSeen && !ct){
+    // (24 Nov) the new arrivals: to where the word said the trouble was, until they see it for themselves
+    const dR = Math.hypot(e.rally.x - e.x, e.rally.y - e.y);
+    if(dR < 90) e.rally = null;
+    else{
+      let p = goTo(e.rally, arch.moveRange);
+      if(!p){ for(let k = 0; k < 12 && !p; k++){ const a = (k / 12) * Math.PI * 2, rr = 140 + (k % 3) * 110; const tx = e.rally.x + Math.cos(a) * rr, ty = e.rally.y + Math.sin(a) * rr; if(tx < 40 || ty < 40 || tx > W - 40 || ty > H - 40 || !openGround(tx, ty, e.r + 4)) continue; p = goTo({x: tx, y: ty}, arch.moveRange); } }
+      if(p) return {path: p, shots: 0, patrol: true};
+      e.rally = null;   // no way to it from here: back to the ordinary hunt
+    }
   }
   if(e.job === 'hunt' && !crewSeen && beast && !ct){
     // nothing in sight: toward where the animal is, the way a hunting party does
@@ -16264,7 +16331,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '23 Nov \u00B7 THE REACH, STAGE TWO C';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '24 Nov \u00B7 THE REACH, STAGE TWO D';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -20347,6 +20414,19 @@ function freeRoam(){
     (state.enemies || []).every(e => !e.alive || e.ko));
 }
 // the contract is done when YOU say it's done: loot, look around, then sign off
+// (Ben, 24 Nov) the pilot names the pickup: one of the level's candidates, at random, never the one nearest the start
+function pickupName(){
+  const s = state; if(!s.pickups || s.pickupNamed) return null;
+  const L = currentLevel(); const sx = L.player ? L.player.x * W : W / 2, sy = L.player ? L.player.y * H : H / 2;
+  const far = s.pickups.slice().sort((a, b) => Math.hypot(b.x - sx, b.y - sy) - Math.hypot(a.x - sx, a.y - sy));
+  const pool = far.slice(0, Math.max(1, far.length - 1));
+  const p = pool[Math.floor(Math.random() * pool.length)];
+  s.extract = {x: p.x, y: p.y, r: p.r, label: 'PICKUP \u00B7 ' + p.label}; s.pickupNamed = true;
+  showBannerLater('THE PILOT NAMES THE PICKUP \u00B7 BOTH OF YOU ON IT', p.label, false, 5200);
+  chronicle('contract', 'The pilot named the pickup: ' + p.label.toLowerCase() + '. She will not set down at the wreck twice.');
+  if(typeof camTour === 'function') camTour(p.x, p.y, 2200);
+  return p;
+}
 function winOffer(){
   if(state.winReady || state.over) return;
   state.winReady = true;
@@ -21071,9 +21151,46 @@ function copCuffPass(){
     }
   }
 }
+// (Ben, 24 Nov) the Blackhooks out on the salvage runs come back to the noise: a few at a time, off one of the roads, every few turns
+// while the town is thin. They rally on the animal if any of their own are near it, otherwise on the crew's last known position.
+const GANG_NAMES_MORE = ['Harl Dunning', 'Petra Coyle', 'Skelt', 'Mab Orrery', 'Jory Flint', 'Wren Askew', 'Dobb', 'Cass Mallow', 'Ivo Tench', 'Lark', 'Benna Crook', 'Quill'];
+function gangReinforce(){
+  const s = state, L = currentLevel(), R = L.reinforce; if(!R || !s.spawners || !s.spawners.length || s.over) return null;
+  if(s.turn < R.from || s.turn - (s.lastReinforce || 0) < R.every) return null;
+  const alive = s.enemies.filter(e => e.alive && e.side === 'gang').length;
+  if(alive >= R.cap) return null;
+  s.lastReinforce = s.turn;
+  const sp = s.spawners[Math.floor(Math.random() * s.spawners.length)];
+  const n = R.size[0] + Math.floor(Math.random() * (R.size[1] - R.size[0] + 1));
+  const used = new Set(s.enemies.map(e => e.name));
+  const names = GANG_NAMES_MORE.filter(nm => !used.has(nm));
+  const beast = manticoreFoe();
+  const near = beast && s.enemies.some(e => e.alive && e.side === 'gang' && Math.hypot(e.x - beast.x, e.y - beast.y) < 700);
+  const live = s.squad.filter(c => c.alive && !c.downed);
+  const rally = (beast && near) ? {x: beast.x, y: beast.y} : (s.pkg && !s.pkg.live && s.pkg.carried) ? {x: s.pkg.carried.x, y: s.pkg.carried.y}
+    : live.length ? {x: live.reduce((a, c) => a + c.x, 0) / live.length, y: live.reduce((a, c) => a + c.y, 0) / live.length} : null;
+  const types = ['wrecker', 'gunhand', 'scrapper', 'gunhand', 'lookout'];
+  const made = [];
+  for(let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2, rr = 30 + Math.random() * 50;
+    let x = sp.x + Math.cos(a) * rr, y = sp.y + Math.sin(a) * rr;
+    const bodyNear = (px, py) => s.enemies.some(o => o.alive && Math.hypot(o.x - px, o.y - py) < o.r + 30) || s.squad.some(c => c.alive && Math.hypot(c.x - px, c.y - py) < c.r + 30);
+    if(!openGround(x, y, 12) || bodyNear(x, y)){ x = sp.x; y = sp.y; for(let k = 0; k < 10 && (!openGround(x, y, 12) || bodyNear(x, y)); k++){ const a2 = (k / 10) * Math.PI * 2; x = sp.x + Math.cos(a2) * 70; y = sp.y + Math.sin(a2) * 70; } }
+    const e = foeAt(types[Math.floor(Math.random() * types.length)], x, y);
+    e.side = 'gang'; e.job = 'hunt'; e.faction = 'THE BLACKHOOKS'; e.name = names.length ? names.splice(Math.floor(Math.random() * names.length), 1)[0] : 'A Blackhook';
+    e.alert = 'suspicious'; e.rally = rally ? {x: rally.x, y: rally.y} : null;
+    s.enemies.push(e); made.push(e);
+  }
+  s.reinforced = (s.reinforced || 0) + made.length;
+  showBanner((made.length === 2 ? 'TWO' : 'THREE') + ' MORE BLACKHOOKS \u00B7 IN OFF ' + sp.label.toUpperCase(), '#e0a33e');
+  chronicle('combat', made.length + ' more Blackhooks came in off ' + sp.label + ': ' + made.map(e => e.name).join(', ') + '.');
+  updateHud();
+  return made;
+}
 function startEnemyTurn(){
   if(state.shipDeck && !state.deckCombat) return;
   qilinTurnStart();
+  if(currentLevel().reinforce) gangReinforce();
   if(state.deckCombat && !state.enemies.some(e2 => e2.alive && !e2.ko) &&
      !(state.boarding && !state.boarding.spawned)){
     // irons out, nobody opposite: the port still takes its turn, thieves run,
@@ -22292,6 +22409,7 @@ function frame(now){
         addPopup(q.x, q.y - 20, 'DOWN AND BREATHING', '#9fe0d8');
         showBanner('DOWN AND BREATHING \u00B7 BAG IT', '#9fe0d8');
         chronicle('combat', 'The ' + (ARCHETYPES[q.type].label || 'quarry') + ' went down alive. Now it has to be carried.');
+        pickupName();
       }else if(!q && s.qilinTaken){
         s.pkg = null;   // netted and dragged off: not dead, not yours
       }else if(!q || !q.alive){
@@ -22321,9 +22439,15 @@ function frame(now){
         showBanner('PACKAGE DROPPED', '#e0a33e');
       }else if(s.extract &&
                Math.hypot(carrier.x - s.extract.x, carrier.y - s.extract.y) < s.extract.r){
-        s.pkg.delivered = true;
-        addPopup(carrier.x, carrier.y - carrier.r - 14, 'DELIVERED', '#6fd6ff');
-        winOffer();
+        // (Ben, 24 Nov) nobody leaves alone: every living operator stands on the pickup before it counts
+        const outside = s.squad.filter(c => c.alive && c !== carrier && Math.hypot(c.x - s.extract.x, c.y - s.extract.y) >= s.extract.r);
+        if(outside.length){
+          if(!s.allHandsSaid){ s.allHandsSaid = true; showBanner('ALL HANDS TO THE PICKUP \u00B7 ' + outside.map(c => c.name.toUpperCase()).join(', ') + ' STILL OUT', '#e0a33e'); }
+        }else{
+          s.pkg.delivered = true;
+          addPopup(carrier.x, carrier.y - carrier.r - 14, 'DELIVERED', '#6fd6ff');
+          winOffer();
+        }
       }
     }
   }

@@ -67,6 +67,24 @@ low = [(0.33, 0.30), (0.40, 0.33), (0.47, 0.30), (0.54, 0.34), (0.24, 0.50), (0.
        (0.64, 0.84), (0.28, 0.86), (0.10, 0.30), (0.86, 0.78), (0.46, 0.92), (0.22, 0.66), (0.60, 0.26), (0.88, 0.66), (0.08, 0.92), (0.92, 0.90)]
 for (x, y) in low: walls.append((None, seg(x, y, 0.035, 0.018, False)))
 
+# (Ben, 24 Nov) nodules of low cover against the long walls: crate stacks touching each face, clear of the doorways
+walls.append(('// crate stacks against the buildings: low cover to move between, never in a doorway', None))
+CW, CH = 0.013, 0.017
+for (x, y, w, h, doors, label) in B:
+    dn = [t for sd, t in doors if sd == 'n']; ds = [t for sd, t in doors if sd == 's']; de = [t for sd, t in doors if sd == 'e']; dw = [t for sd, t in doors if sd == 'w']
+    def clear(ts, t, length, gap): return all(abs(tt * length - t) > gap for tt in ts)
+    # north and south faces: every 0.055 along, offset so the first sits in from the corner
+    n = int(w / 0.055)
+    for i in range(n):
+        t = (i + 0.5) * w / n
+        if clear(dn, t, w, 0.045): walls.append((None, seg(x + t - CW / 2, y - CH, CW, CH, False)))
+        if clear(ds, t, w, 0.045) and (i % 2 == 1): walls.append((None, seg(x + t - CW / 2, y + h, CW, CH, False)))
+    m = int(h / 0.08)
+    for i in range(m):
+        t = (i + 0.5) * h / m
+        if clear(dw, t, h, 0.06) and (i % 2 == 0): walls.append((None, seg(x - CW, y + t - CH / 2, CW, CH, False)))
+        if clear(de, t, h, 0.06): walls.append((None, seg(x + w, y + t - CH / 2, CW, CH, False)))
+
 lines = []
 for c, s in walls:
     if c: lines.append('    ' + c)
