@@ -4882,11 +4882,11 @@ const rt1 = (() => {
   m.feedT = 1;
   // (13 Nov) a round in the hide while it feeds: the meal is over and it goes for the shooter
   const shooter = gang.find(e => e.job === 'hunt' && e.alive); shooter.x = m.x - 250; shooter.y = m.y;
-  G.hitEnemy(m, {x: m.x - 5, y: m.y, vx: 400, vy: 0, maxSpeed: 400, dmg: 2, team: 'enemy', owner: shooter, r: 3, pierced: null, flown: 0});
+  G.hitEnemy(m, {x: m.x - 5, y: m.y + 8, vx: 400, vy: 0, maxSpeed: 400, dmg: 2, team: 'enemy', owner: shooter, r: 3, pierced: null, flown: 0});   // off the heart: no flinch
   const roused = m.feedT === 0 && m.provoked === shooter && /OFF ITS MEAL/.test(m.doing);
   m.chargeCd = 2;
   const d2 = G.manticoreDecide(m);
-  const afterShooter = !!d2 && d2.target === shooter && !m.provoked && (d2.charge === true || d2.spines === true || !!d2.path);
+  const afterShooter = !!d2 && !m.provoked && ((d2.setting === true && m.setting && m.setting.who === shooter) || d2.target === shooter);   // (25 Nov) it sets its feet at the shooter, or goes for them
   m.feedT = 0; m.chargeCd = 0; m.spineCd = 0;
   // a hunter shoots the animal when it is the nearer threat
   const hunter2 = gang.find(e => e.job === 'hunt' && e.alive);
@@ -4907,7 +4907,7 @@ const rt1 = (() => {
   // the door: the Manticore smashes it when it stands at it with prey behind
   const door = G.state.walls.find(w => w.door);
   const cx = door.x + door.w / 2, cy = door.y + door.h / 2;
-  m.x = cx; m.y = cy + m.r + 30; m.feedT = 0; m.restT = 0; m.needs.fatigue = 0; m.hp = m.maxHp;
+  m.x = cx; m.y = cy + m.r + 30; m.feedT = 0; m.restT = 0; m.needs.fatigue = 0; m.hp = m.maxHp; m.setting = null; m.stunT = 0; m.flinchT = 0; m.charging = false;
   for(const e of gang) if(e.alive){ e.x = G.dims().W * 0.95; e.y = G.dims().H * 0.95; }
   hider.x = cx; hider.y = cy - 60; hider.alive = true; hider.hp = hider.maxHp - 1;   // (19 Nov) it cannot see through the door; blood is the scent
   const s1 = G.manticoreDecide(m); const bit1 = !!s1 && s1.idle === true && /THROUGH THE DOOR/.test(m.doing);   // (15 Nov) one bite is the door
@@ -4917,9 +4917,31 @@ const rt1 = (() => {
   const capped = m.sed === 32 && !m.ko && G.sedCap(m) >= 60;
   G.state.turn = 6; G.addSed(m, 16); const next = m.sed === 48;
   // (13 Nov) the charge and the spines: prey in the middle distance with a clear run; the stride; unseen hostiles take no screen time
-  m.x = G.dims().W * 0.55; m.y = G.dims().H * 0.4; m.chargeCd = 0; m.spineCd = 0; m.feedT = 0; m.restT = 0; m.needs.fatigue = 0; m.hp = m.maxHp; m.sed = 0;
+  m.x = G.dims().W * 0.55; m.y = G.dims().H * 0.4; m.chargeCd = 0; m.spineCd = 0; m.feedT = 0; m.restT = 0; m.needs.fatigue = 0; m.hp = m.maxHp; m.sed = 0; m.flinchT = 0; m.stunT = 0; m.setting = null;
   const prey = gang.find(e => e.alive); prey.x = m.x - 220; prey.y = m.y;
-  const cd = G.manticoreDecide(m); const charges = !!cd && cd.charge === true && !!cd.path && cd.target === prey && m.chargeCd === 2 && /CHARGING/.test(m.doing || '');
+  // (25 Nov) telegraphed: it sets its feet first and shows the lane; the charge comes the turn after, down that lane
+  const cd0 = G.manticoreDecide(m); const sets = !!cd0 && cd0.setting === true && !!m.setting && m.setting.who === prey && /SETTING ITS FEET/.test(m.doing || '') && m.chargeCd === 0;
+  const cd = G.manticoreDecide(m); const charges = sets && !!cd && cd.charge === true && !!cd.path && cd.target === prey && m.chargeCd === 2 && /CHARGING/.test(m.doing || '') && !m.setting;
+  // step out of the lane and it runs past into empty air
+  m.chargeCd = 0; m.charging = false; G.manticoreDecide(m); const set2 = !!m.setting;
+  prey.y = m.y + 140;
+  const cd2 = G.manticoreDecide(m); const past = set2 && !!cd2 && cd2.charge === true && !cd2.target && !cd2.crash && /EMPTY AIR/.test(m.doing || '') && Math.abs(cd2.path[1].y - m.y) < 1;
+  prey.y = m.y;
+  // a crate stack in the lane: it piles in and loses the next turn
+  const lowW = G.state.walls.find(w => !w.high && w.w > 60);
+  const lwx = lowW.x + lowW.w / 2, lwy = lowW.y + lowW.h / 2;
+  m.x = lwx - 150; m.y = lwy; m.chargeCd = 0; m.charging = false; m.setting = null; m.stunT = 0; prey.x = lwx + 150; prey.y = lwy;
+  const clearHigh = G.segClearHigh(m.x, m.y, prey.x, prey.y);
+  const cs0 = G.manticoreDecide(m); const setsAtWall = clearHigh && !!cs0 && !!m.setting;
+  const cs1 = G.manticoreDecide(m); const crashes = setsAtWall && !!cs1 && cs1.crash === true && m.stunT === 1 && /INTO THE WALL/.test(m.doing || '') && cs1.path[1].x < lowW.x;
+  const cs2 = G.manticoreDecide(m); const stunned = crashes && !!cs2 && cs2.idle === true && /STUNNED/.test(m.doing || '') && m.stunT === 0;
+  // the flinch: a round through the heart of it, or the second dart of a turn
+  m.x = G.dims().W * 0.55; m.y = G.dims().H * 0.4; m.chargeCd = 2; prey.x = m.x - 220; prey.y = m.y; m.flinchT = 0;
+  G.hitEnemy(m, {x: m.x - 5, y: m.y, vx: 400, vy: 0, maxSpeed: 400, dmg: 3, team: 'enemy', owner: prey, r: 3, pierced: null, flown: 0});
+  const flinchHit = m.flinchT === 1 && /FLINCHING/.test(m.doing || '');
+  const fd1 = G.manticoreDecide(m); const givesGround = flinchHit && !!fd1 && fd1.flee === true && !!fd1.path && fd1.path[fd1.path.length - 1].x > m.x && /GIVING GROUND/.test(m.doing || '');
+  m.flinchT = 0; m.sed = 0; G.state.turn = 9; G.addSed(m, 10); const oneDart = m.flinchT === 0; G.addSed(m, 10); const twoDarts = m.flinchT === 1 && /TWO DARTS/.test(m.doing || '');
+  m.flinchT = 0; m.sed = 0; m.charging = false; m.setting = null;
   G.state.bullets = [];
   const second = gang.find(e => e.alive && e !== prey); second.x = m.x + 200; second.y = m.y + 20;
   const sd = G.manticoreDecide(m); const ring = G.state.bullets.filter(b => b.owner === m);
@@ -4931,7 +4953,7 @@ const rt1 = (() => {
   // (15 Nov) the door charge: prey behind a door in the middle distance, the run and the door in one turn
   const door2 = G.state.walls.find(w => w.door && w.w > w.h);
   const dc2x = door2.x + door2.w / 2, dc2y = door2.y + door2.h / 2;
-  m.x = dc2x; m.y = dc2y + m.r + 200; m.chargeCd = 0; m.feedT = 0; m.restT = 0; m.needs.fatigue = 0;
+  m.x = dc2x; m.y = dc2y + m.r + 200; m.chargeCd = 0; m.feedT = 0; m.restT = 0; m.needs.fatigue = 0; m.stunT = 0; m.flinchT = 0; m.setting = null; m.charging = false;
   for(const e of gang) if(e.alive){ e.x = G.dims().W * 0.05; e.y = G.dims().H * 0.95; }   // far corner, out of its sight
   prey.x = dc2x; prey.y = dc2y - 70; prey.hp = prey.maxHp - 1;   // bleeding behind the door: a scent it cannot see
   const dd = G.manticoreDecide(m);
@@ -4968,7 +4990,7 @@ const rt1 = (() => {
   const quick = G.etWait({visible: false}, 0.5) <= 0.04 && G.etWait({visible: true}, 0.5) === 0.5;
   G.devCrateSet(false);
   G.state.enemies = []; G.checkWin(); G.afterActionReturn && G.afterActionReturn(); G.doShipReset(); G.reachTestDrop();
-  return {ok: listed && setup && sides && bite && feeds && roused && afterShooter && aimsBeast && shotBeast && hides && runs && bit1 && broke && capped && next && charges && spines && oneNoSpines && doorRun && doorGone && blind && smells && hears && strideOk && slinks && liesUp && reselected && strode && quick, listed, setup, sides, bite, feeds, roused, afterShooter, aimsBeast, shotBeast, hides, runs, bit1, broke, capped, next, charges, spines, oneNoSpines, doorRun, doorGone, blind, smells, hears, strideOk, slinks, liesUp, reselected, strode, quick};
+  return {ok: listed && setup && sides && bite && feeds && roused && afterShooter && aimsBeast && shotBeast && hides && runs && bit1 && broke && capped && next && charges && past && crashes && stunned && givesGround && oneDart && twoDarts && spines && oneNoSpines && doorRun && doorGone && blind && smells && hears && strideOk && slinks && liesUp && reselected && strode && quick, listed, setup, sides, bite, feeds, roused, afterShooter, aimsBeast, shotBeast, hides, runs, bit1, broke, capped, next, charges, past, crashes, stunned, givesGround, oneDart, twoDarts, spines, oneNoSpines, doorRun, doorGone, blind, smells, hears, strideOk, slinks, liesUp, reselected, strode, quick};
 })();
 console.log('RT1 the Reach, stage one:', rt1.ok ? 'PASS' : 'FAIL', rt1.ok ? '' : JSON.stringify(rt1));
 // RR1 (Ben, 19 Nov) Rusk's Reach, stage two: the settlement loads, ten buildings with doors the animal fits through, every Blackhook standing

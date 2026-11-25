@@ -1822,6 +1822,7 @@ function addSed(u, amt, author){
     if(u.sedTurn !== (state.turn || 0)){ u.sedTurn = state.turn || 0; u.sedHits = 0; }
     u.sedHits = (u.sedHits || 0) + 1;
     if(u.sedHits > MANTICORE.dartsPerTurn){ addPopup(u.x, u.y - u.r - 14, 'IT SHRUGS IT OFF \u00B7 2 A TURN', '#6fd6ff'); return; }
+    if(u.sedHits === MANTICORE.dartsPerTurn && u.type === 'manticore'){ u.flinchT = MANTICORE.flinchTurns; u.setting = null; u.doing = 'FLINCHING \u00B7 TWO DARTS'; if(u.visible) addPopup(u.x, u.y - u.r - 26, 'FLINCH', '#f0a860'); }   // (Ben, 25 Nov)
   }
   explainState('sedated');
   u.sed = (u.sed || 0) + amt;
@@ -4056,7 +4057,7 @@ const ARCH_DOSSIERS = {
   scrapper: 'A Blackhook stripper: in and out of a wreck before the fire is out. Pistol, knife, quick legs, and no stomach for a fair fight.',
   gunhand: 'A Blackhook yard guard with a carbine. Holds a corner and shoots straight. The nearest thing the gang has to a soldier.',
   lookout: 'A Blackhook on the high ground with a long gun. Sees first, shoots far, runs early.',
-  manticore: 'Erina\u2019s lost animal: a lion-sized thing with a tail that throws spines when it is crowded. It hunts what it can see, follows blood, gunfire and the last place it saw you, charges across open ground, goes through doors, slows as it tires and slinks out of sight to lie up. Dart it; do not fight it.',
+  manticore: 'Erina\u2019s lost animal: a lion-sized thing with a tail that throws spines when it is crowded. It hunts what it can see, follows blood, gunfire and the last place it saw you, goes through doors, slows as it tires and slinks out of sight to lie up. It sets its feet before it charges: step out of the lane, or brace and take half. A crate stack in its way stuns it. A hard hit or two darts in a turn make it flinch. Dart it; do not fight it.',
 };
 let sheetDrag = null;
 let sheetCtx = null;   // {c, render}: the ov-level listeners read the live context
@@ -10933,6 +10934,7 @@ function hitEnemy(e, b){
     return;
   }
   let dmg = impactDamage(b) * pierceMul;
+  if(e.type === 'manticore' && crit && dmg > 0 && !e.ko){ e.flinchT = MANTICORE.flinchTurns; e.setting = null; e.doing = 'FLINCHING \u00B7 A HARD HIT'; if(e.visible) addPopup(e.x, e.y - e.r - 26, 'FLINCH', '#f0a860'); }   // (Ben, 25 Nov)
   if(e.type === 'manticore' && e.feedT > 0 && b.owner && b.owner.alive){   // (Ben, 13 Nov) a round in the hide ends the meal; it remembers who
     e.feedT = 0; e.provoked = b.owner;
     e.doing = 'SHOT OFF ITS MEAL \u00B7 AFTER ' + String(b.owner.name || ARCHETYPES[b.owner.type] && ARCHETYPES[b.owner.type].label || 'THE SHOOTER').toUpperCase();
@@ -13069,7 +13071,8 @@ function woodTick(){
 const MANTICORE = {hungerStart: 60, hungerPerTurn: 4, feedTurns: 1, feedHunger: 50, fatiguePerMove: 9, fatigueRest: 85, restTurns: 2, fleeHp: 0.35, doorBite: 30, smell: 700, dartsPerTurn: 2,
   chargeMin: 140, chargeMax: 330, chargeMul: 1.3, chargeCd: 2, spineMin: 90, spineMax: 320, spineCd: 3,
   feedHealFrac: 0.5, spineCount: 12, spineMinFoes: 2,   // (Ben, 15 Nov) one turn on a body heals half its health; the tail throws twelve spines all round, and only when two or more are close
-  smellSeen: 300, scentTurns: 3, tiredFrom: 40, tiredFloor: 0.33, chargeTired: 60, restUntil: 25, restRecover: 35};   // (Ben, 19 Nov) senses and tiredness
+  smellSeen: 300, scentTurns: 3, tiredFrom: 40, tiredFloor: 0.33, chargeTired: 60, restUntil: 25, restRecover: 35,   // (Ben, 19 Nov) senses and tiredness
+  laneHalf: 34, stunTurns: 1, flinchTurns: 1, flinchBack: 170, bracedChargeMul: 0.5};   // (Ben, 25 Nov) the telegraphed charge and the flinch
 function manticoreFoe(){ return (state.enemies || []).find(e => e.type === 'manticore' && e.alive) || null; }
 function manticoreInit(e){
   e.side = 'beast'; e.bigBeast = true; e.name = 'The Manticore'; e.race = 'MANTICORE'; e.faction = 'THE WILD';
@@ -13158,6 +13161,23 @@ function manticoreDecide(e){
   const g = buildMoveGraph(e);
   const tired = manticoreTired(e);
   const goTo = (pt, budget) => { const t = clampTargetPoint(pt.x, pt.y, g.rects, e.r); const path = findPath({x: e.x, y: e.y}, t, g); return path && path.length ? truncatePath(path, (budget || arch.moveRange) * tired) : null; };
+  // (Ben, 25 Nov) stunned: it ran into something and the turn is lost
+  if(e.stunT > 0){ e.stunT--; e.setting = null; doing('STUNNED \u00B7 ' + (e.stunT + 1) + ' MORE'); return idle; }
+  // flinching: a hard hit or two darts in a turn and it gives ground before it comes on again
+  if(e.flinchT > 0){
+    e.flinchT--; e.setting = null;
+    let from = null, fd = 1e9;
+    for(const o of manticoreHostiles(e)){ const d = Math.hypot(o.x - e.x, o.y - e.y); if(d < fd){ fd = d; from = o; } }
+    if(from){
+      const ang = Math.atan2(e.y - from.y, e.x - from.x);
+      let p = null;
+      for(const da of [0, 0.7, -0.7, 1.4, -1.4]){ const tx = e.x + Math.cos(ang + da) * MANTICORE.flinchBack, ty = e.y + Math.sin(ang + da) * MANTICORE.flinchBack; if(tx < e.r || ty < e.r || tx > W - e.r || ty > H - e.r) continue; p = goTo({x: tx, y: ty}, MANTICORE.flinchBack); if(p) break; }
+      doing('FLINCHED \u00B7 GIVING GROUND');
+      if(p) return {path: p, shots: 0, flee: true};
+    }
+    doing('FLINCHED');
+    return idle;
+  }
   // (Ben, 19 Nov) spent: it does not stop where it stands. It gets itself out of the crew's sight, lies up there until it has its wind, and comes back hungry.
   if(e.needs.fatigue >= MANTICORE.fatigueRest) e.lyingUp = true;
   if(e.lyingUp){
@@ -13223,14 +13243,36 @@ function manticoreDecide(e){
   const d = Math.hypot(prey.x - e.x, prey.y - e.y);
   if(d <= e.r + prey.r + 16){ doing(sp + 'TEARING AT ' + pname); return {path: null, shots: 0, melee: true, target: prey}; }
   const clear = segClearHigh(e.x, e.y, prey.x, prey.y);
-  // the charge: a straight run at prey in the middle distance, and the bite at the end of it lands harder (not when it is tired)
+  // (Ben, 25 Nov) the charge, telegraphed. It sets its feet this turn and shows the lane; next turn it runs the lane it showed,
+  // whether or not the prey is still in it. Out of the lane: it runs past. A wall or a crate stack in the lane: it piles in and is stunned.
+  if(e.setting){
+    const st = e.setting; e.setting = null;
+    const ang = Math.atan2(st.y - e.y, st.x - e.x);
+    const full = Math.min(MANTICORE.chargeMax, Math.hypot(st.x - e.x, st.y - e.y) + 60);
+    // how far the lane is clear of walls and bodies other than the prey
+    const rects = g.rects.filter(r => !(st.who && st.who.alive && Math.abs(r.x + r.w / 2 - st.who.x) < 2 && Math.abs(r.y + r.h / 2 - st.who.y) < 2));
+    let run = 0; for(let k = 10; k <= full; k += 10){ if(!segClear(e.x, e.y, e.x + Math.cos(ang) * k, e.y + Math.sin(ang) * k, rects)) break; run = k; }
+    const blocked = run < full - 10;
+    e.chargeCd = MANTICORE.chargeCd; e.needs.fatigue += MANTICORE.fatiguePerMove * 1.5;
+    // is the prey still in the lane?
+    const who = st.who && st.who.alive && !st.who.ko && !st.who.downed ? st.who : null;
+    let inLane = false, hitAt = run;
+    if(who){ const dx = who.x - e.x, dy = who.y - e.y; const along = dx * Math.cos(ang) + dy * Math.sin(ang), across = Math.abs(-dx * Math.sin(ang) + dy * Math.cos(ang)); inLane = along > 0 && along <= run + e.r + who.r && across <= MANTICORE.laneHalf + who.r; if(inLane) hitAt = Math.max(0, along - (e.r + who.r + 10)); }
+    const endAt = inLane ? hitAt : Math.max(0, run - 4);
+    const stop = {x: e.x + Math.cos(ang) * endAt, y: e.y + Math.sin(ang) * endAt};
+    if(inLane){ e.charging = true; doing(sp + 'CHARGING ' + String(who.name || 'PREY').toUpperCase()); return {path: [{x: e.x, y: e.y}, stop], shots: 0, melee: true, target: who, charge: true}; }
+    if(blocked){ e.stunT = MANTICORE.stunTurns; e.stunAt = {x: stop.x, y: stop.y}; doing(sp + 'CHARGING \u00B7 INTO THE WALL'); return {path: [{x: e.x, y: e.y}, stop], shots: 0, charge: true, crash: true}; }
+    doing(sp + 'CHARGING \u00B7 EMPTY AIR'); return {path: [{x: e.x, y: e.y}, stop], shots: 0, charge: true};
+  }
   if(clear && e.chargeCd <= 0 && e.needs.fatigue < MANTICORE.chargeTired && d >= MANTICORE.chargeMin && d <= MANTICORE.chargeMax){
     const ang = Math.atan2(prey.y - e.y, prey.x - e.x);
     const stop = {x: prey.x - Math.cos(ang) * (e.r + prey.r + 12), y: prey.y - Math.sin(ang) * (e.r + prey.r + 12)};
-    if(segClear(e.x, e.y, stop.x, stop.y, buildMoveGraph(e).rects)){
-      e.chargeCd = MANTICORE.chargeCd; e.charging = true; e.needs.fatigue += MANTICORE.fatiguePerMove * 1.5;
-      doing(sp + 'CHARGING ' + pname);
-      return {path: [{x: e.x, y: e.y}, stop], shots: 0, melee: true, target: prey, charge: true};
+    // it plans the run past high walls only: crate stacks and bodies in the lane are what it piles into
+    const pad = e.r + 3, highRects = state.walls.filter(w => w.high).map(w => ({x: w.x - pad, y: w.y - pad, w: w.w + pad * 2, h: w.h + pad * 2}));
+    if(segClear(e.x, e.y, stop.x, stop.y, highRects)){
+      e.setting = {x: prey.x, y: prey.y, who: prey, turn: state.turn || 0}; e.facing = ang;
+      doing(sp + 'SETTING ITS FEET \u00B7 CHARGING ' + pname + ' NEXT TURN');
+      return {path: null, shots: 0, idle: true, setting: true};
     }
   }
   doing(sp + 'SEES ' + pname + (tired < 1 ? ' \u00B7 TIRED' : ''));
@@ -15430,6 +15472,24 @@ function drawBeastDoing(){
       ctx.restore();
       continue;
     }
+    if(e.setting && e.visible){   // (25 Nov) the lane it will run next turn
+      const st = e.setting, ang = Math.atan2(st.y - e.y, st.x - e.x), len = Math.min(MANTICORE.chargeMax, Math.hypot(st.x - e.x, st.y - e.y) + 60), hw = MANTICORE.laneHalf;
+      const t = performance.now() / 600;
+      ctx.save();
+      ctx.translate(e.x, e.y); ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(224,120,62,' + (0.16 + 0.08 * Math.sin(t)).toFixed(2) + ')';
+      ctx.fillRect(e.r, -hw, len - e.r, hw * 2);
+      ctx.strokeStyle = 'rgba(240,168,96,.7)'; ctx.lineWidth = 1.5; ctx.setLineDash([10, 8]);
+      ctx.strokeRect(e.r, -hw, len - e.r, hw * 2);
+      ctx.setLineDash([]);
+      ctx.restore();
+      ctx.save();   // the words stay upright whichever way the lane points
+      const mx = e.x + Math.cos(ang) * (e.r + len) / 2, my = e.y + Math.sin(ang) * (e.r + len) / 2;
+      const z2 = Math.max(0.5, Math.min(2, cam.zoom || 1));
+      ctx.fillStyle = 'rgba(240,168,96,.9)'; ctx.font = "800 " + (12 / z2).toFixed(1) + "px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+      ctx.fillText('CHARGE LANE \u00B7 NEXT TURN', mx, my + hw + 16 / z2);
+      ctx.restore();
+    }
     if(!e.doing) continue;
     ctx.save();
     const z = Math.max(0.5, Math.min(2, cam.zoom || 1)), fs = 15 / z, pad = 9 / z;   // the same size on screen whatever the zoom (Ben, 15 Nov: bigger)
@@ -16331,7 +16391,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '24 Nov \u00B7 THE REACH, STAGE TWO D';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '25 Nov \u00B7 THE REACH, STAGE TWO E';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -21425,7 +21485,7 @@ function enemyMelee(e, target){
   e.noShotTurns = 0;
   const arch = ARCHETYPES[e.type];
   e.facing = Math.atan2(p.y - e.y, p.x - e.x);
-  let dmg = arch.melee * TUNE.enemyDmgMul * (e.charging ? MANTICORE.chargeMul : 1); if(e.charging){ e.charging = false; addPopup(e.x, e.y - e.r - 14, 'CHARGE', '#d9823e'); }
+  let dmg = arch.melee * TUNE.enemyDmgMul * (e.charging ? MANTICORE.chargeMul * (p.braced ? MANTICORE.bracedChargeMul : 1) : 1); if(e.charging){ e.charging = false; addPopup(e.x, e.y - e.r - 14, p.braced ? 'CHARGE \u00B7 BRACED' : 'CHARGE', '#d9823e'); }
   const bearing = Math.atan2(e.y - p.y, e.x - p.x);
   const rear = Math.abs(angleDiff(bearing, p.facing)) > 2.36;
   if(rear) dmg *= TUNE.rearMult;
@@ -21534,6 +21594,8 @@ function processEnemyTurn(realDt){
         et.stage = 'post'; et.timer = e.visible ? 0.3 : 0.05;
         return;
       }
+      // (25 Nov) a charge into a wall: dust, a popup, the turn after is lost
+      if(et.plan.crash){ et.plan.crash = false; spawnBurst(e.x + Math.cos(e.facing) * e.r, e.y + Math.sin(e.facing) * e.r, 16, '#c9a24a', 220); addPopup(e.x, e.y - e.r - 14, 'INTO THE WALL \u00B7 STUNNED', '#e0a33e'); noiseAt(e.x, e.y, 260, false, true); addStress(e, 10); }
       // (15 Nov) a door charge ends with the door in pieces
       if(et.plan.doorCharge){ const w = et.plan.doorCharge; et.plan.doorCharge = null; if(w.hp > 0 && state.walls.includes(w)){ e.facing = Math.atan2(w.y + w.h / 2 - e.y, w.x + w.w / 2 - e.x); doorDamage(w, w.hp + 1, w.x + w.w / 2, w.y + w.h / 2, false); e.doing = 'THROUGH THE DOOR'; e.charging = false; } }
       // arrived, melee if in reach, else shoot if the line is there
