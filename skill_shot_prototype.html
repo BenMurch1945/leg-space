@@ -4057,7 +4057,7 @@ const ARCH_DOSSIERS = {
   scrapper: 'A Blackhook stripper: in and out of a wreck before the fire is out. Pistol, knife, quick legs, and no stomach for a fair fight.',
   gunhand: 'A Blackhook yard guard with a carbine. Holds a corner and shoots straight. The nearest thing the gang has to a soldier.',
   lookout: 'A Blackhook on the high ground with a long gun. Sees first, shoots far, runs early.',
-  manticore: 'Erina\u2019s lost animal: a lion-sized female with a tail that throws spines when she is crowded. She hunts what she can see, follows blood, gunfire and the last place she saw you, goes through doors, slows as she tires and slinks out of sight to lie up. She sets her feet before she charges, and nothing touches her while she does: step out of the lane, or brace and take half. A crate stack in her way stuns her. A hard hit from you, or both darts in a turn, puts her off her stride for a moment; the gang\u2019s lucky rounds do not. Dart her; do not fight her.',
+  manticore: 'Erina\u2019s lost animal: a lion-sized female with a tail that throws spines when she is crowded. She hunts what she can see, follows blood, gunfire and the last place she saw you, goes through doors, slows as she tires and slinks out of sight to lie up. She sets her feet before she charges, and nothing touches her while she does: step out of the lane, or brace and take half. Crate stacks in her lane go to splinters and anyone else in it is bowled over; she will not charge at a wall. A hard hit from you, or both darts in a turn, puts her off her stride for a moment; the gang\u2019s lucky rounds do not. Dart her; do not fight her.',
 };
 let sheetDrag = null;
 let sheetCtx = null;   // {c, render}: the ov-level listeners read the live context
@@ -4991,6 +4991,7 @@ function layout(){
   });
   for(const e of s.enemies){ if(e.side === 'gang') e.alert = 'alerted'; if(e.type === 'manticore') manticoreInit(e); const dn = (L.enemies || []).find(d => d.name && Math.abs(d.x * W - e.home.x) < 1 && Math.abs(d.y * H - e.home.y) < 1); if(dn && !e.name) e.name = dn.name; }
   for(const w of s.walls) if(w.door && w.hp == null){ w.hp = w.maxHp = 30; }
+  if(L.scatter) scatterEnemies(L);   // (Ben, 26 Nov) the settlement is never the same twice: the animal and the people start somewhere else
   if(s._chests && s._chests.length){ for(const ch of s._chests) s.enemies.push(ch); s._chests = null; }   // the strongboxes go down after the people
 
   // the range issues its own iron: survives boot-time resize re-racks
@@ -12052,6 +12053,24 @@ const REACH_LEVEL = {
   // the roads in: Blackhooks who were out on the salvage runs come back to the noise
   spawners: [{x: 0.30, y: 0.05, label: 'the north road'}, {x: 0.045, y: 0.50, label: 'the west gate'}, {x: 0.60, y: 0.95, label: 'the south lane'}],
   reinforce: {from: 3, every: 4, cap: 10, size: [2, 3]},
+  scatter: {
+    // where she might be when you arrive: streets, yards, and inside the buildings she has already been through
+    starts: [
+      {x: 0.50, y: 0.385, label: 'the market square'}, {x: 0.20, y: 0.33, label: 'outside the Hook and Eye'}, {x: 0.12, y: 0.68, label: 'by the storehouse'},
+      {x: 0.62, y: 0.93, label: 'the south lane'}, {x: 0.30, y: 0.66, label: 'the south square'}, {x: 0.65, y: 0.40, label: 'the alley by the animal holding'},
+      {x: 0.185, y: 0.18, label: 'inside the Hook and Eye', inside: true}, {x: 0.48, y: 0.80, label: 'inside the processing shed', inside: true}, {x: 0.75, y: 0.21, label: 'inside the salvage workshop', inside: true},
+      {x: 0.90, y: 0.26, label: 'the salvage yard'},
+    ],
+    // where the Blackhooks might be: interiors for the hiders, open ground for the runners, anything for the hunters
+    spots: [
+      {x: 0.16, y: 0.16, inside: true}, {x: 0.22, y: 0.20, inside: true}, {x: 0.13, y: 0.24, inside: true}, {x: 0.39, y: 0.13, inside: true}, {x: 0.54, y: 0.13, inside: true},
+      {x: 0.74, y: 0.20, inside: true}, {x: 0.78, y: 0.26, inside: true}, {x: 0.70, y: 0.14, inside: true}, {x: 0.14, y: 0.52, inside: true}, {x: 0.17, y: 0.58, inside: true},
+      {x: 0.38, y: 0.50, inside: true}, {x: 0.63, y: 0.53, inside: true}, {x: 0.215, y: 0.81, inside: true}, {x: 0.46, y: 0.80, inside: true}, {x: 0.52, y: 0.84, inside: true}, {x: 0.765, y: 0.79, inside: true},
+      {x: 0.40, y: 0.26}, {x: 0.50, y: 0.24}, {x: 0.56, y: 0.30}, {x: 0.44, y: 0.345}, {x: 0.30, y: 0.33}, {x: 0.20, y: 0.33}, {x: 0.62, y: 0.37}, {x: 0.86, y: 0.23}, {x: 0.92, y: 0.26},
+      {x: 0.26, y: 0.62}, {x: 0.20, y: 0.80}, {x: 0.30, y: 0.68}, {x: 0.60, y: 0.66}, {x: 0.64, y: 0.93}, {x: 0.84, y: 0.66}, {x: 0.88, y: 0.80}, {x: 0.08, y: 0.78}, {x: 0.08, y: 0.33},
+      {x: 0.36, y: 0.93}, {x: 0.12, y: 0.93}, {x: 0.70, y: 0.60}, {x: 0.50, y: 0.60}, {x: 0.30, y: 0.08}, {x: 0.63, y: 0.06},
+    ],
+  },
   quarry: 'manticore',
   walls: [
     // the edge of the world
@@ -12246,6 +12265,36 @@ const REACH_LEVEL = {
   ],
   civilians: 0,
 };
+// (Ben, 26 Nov) the scatter. The level names spots (streets, yards, interiors) and a set of starts for the animal; at load every
+// ganger takes a spot nobody else has, hiders prefer interiors and runners the open, and the animal takes a start well away from the crew.
+function scatterEnemies(L){
+  const s = state;
+  const spots = (L.scatter.spots || []).map(p => ({x: p.x * W, y: p.y * H, inside: !!p.inside}));
+  const starts = (L.scatter.starts || []).map(p => ({x: p.x * W, y: p.y * H, label: p.label, inside: !!p.inside}));
+  const c0 = s.squad.find(c => c.alive) || {x: L.player.x * W, y: L.player.y * H};
+  const free = (x, y, r) => openGround(x, y, r + 4) && !s.enemies.some(o => o.alive && Math.hypot(o.x - x, o.y - y) < o.r + r + 10);
+  const shuffle = a => { for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const m = s.enemies.find(e => e.type === 'manticore');
+  if(m && starts.length){
+    const far = starts.filter(p => Math.hypot(p.x - c0.x, p.y - c0.y) > Math.min(W, H) * 0.45);
+    const pick = shuffle(far.length ? far : starts)[0];
+    m.x = pick.x; m.y = pick.y; m.home = {x: pick.x, y: pick.y}; m.startLabel = pick.label;
+    if(pick.inside){   // she came in through a door, so that door is already in pieces
+      let dw = null, dd = 1e9; for(const w of s.walls){ if(!w.door || !(w.hp > 0)) continue; const d = Math.hypot(w.x + w.w / 2 - pick.x, w.y + w.h / 2 - pick.y); if(d < dd){ dd = d; dw = w; } }
+      if(dw && dd < 520){ dw.hp = 0; s.walls = s.walls.filter(w => w !== dw); s.moveGraph = null; if(typeof cnavDirty === 'function') cnavDirty(); }
+    }
+  }
+  const pool = shuffle(spots.slice());
+  for(const e of s.enemies){
+    if(e.side !== 'gang') continue;
+    const want = e.job === 'hide' ? 'inside' : e.job === 'flee' ? 'open' : 'any';
+    let k = pool.findIndex(p => (want === 'any' || (want === 'inside') === p.inside) && free(p.x, p.y, e.r));
+    if(k < 0) k = pool.findIndex(p => free(p.x, p.y, e.r));
+    if(k < 0) continue;
+    const p = pool.splice(k, 1)[0];
+    e.x = p.x; e.y = p.y; e.home = {x: p.x, y: p.y}; e.facing = Math.random() * Math.PI * 2;
+  }
+}
 function reachIdx(){ let i = LEVELS.indexOf(REACH_LEVEL); if(i < 0 && DEV_CRATE){ LEVELS.push(REACH_LEVEL); i = LEVELS.length - 1; } return i; }
 function reachDrop(){ const i = LEVELS.indexOf(REACH_LEVEL); if(i >= 0) LEVELS.splice(i, 1); return i >= 0; }
 function reachTestIdx(){ let i = LEVELS.indexOf(REACH_TEST); if(i < 0 && DEV_CRATE){ LEVELS.push(REACH_TEST); i = LEVELS.length - 1; } return i; }
@@ -13255,8 +13304,8 @@ function manticoreDecide(e){
     const st = e.setting; e.setting = null;
     const ang = Math.atan2(st.y - e.y, st.x - e.x);
     const full = Math.min(MANTICORE.chargeMax, Math.hypot(st.x - e.x, st.y - e.y) + 60);
-    // how far the lane is clear of walls and bodies other than the prey
-    const rects = g.rects.filter(r => !(st.who && st.who.alive && Math.abs(r.x + r.w / 2 - st.who.x) < 2 && Math.abs(r.y + r.h / 2 - st.who.y) < 2));
+    // (Ben, 26 Nov) only high walls stop her: crate stacks go to splinters under her and bodies in the lane are bowled over
+    const padH = e.r + 3, rects = state.walls.filter(w => w.high).map(w => ({x: w.x - padH, y: w.y - padH, w: w.w + padH * 2, h: w.h + padH * 2}));
     let run = 0; for(let k = 10; k <= full; k += 10){ if(!segClear(e.x, e.y, e.x + Math.cos(ang) * k, e.y + Math.sin(ang) * k, rects)) break; run = k; }
     const blocked = run < full - 10;
     e.chargeCd = MANTICORE.chargeCd; e.needs.fatigue += MANTICORE.fatiguePerMove * 1.5;
@@ -13266,9 +13315,9 @@ function manticoreDecide(e){
     if(who){ const dx = who.x - e.x, dy = who.y - e.y; const along = dx * Math.cos(ang) + dy * Math.sin(ang), across = Math.abs(-dx * Math.sin(ang) + dy * Math.cos(ang)); inLane = along > 0 && along <= run + e.r + who.r && across <= MANTICORE.laneHalf + who.r; if(inLane) hitAt = Math.max(0, along - (e.r + who.r + 10)); }
     const endAt = inLane ? hitAt : Math.max(0, run - 4);
     const stop = {x: e.x + Math.cos(ang) * endAt, y: e.y + Math.sin(ang) * endAt};
-    if(inLane){ e.charging = true; doing(sp + 'CHARGING ' + String(who.name || 'PREY').toUpperCase()); return {path: [{x: e.x, y: e.y}, stop], shots: 0, melee: true, target: who, charge: true}; }
-    if(blocked){ e.stunT = MANTICORE.stunTurns; e.stunAt = {x: stop.x, y: stop.y}; doing(sp + 'CHARGING \u00B7 INTO THE WALL'); return {path: [{x: e.x, y: e.y}, stop], shots: 0, charge: true, crash: true}; }
-    doing(sp + 'CHARGING \u00B7 EMPTY AIR'); return {path: [{x: e.x, y: e.y}, stop], shots: 0, charge: true};
+    if(inLane){ e.charging = true; doing(sp + 'CHARGING ' + String(who.name || 'PREY').toUpperCase()); return {path: [{x: e.x, y: e.y}, stop], shots: 0, melee: true, target: who, charge: true, ram: true}; }
+    if(blocked){ e.stunT = MANTICORE.stunTurns; e.stunAt = {x: stop.x, y: stop.y}; doing(sp + 'CHARGING \u00B7 INTO THE WALL'); return {path: [{x: e.x, y: e.y}, stop], shots: 0, charge: true, crash: true, ram: true}; }
+    doing(sp + 'CHARGING \u00B7 EMPTY AIR'); return {path: [{x: e.x, y: e.y}, stop], shots: 0, charge: true, ram: true};
   }
   if(clear && e.chargeCd <= 0 && e.needs.fatigue < MANTICORE.chargeTired && d >= MANTICORE.chargeMin && d <= MANTICORE.chargeMax){
     const ang = Math.atan2(prey.y - e.y, prey.x - e.x);
@@ -16397,7 +16446,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '26 Nov \u00B7 THE REACH, STAGE TWO F';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '26 Nov \u00B7 THE REACH, STAGE TWO G';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -20825,6 +20874,27 @@ function followRun(ent, dt, isPlayer){
       }
     }
 
+    // (Ben, 26 Nov) the Manticore's charge is a battering ram: crate stacks go to splinters, anyone in the lane but her prey is bowled over
+    if(!isPlayer && run.ram){
+      for(const wl of state.walls){
+        if(wl.high) continue;
+        if(!circleRect(ent.x, ent.y, ent.r + 4, wl)) continue;
+        for(const ch of chunksOf(wl)){
+          if(ch.hp > 0 && circleRect(ent.x, ent.y, ent.r + 4, ch)) damageChunk(ch, 999, ent.x, ent.y, false);
+        }
+      }
+      const bowl = (o) => {
+        if(run.ram.hit.has(o)) return; run.ram.hit.add(o);
+        const dmg = ARCHETYPES[ent.type].melee * 0.5;
+        if(o.stats){ const sp2 = applyDamage(o, dmg); addStress(o, dmg * 1.6); o.hitFlash = 1; addPopup(o.x, o.y - o.r - 8, 'BOWLED OVER \u00B7 ' + sp2.flesh.toFixed(1), '#e0483e'); if(o.hp <= 0) charDown(o); else updateHud(); }
+        else { applyDamage(o, dmg); o.hitFlash = 1; addPopup(o.x, o.y - o.r - 8, 'BOWLED OVER \u00B7 ' + dmg.toFixed(0), '#e0483e'); if(o.hp <= 0) kill(o, null); else addStress(o, dmg * 1.6); }
+        const a = Math.atan2(o.y - ent.y, o.x - ent.x) + (Math.random() - 0.5) * 0.6, push = ent.r + o.r + 14;
+        const nx = ent.x + Math.cos(a) * push, ny = ent.y + Math.sin(a) * push;
+        if(openGround(nx, ny, o.r)){ o.x = nx; o.y = ny; }
+      };
+      for(const o of state.enemies){ if(!o.alive || o.ko || o === ent || o === run.ram.target) continue; if(Math.hypot(o.x - ent.x, o.y - ent.y) < o.r + ent.r + 2) bowl(o); }
+      for(const o of state.squad){ if(!o.alive || o.downed || o === run.ram.target) continue; if(Math.hypot(o.x - ent.x, o.y - ent.y) < o.r + ent.r + 2) bowl(o); }
+    }
     // contact: the blade's edge on a dash, the bull's shoulder on a run
     if(isPlayer){
       for(const e of state.enemies){
@@ -21553,8 +21623,9 @@ function processEnemyTurn(realDt){
           path: et.plan.path, seg: 0, traveled: 0,
           dist: pathLen(et.plan.path),
           topSpeed: Math.min(LW,LH) * 0.55 * TUNE.runSpeedMul * TUNE.runStrideMul *
-                    (!e.visible ? 8 : et.plan.patrol ? 0.6 : 1),   // (13 Nov) out of sight, out of the clock: unseen movers run at six times
-          stride: 0, dustAt: 0
+                    (!e.visible ? 8 : et.plan.patrol ? 0.6 : et.plan.ram ? 1.6 : 1),   // (13 Nov) out of sight, out of the clock: unseen movers run at six times; (26 Nov) a ram is quick
+          stride: 0, dustAt: 0,
+          ram: et.plan.ram ? {hit: new Set(), target: et.plan.target || null} : null
         };
         e.moving = true;
         et.stage = 'moving';

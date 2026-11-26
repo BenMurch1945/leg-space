@@ -4933,8 +4933,14 @@ const rt1 = (() => {
   m.x = lwx - 150; m.y = lwy; m.chargeCd = 0; m.charging = false; m.setting = null; m.stunT = 0; prey.x = lwx + 150; prey.y = lwy;
   const clearHigh = G.segClearHigh(m.x, m.y, prey.x, prey.y);
   const cs0 = G.manticoreDecide(m); const setsAtWall = clearHigh && !!cs0 && !!m.setting;
-  const cs1 = G.manticoreDecide(m); const crashes = setsAtWall && !!cs1 && cs1.crash === true && m.stunT === 1 && /INTO THE WALL/.test(m.doing || '') && cs1.path[1].x < lowW.x;
-  const cs2 = G.manticoreDecide(m); const stunned = crashes && !!cs2 && cs2.idle === true && /STUNNED/.test(m.doing || '') && m.stunT === 0;
+  // (26 Nov) a crate stack in the lane does not stop her: she rams through it to the prey and the crates are splinters
+  const preyHp0 = prey.hp;
+  G.state.phase = 'enemy'; G.state.et = {stage: 'next', timer: 0, order: [m], k: -1, wait: 0};
+  pump(400, 16);
+  if(G.state.phase === 'enemy'){ G.state.et = null; G.endEnemyTurn(); }
+  const crashes = setsAtWall && /CHARGING PELL MARROW|TEARING AT/.test(m.doing || '') && G.wallAliveFrac(lowW) < 0.3 && m.stunT === 0;   // the lane ran through the crates
+  const stunned = crashes && (prey.hp < preyHp0 || !prey.alive) && Math.hypot(m.x - prey.x, m.y - prey.y) < m.r + prey.r + 40;   // and the bite landed at the end of it
+  prey.alive = true; prey.hp = prey.maxHp; prey.ko = false;
   // the flinch: a round through the heart of it, or the second dart of a turn
   m.x = G.dims().W * 0.55; m.y = G.dims().H * 0.4; m.chargeCd = 2; prey.x = m.x - 220; prey.y = m.y; m.flinchT = 0; m.flinchAt = -99; m.setting = null;
   const op = G.state.squad[0];
@@ -5015,16 +5021,19 @@ const rr1 = (() => {
   const m = G.manticoreFoe(); const W = G.dims().W, H = G.dims().H;
   const gang = G.state.enemies.filter(e => e.side === 'gang');
   const doors = G.state.walls.filter(w => w.door);
-  const setup = dep && !!m && gang.length === 18 && doors.length === 15 && doors.every(w => Math.max(w.w, w.h) >= 2 * m.r + 20 && w.hp === 30) && G.state.pkg && G.state.pkg.quarry === 'manticore';
+  const setup = dep && !!m && gang.length === 18 && doors.length >= 14 && doors.every(w => Math.max(w.w, w.h) >= 2 * m.r + 20 && w.hp === 30) && G.state.pkg && G.state.pkg.quarry === 'manticore';
   const onGround = [m, ...gang].every(e => !G.state.walls.some(w => G.circleRect(e.x, e.y, e.r, w)));
   // the interiors: a point inside each building, reached from the wreck by an operator; the streets by the Manticore (the biggest body on the map)
   const insides = [[0.185, 0.18], [0.39, 0.13], [0.54, 0.13], [0.75, 0.21], [0.15, 0.52], [0.38, 0.50], [0.625, 0.53], [0.215, 0.81], [0.48, 0.80], [0.765, 0.79]];
+  m.x = W * 0.50; m.y = H * 0.385;   // on the market square for the street checks (the scatter may have put her indoors)
+  const gangHome = gang.map(e => [e.x, e.y]); for(const e of gang){ e.x = W * 0.95; e.y = H * 0.95; }   // nobody standing on a probe point
   const c0 = G.state.squad[0]; const gc = G.buildMoveGraph(c0); const gm = G.buildMoveGraph(m); const from = {x: c0.x, y: c0.y};
   const reach = insides.map(([fx, fy]) => { const p = G.findPath(from, {x: fx * W, y: fy * H}, gc); return !!p && p.length > 1; });
   const reachable = reach.every(Boolean);   // (19 Nov) doors open for hands: the crew can walk into every building
   const fromM = {x: m.x, y: m.y};
-  const shut = insides.every(([fx, fy]) => !G.findPath(fromM, {x: fx * W, y: fy * H}, gm));   // the animal cannot, until it breaks one
+  const shut = insides.filter(([fx, fy]) => !!G.findPath(fromM, {x: fx * W, y: fy * H}, gm)).length <= 1;   // the animal cannot, until it breaks one (her own start may already be open)
   const streets = [[0.20, 0.33], [0.12, 0.68], [0.62, 0.93], [0.88, 0.24], [0.84, 0.47]].every(([fx, fy]) => !!G.findPath(fromM, {x: fx * W, y: fy * H}, gm));   // every quarter of the town, and the wreck
+  gang.forEach((e, i) => { e.x = gangHome[i][0]; e.y = gangHome[i][1]; });
   // three enemy turns, nobody watching, nothing thrown
   let threw = null, turns = 0;
   try{
@@ -5051,9 +5060,26 @@ const rr1 = (() => {
   pump(3, 16);
   const done = G.state.pkg.delivered === true;
   const nodules = G.state.walls.filter(w => !w.high).length >= 40;
+  // (26 Nov) the scatter: a second deploy puts the animal on one of her starts, well away from the crew, and the gang on named spots; not the plan's places
+  const L2 = G.LEVELS[li]; const starts = L2.scatter.starts.map(p => [p.x * W, p.y * H]); const spots = L2.scatter.spots.map(p => [p.x * W, p.y * H]);
+  const near = (pt, list) => list.some(([x, y]) => Math.hypot(x - pt.x, y - pt.y) < 2);
+  const seen = new Set();
+  let scatterOk = true;
+  for(let k = 0; k < 3; k++){
+    G.state.enemies = []; G.checkWin(); G.afterActionReturn && G.afterActionReturn(); G.doShipReset(); G.ship.at = 'gateway';
+    G.deployContract(G.reachIdx(), [0, 1]); G.dismissBrief(); G.dismissSys();
+    const m2 = G.manticoreFoe(); const c2 = G.state.squad[0];
+    const g2 = G.state.enemies.filter(e => e.side === 'gang');
+    if(!near(m2, starts) || Math.hypot(m2.x - c2.x, m2.y - c2.y) <= Math.min(W, H) * 0.45) scatterOk = false;
+    if(!g2.every(e => near(e, spots))) scatterOk = false;
+    if(new Set(g2.map(e => (e.x | 0) + ',' + (e.y | 0))).size !== g2.length) scatterOk = false;
+    if(!g2.every(e => !G.state.walls.some(w => G.circleRect(e.x, e.y, e.r, w)))) scatterOk = false;
+    seen.add((m2.x | 0) + ',' + (m2.y | 0) + '|' + g2.map(e => e.x | 0).join(','));
+  }
+  const scattered = scatterOk && seen.size >= 2;   // three deploys, not all alike
   G.devCrateSet(false);
   G.state.enemies = []; G.checkWin(); G.afterActionReturn && G.afterActionReturn(); G.doShipReset(); G.reachDrop(); G.reachTestDrop();
-  return {ok: listed && setup && onGround && reachable && shut && streets && ran && came && tooSoon && rallyOk && unknownYet && named && bagged && waits && done && nodules, listed, setup, onGround, reachable, reach, shut, streets, ran, threw, turns, came, tooSoon, rallyOk, unknownYet, named, bagged, waits, done, nodules, doing: m && m.doing};
+  return {ok: listed && setup && onGround && reachable && shut && streets && ran && came && tooSoon && rallyOk && unknownYet && named && bagged && waits && done && nodules && scattered, listed, setup, onGround, reachable, reach, shut, streets, ran, threw, turns, came, tooSoon, rallyOk, unknownYet, named, bagged, waits, done, nodules, scattered, doing: m && m.doing};
 })();
 console.log('RR1 the Reach, stage two:', rr1.ok ? 'PASS' : 'FAIL', rr1.ok ? '' : JSON.stringify(rr1));
 
