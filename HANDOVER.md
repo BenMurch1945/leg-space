@@ -188,6 +188,14 @@ Stubbed DOM + canvas evaluates the real script. Key facts:
 - Caveats: the beat makes him a constable for four hours, so he will collar thieves and could be shot as the law; the `deal` on a night the crew is elsewhere still happens (the abstract off-screen day is only the clock, not simulated events); Sable has one line.
 - Test `LV1` (pressures, the badge offer with Marek walking up, the deputy's day and beat, the courier's offer, the deal night watched by the crew and a badge, the report, the arrest, the shift respecting the cells, save/load/reset). 415 tests.
 
+### The Reach, stage two F (26 Nov) · set feet are invulnerable, flinches are the crew's and rare, she
+Ben: with gangers all round, somebody's lucky round flinched her every turn and she never attacked. Three rules:
+- **Feet set, nothing touches her**: `hitEnemy` on a Manticore with `e.setting` returns before damage (popup `SET · IT DOES NOT FEEL IT`). Darts still land and sedate (the mission is sedation), but the two-dart flinch does not fire while set.
+- **Only the crew flinch her**: the crit flinch needs `b.team === 'player'`; the two-dart flinch needs a dart `author` with `stats`. The gang's rounds never do.
+- **Cooldown**: `MANTICORE.flinchCd 3`, `e.flinchAt`; `manticoreCanFlinch(e)` / `manticoreFlinch(e, why)` are the one gate and the one act.
+- **She**: dossier, bio, story and chronicle lines refer to the Manticore as she. Labels stay neutral.
+- Tests: RT1 (gang crit no flinch; set feet take no damage and no flinch; crew crit flinches; two darts flinch, not again inside three turns, again after).
+
 ### The Reach, stage two E (25 Nov) · the telegraphed charge and the flinch
 - **Telegraph**: when the charge conditions hold (prey seen, 140 to 330 px, cooldown off, not tired, straight run clear of HIGH walls only: `highRects`), `manticoreDecide` sets `e.setting {x,y,who,turn}` and returns `{idle, setting: true}`, label `SETTING ITS FEET · CHARGING X NEXT TURN`. `drawBeastDoing` paints the lane (half-width `MANTICORE.laneHalf 34`, length min(chargeMax, distance + 60)) with an upright `CHARGE LANE · NEXT TURN` label.
 - **The run**: next decide, with `e.setting`, it runs the lane it showed: the clear distance is stepped every 10 px against the move rects minus the prey's own rect (crate stacks and bodies count; high walls too). Prey still in the lane (along > 0, across ≤ laneHalf + r) → the old charge plan with the bite (`charging`, ×1.3; a braced operator takes `bracedChargeMul 0.5`, popup `CHARGE · BRACED`). Prey out of the lane → `CHARGING · EMPTY AIR`, it runs to the end. Lane blocked → `CHARGING · INTO THE WALL`, plan `crash: true`; on arrival the moving stage throws dust, noise and `INTO THE WALL · STUNNED`; `e.stunT 1` costs the next turn (`STUNNED · n MORE`). So standing behind a crate stack baits a stun.

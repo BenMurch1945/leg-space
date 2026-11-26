@@ -4936,11 +4936,22 @@ const rt1 = (() => {
   const cs1 = G.manticoreDecide(m); const crashes = setsAtWall && !!cs1 && cs1.crash === true && m.stunT === 1 && /INTO THE WALL/.test(m.doing || '') && cs1.path[1].x < lowW.x;
   const cs2 = G.manticoreDecide(m); const stunned = crashes && !!cs2 && cs2.idle === true && /STUNNED/.test(m.doing || '') && m.stunT === 0;
   // the flinch: a round through the heart of it, or the second dart of a turn
-  m.x = G.dims().W * 0.55; m.y = G.dims().H * 0.4; m.chargeCd = 2; prey.x = m.x - 220; prey.y = m.y; m.flinchT = 0;
+  m.x = G.dims().W * 0.55; m.y = G.dims().H * 0.4; m.chargeCd = 2; prey.x = m.x - 220; prey.y = m.y; m.flinchT = 0; m.flinchAt = -99; m.setting = null;
+  const op = G.state.squad[0];
+  // (26 Nov) the gang's lucky round does nothing; the crew's crit does; with her feet set nothing does, not even damage
   G.hitEnemy(m, {x: m.x - 5, y: m.y, vx: 400, vy: 0, maxSpeed: 400, dmg: 3, team: 'enemy', owner: prey, r: 3, pierced: null, flown: 0});
-  const flinchHit = m.flinchT === 1 && /FLINCHING/.test(m.doing || '');
+  const gangNo = m.flinchT === 0;
+  const hpS = m.hp; m.setting = {x: prey.x, y: prey.y, who: prey, turn: G.state.turn};
+  G.hitEnemy(m, {x: m.x - 5, y: m.y, vx: 400, vy: 0, maxSpeed: 400, dmg: 3, team: 'player', owner: op, r: 3, pierced: null, flown: 0});
+  const setNo = m.flinchT === 0 && m.hp === hpS && !!m.setting;
+  m.setting = null;
+  G.hitEnemy(m, {x: m.x - 5, y: m.y, vx: 400, vy: 0, maxSpeed: 400, dmg: 3, team: 'player', owner: op, r: 3, pierced: null, flown: 0});
+  const flinchHit = gangNo && setNo && m.flinchT === 1 && /FLINCHING/.test(m.doing || "") && m.hp < hpS;
   const fd1 = G.manticoreDecide(m); const givesGround = flinchHit && !!fd1 && fd1.flee === true && !!fd1.path && fd1.path[fd1.path.length - 1].x > m.x && /GIVING GROUND/.test(m.doing || '');
-  m.flinchT = 0; m.sed = 0; G.state.turn = 9; G.addSed(m, 10); const oneDart = m.flinchT === 0; G.addSed(m, 10); const twoDarts = m.flinchT === 1 && /TWO DARTS/.test(m.doing || '');
+  m.flinchT = 0; m.sed = 0; G.state.turn = 9; m.flinchAt = -99; G.addSed(m, 10, op); const oneDart = m.flinchT === 0; G.addSed(m, 10, op); const twoDarts = m.flinchT === 1 && /TWO DARTS/.test(m.doing || '') && m.flinchAt === 9;
+  // the cooldown: not again for three turns
+  m.flinchT = 0; m.sed = 0; G.state.turn = 10; G.addSed(m, 10, op); G.addSed(m, 10, op); const cooled = m.flinchT === 0;
+  m.sed = 0; G.state.turn = 12; G.addSed(m, 10, op); G.addSed(m, 10, op); const again = m.flinchT === 1;
   m.flinchT = 0; m.sed = 0; m.charging = false; m.setting = null;
   G.state.bullets = [];
   const second = gang.find(e => e.alive && e !== prey); second.x = m.x + 200; second.y = m.y + 20;
@@ -4990,7 +5001,7 @@ const rt1 = (() => {
   const quick = G.etWait({visible: false}, 0.5) <= 0.04 && G.etWait({visible: true}, 0.5) === 0.5;
   G.devCrateSet(false);
   G.state.enemies = []; G.checkWin(); G.afterActionReturn && G.afterActionReturn(); G.doShipReset(); G.reachTestDrop();
-  return {ok: listed && setup && sides && bite && feeds && roused && afterShooter && aimsBeast && shotBeast && hides && runs && bit1 && broke && capped && next && charges && past && crashes && stunned && givesGround && oneDart && twoDarts && spines && oneNoSpines && doorRun && doorGone && blind && smells && hears && strideOk && slinks && liesUp && reselected && strode && quick, listed, setup, sides, bite, feeds, roused, afterShooter, aimsBeast, shotBeast, hides, runs, bit1, broke, capped, next, charges, past, crashes, stunned, givesGround, oneDart, twoDarts, spines, oneNoSpines, doorRun, doorGone, blind, smells, hears, strideOk, slinks, liesUp, reselected, strode, quick};
+  return {ok: listed && setup && sides && bite && feeds && roused && afterShooter && aimsBeast && shotBeast && hides && runs && bit1 && broke && capped && next && charges && past && crashes && stunned && givesGround && oneDart && twoDarts && cooled && again && spines && oneNoSpines && doorRun && doorGone && blind && smells && hears && strideOk && slinks && liesUp && reselected && strode && quick, listed, setup, sides, bite, feeds, roused, afterShooter, aimsBeast, shotBeast, hides, runs, bit1, broke, capped, next, charges, past, crashes, stunned, givesGround, oneDart, twoDarts, cooled, again, spines, oneNoSpines, doorRun, doorGone, blind, smells, hears, strideOk, slinks, liesUp, reselected, strode, quick};
 })();
 console.log('RT1 the Reach, stage one:', rt1.ok ? 'PASS' : 'FAIL', rt1.ok ? '' : JSON.stringify(rt1));
 // RR1 (Ben, 19 Nov) Rusk's Reach, stage two: the settlement loads, ten buildings with doors the animal fits through, every Blackhook standing
