@@ -4989,7 +4989,7 @@ function layout(){
       side: e.side || undefined, job: e.job || undefined, faction: e.side === 'gang' ? 'THE BLACKHOOKS' : undefined,   // (12 Nov) sides and jobs from the plan
     };
   });
-  for(const e of s.enemies){ if(e.side === 'gang') e.alert = 'alerted'; if(e.type === 'manticore') manticoreInit(e); const dn = (L.enemies || []).find(d => d.name && Math.abs(d.x * W - e.home.x) < 1 && Math.abs(d.y * H - e.home.y) < 1); if(dn && !e.name) e.name = dn.name; }
+  for(const e of s.enemies){ if(e.side === 'gang'){ e.alert = 'suspicious'; e.jumpy = true; } if(e.type === 'manticore') manticoreInit(e); const dn = (L.enemies || []).find(d => d.name && Math.abs(d.x * W - e.home.x) < 1 && Math.abs(d.y * H - e.home.y) < 1); if(dn && !e.name) e.name = dn.name; }
   for(const w of s.walls) if(w.door && w.hp == null){ w.hp = w.maxHp = 30; }
   if(L.scatter) scatterEnemies(L);   // (Ben, 26 Nov) the settlement is never the same twice: the animal and the people start somewhere else
   if(s._chests && s._chests.length){ for(const ch of s._chests) s.enemies.push(ch); s._chests = null; }   // the strongboxes go down after the people
@@ -9048,11 +9048,13 @@ const ALERT_ARC_MUL   = {unaware: 1, suspicious: 1.15, alerted: 1.3};
 const REAR_BLIND = 150 * DEG;      // the last 60 degrees at the back: nobody feels it
 const PERIPH_RADIUS = 110;         // close enough that the corner of the eye works
 
+// (Ben, 27 Nov) jumpy is the condition of the town (wide eyes, quick trigger, with an animal loose); alerted is knowing where YOU are.
+// A jumpy enemy sees as far and as wide as an alerted one, but the cone only goes red when they have seen an operator.
 function enemyVisionRange(e){
-  return ARCHETYPES[e.type].vision * (ALERT_RANGE_MUL[e.alert] || 1);
+  return ARCHETYPES[e.type].vision * (e.jumpy ? ALERT_RANGE_MUL.alerted : (ALERT_RANGE_MUL[e.alert] || 1));
 }
 function visionArcHalf(e){
-  return Math.min(145*DEG, VISION_HALF * (ALERT_ARC_MUL[e.alert] || 1));
+  return Math.min(145*DEG, VISION_HALF * (e.jumpy ? ALERT_ARC_MUL.alerted : (ALERT_ARC_MUL[e.alert] || 1)));
 }
 
 // which enemies can the squad currently see?
@@ -10425,7 +10427,7 @@ function drawEnemyCones(){
   coneCtx.clearRect(vc.x, vc.y, vc.w, vc.h);
   let any = false;
   // calm steel, wary amber, hunting red, later passes win where they overlap
-  const CONE_COLORS = {unaware: 'rgb(122,138,160)', suspicious: 'rgb(224,163,62)', alerted: 'rgb(224,72,62)'};
+  const CONE_COLORS = {unaware: 'rgb(122,138,160)', suspicious: 'rgb(224,163,62)', jumpy: 'rgb(236,118,40)', alerted: 'rgb(224,72,62)'};   // (27 Nov) jumpy: hot amber, watching for anything; red still means they have you
 
   // the hunters first, gate-free: a short red cone burning at the shoulder, gone by the tip
   for(const e of state.enemies){
@@ -10451,7 +10453,7 @@ function drawEnemyCones(){
       any = true;
       const pts = conePolyAt(e);
       conePolys.set(e, pts);
-      coneCtx.fillStyle = CONE_COLORS[pass];
+      coneCtx.fillStyle = CONE_COLORS[(pass === 'suspicious' && e.jumpy) ? 'jumpy' : pass];
       coneCtx.beginPath();
       coneCtx.moveTo(e.x, e.y);
       for(const p of pts) coneCtx.lineTo(p.x, p.y);
@@ -15511,7 +15513,39 @@ function quarryHudSync(){
   if(ln.innerHTML !== txt) ln.innerHTML = txt;
   if(el.style.display !== 'block') el.style.display = 'block';
 }
+// (Ben, 27 Nov) the tells. An eye over anyone who can see an operator this instant; a faded ? over anyone holding a last-known
+// position of you and nothing fresher. The cone says the mood; this says who has you.
+function drawContactTells(){
+  if(state.shipDeck && !state.deckCombat) return;
+  const z = Math.max(0.5, Math.min(2, cam.zoom || 1)), fs = 11 / z;
+  const live = state.squad.filter(c => c.alive && !c.downed && !c.ko);
+  for(const e of (state.enemies || [])){
+    if(!e.alive || e.ko || !e.visible || e.cache || e.lurk || e.type === 'manticore' || e.type === 'qilin') continue;
+    let sees = null;
+    for(const c of live){ if(canPerceive(e, c)){ sees = c; break; } }
+    const mt = !sees ? memTarget(e) : null;
+    const ghost = mt && mt.ghost;
+    if(!sees && !ghost) continue;
+    ctx.save();
+    const y0 = e.y - e.r - 14 / z;
+    if(sees){
+      // the eye: two arcs and a pupil, hot
+      const w = 9 / z, h = 5 / z;
+      ctx.strokeStyle = '#ff6a5a'; ctx.fillStyle = '#ff6a5a'; ctx.lineWidth = 1.6 / z;
+      ctx.beginPath(); ctx.moveTo(e.x - w, y0); ctx.quadraticCurveTo(e.x, y0 - h * 1.6, e.x + w, y0); ctx.quadraticCurveTo(e.x, y0 + h * 1.6, e.x - w, y0); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(e.x, y0, 2.2 / z, 0, Math.PI * 2); ctx.fill();
+      ctx.font = "800 " + fs.toFixed(1) + "px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+      ctx.fillText('SEES ' + String(sees.name || '').toUpperCase(), e.x, y0 - h * 1.6 - 4 / z);
+    }else{
+      ctx.fillStyle = 'rgba(240,200,140,.55)';
+      ctx.font = "800 " + (fs * 1.2).toFixed(1) + "px 'Space Grotesk',sans-serif"; ctx.textAlign = 'center';
+      ctx.fillText('?', e.x, y0 - 2 / z);
+    }
+    ctx.restore();
+  }
+}
 function drawBeastDoing(){
+  drawContactTells();
   quarryHudSync();
   for(const e of (state.enemies || [])){
     if(!e.alive || e.type !== 'manticore') continue;
@@ -16446,7 +16480,7 @@ function castPlacements(){
 // weight for the draw; req {dayMin, lawMin, lawMax, rep:[{fac,min,max}]}; excludes; cast that must be alive;
 // pinned() = already in play across visits; done() = spent for this run. The draw is the ONLY dice here,
 // and it is seeded: the same visit always rolls the same situations.
-const BUILD = '26 Nov \u00B7 THE REACH, STAGE TWO G';   // stamped in the landing log so a stale file is caught in one glance
+const BUILD = '27 Nov \u00B7 THE REACH, STAGE TWO H';   // stamped in the landing log so a stale file is caught in one glance
 const SITUATIONS = {
   wrongaddress: {name: 'Wrong Address', kind: 'ambient', weight: 2, cast: ['Erina Jones']},
   crate: {
@@ -21314,7 +21348,7 @@ function gangReinforce(){
     if(!openGround(x, y, 12) || bodyNear(x, y)){ x = sp.x; y = sp.y; for(let k = 0; k < 10 && (!openGround(x, y, 12) || bodyNear(x, y)); k++){ const a2 = (k / 10) * Math.PI * 2; x = sp.x + Math.cos(a2) * 70; y = sp.y + Math.sin(a2) * 70; } }
     const e = foeAt(types[Math.floor(Math.random() * types.length)], x, y);
     e.side = 'gang'; e.job = 'hunt'; e.faction = 'THE BLACKHOOKS'; e.name = names.length ? names.splice(Math.floor(Math.random() * names.length), 1)[0] : 'A Blackhook';
-    e.alert = 'suspicious'; e.rally = rally ? {x: rally.x, y: rally.y} : null;
+    e.alert = 'suspicious'; e.jumpy = true; e.rally = rally ? {x: rally.x, y: rally.y} : null;
     s.enemies.push(e); made.push(e);
   }
   s.reinforced = (s.reinforced || 0) + made.length;
